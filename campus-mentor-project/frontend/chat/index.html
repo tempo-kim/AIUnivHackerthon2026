@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>선배와 대화</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="chat-app">
+    <header class="mentor-card">
+      <div class="avatar" id="mentor-avatar" aria-hidden="true"></div>
+      <div class="mentor-info">
+        <h1 id="mentor-name"></h1>
+        <p class="mentor-meta" id="mentor-meta"></p>
+        <p class="mentor-intro" id="mentor-intro"></p>
+      </div>
+    </header>
+
+    <main class="messages" id="messages" aria-live="polite"></main>
+
+    <form class="composer" id="composer">
+      <textarea id="question" rows="1" placeholder="선배에게 궁금한 점을 물어보세요" aria-label="질문 입력"></textarea>
+      <button type="submit" id="send-btn" disabled>전송</button>
+    </form>
+  </div>
+
+  <script src="mock-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
