@@ -1,83 +1,166 @@
-from fastapi import FastAPI
+"""매칭 API. 고민 추출(extractor/stub)과 선배 CSV 매칭을 한 서버에서 제공한다."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional
+from fastapi.staticfiles import StaticFiles
 
-# AI 추출 함수 불러오기
 from ai.extractor import extract_concern_info
+from ai.stub_extract import stub_extract
+from app.schemas import (
+    ChoiceContext,
+    Extraction,
+    MatchRequest,
+    MatchResponse,
+    MentorImportRequest,
+    MentorMatch,
+    MentorOut,
+)
+from matching.matcher import match_mentors
+from services.mentors import store
 
-app = FastAPI()
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
-# 💡 [필수] 프론트엔드 통신 허용 (CORS)
+app = FastAPI(title="뻔뻔하게 매칭")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 1. 프론트엔드가 POST /api/match 로 보낼 데이터 구조 정의
-class MatchRequest(BaseModel):
-    text: Optional[str] = None       # 후배 고민글 문장
-    user_id: Optional[str] = None    # (선택) 유저 ID
-    # 프론트엔드에서 추가로 보내는 값이 있다면 여기에 필드를 추가하면 됩니다.
 
-# -------------------------------------------------------------
-# [엔드포인트 1] Health Check (프론트: MentorApi.health())
-# -------------------------------------------------------------
+def _str_list(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    for item in value:
+        text = str(item).strip()
+        if text and text not in out:
+            out.append(text)
+    return out
+
+
+def _llm_failed(raw: dict) -> bool:
+    situation = str(raw.get("situation") or "")
+    return situation in {"정보 추출 실패", "JSON 파싱 에러"} and not _str_list(
+        raw.get("interests")
+    ) and not _str_list(raw.get("help_fields"))
+
+
+def _from_llm(raw: dict) -> Extraction:
+    return Extraction(
+        interests=_str_list(raw.get("interests")),
+        situation=str(raw.get("situation") or "").strip(),
+        help_fields=_str_list(raw.get("help_fields")),
+    )
+
+
+def _concern_text(concern_text: str | None, choice: ChoiceContext | None) -> str:
+    parts: list[str] = []
+    body = (concern_text or "").strip()
+    if body:
+        parts.append(body)
+    if choice:
+        hint = " · ".join(
+            bit.strip()
+            for bit in (choice.status, choice.reason, choice.detail)
+            if bit and bit.strip()
+        )
+        if hint and hint not in body:
+            parts.append(hint)
+    return "\n".join(parts)
+
+
+def _extract(payload: MatchRequest) -> tuple[Extraction, str]:
+    if payload.extraction is not None:
+        return payload.extraction, "client"
+
+    text = _concern_text(payload.concern_text, payload.choice)
+    if not text:
+        raise HTTPException(
+            status_code=400,
+            detail="concern_text 또는 extraction이 필요합니다.",
+        )
+
+    if payload.use_llm and os.getenv("OPENAI_API_KEY", "").strip():
+        raw = extract_concern_info(text)
+        if not _llm_failed(raw):
+            return _from_llm(raw), "llm"
+
+    return Extraction(**stub_extract(text)), "stub"
+
+
+def _match_response(payload: MatchRequest) -> MatchResponse:
+    extraction, source = _extract(payload)
+    ranked = match_mentors(
+        interests=extraction.interests,
+        help_fields=extraction.help_fields,
+        situation=extraction.situation,
+        mentors=store.as_matching_rows(),
+        top_k=payload.top_k,
+    )
+    mentor_source = store.source_path.name if store.source_path else ""
+    return MatchResponse(
+        extraction=extraction,
+        matches=[MentorMatch(**row) for row in ranked],
+        extraction_source=source,
+        mentor_source=mentor_source,
+    )
+
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
 
-# -------------------------------------------------------------
-# [엔드포인트 2] 멘토 목록 조회 (프론트: MentorApi.listMentors())
-# -------------------------------------------------------------
-@app.get("/api/mentors")
+
+@app.get("/api/mentors", response_model=list[MentorOut])
 def get_mentors():
-    # 해커톤용 가짜(Dummy) 멘토 데이터 목록
-    return [
-        {
-            "id": 1,
-            "name": "김선배",
-            "major": "컴퓨터공학과",
-            "interests": ["데이터 분석", "진로 탐색"],
-            "introduction": "데이터 분석 진로 및 공부 방법 상담 환영합니다!"
-        },
-        {
-            "id": 2,
-            "name": "이선배",
-            "major": "인공지능학과",
-            "interests": ["AI", "백엔드"],
-            "introduction": "인공지능 모델링 및 백엔드 개발 관련 팁 드립니다."
-        }
-    ]
+    return [MentorOut(**mentor.to_dict()) for mentor in store.list()]
 
-# -------------------------------------------------------------
-# [엔드포인트 3] AI 매칭 및 조건 추출 (프론트: MentorApi.match(body))
-# -------------------------------------------------------------
-@app.post("/api/match")
+
+@app.post("/api/mentors/import")
+def import_mentors(payload: MentorImportRequest):
+    try:
+        count = store.replace_from_csv_text(payload.csv_text, save=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"count": count, "mentor_source": store.source_path.name if store.source_path else ""}
+
+
+@app.post("/api/mentors/reload")
+def reload_mentors():
+    try:
+        count = store.reload()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="선배 CSV를 찾을 수 없습니다.") from exc
+    return {"count": count, "mentor_source": store.source_path.name if store.source_path else ""}
+
+
+@app.post("/api/extract", response_model=Extraction)
+def extract_concern(payload: MatchRequest):
+    extraction, _source = _extract(payload)
+    return extraction
+
+
+@app.post("/api/match", response_model=MatchResponse)
 def match_mentor(payload: MatchRequest):
-    print("\n========================================")
-    print(f"📩 [프론트엔드 수신 데이터]: {payload}")
-    print("========================================\n")
+    return _match_response(payload)
 
-    # 1. 프론트엔드가 보내준 고민글 텍스트 추출
-    user_text = payload.text or "고민글 내용이 전달되지 않았습니다."
 
-    # 2. 내 AI extractor.py 함수 실행해서 분석 결과 받아오기
-    ai_result = extract_concern_info(user_text)
-
-    # 3. 프론트엔드에 AI 결과 + 매칭된 결과 반환
-    return {
-        "status": "success",
-        "extracted_info": ai_result,  # AI가 추출한 interests, situation, help_fields
-        "recommended_mentors": [       # 추천 멘토 결과 (가짜 데이터 연결)
-            {
-                "id": 1,
-                "name": "김선배",
-                "match_score": 95,
-                "reason": "데이터 분석 진로 고민에 최적화된 멘토입니다."
-            }
-        ]
-    }
+if FRONTEND_DIR.is_dir():
+    app.mount(
+        "/frontend",
+        StaticFiles(directory=FRONTEND_DIR, html=True),
+        name="frontend",
+    )
