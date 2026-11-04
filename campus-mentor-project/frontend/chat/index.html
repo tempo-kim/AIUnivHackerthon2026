@@ -3,20 +3,36 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>선배와 대화</title>
+  <title>뻔뻔하게</title>
+  <link rel="icon" href="assets/logo.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="chat-app">
+    <!-- 첫 진입 로딩 -->
+    <section class="loading-view" id="loading-view">
+      <img class="loading-logo" src="assets/logo.png" alt="뻔뻔하게" />
+      <div class="spinner" aria-hidden="true"></div>
+      <p role="status" id="loading-text">선배와 연결중입니다</p>
+    </section>
+
     <section class="invalid-view" id="invalid-view" hidden>
+      <img class="invalid-logo" src="assets/logo.png" alt="뻔뻔하게" />
       <h1>대화방을 찾을 수 없어요</h1>
       <p>주소를 <code>index.html?role=junior&amp;mentor=1</code> 또는 <code>index.html?role=senior&amp;mentor=1</code> 형식으로 열어 주세요.</p>
     </section>
 
     <section class="chat-view" id="chat-view" hidden>
-      <div class="role-bar">
-        <span class="role-badge" id="role-badge"></span>
-        <button type="button" class="reset-btn" id="reset-btn">대화 초기화</button>
+      <div class="top-bar">
+        <img class="brand-logo" src="assets/logo.png" alt="" />
+        <div class="brand-text">
+          <strong class="brand-name">뻔뻔하게</strong>
+          <span class="role-badge" id="role-badge"></span>
+        </div>
+        <nav class="top-menu" aria-label="대화 메뉴">
+          <button type="button" class="menu-btn" id="report-btn">신고하기</button>
+          <button type="button" class="menu-btn danger" id="end-btn">대화 종료하기</button>
+        </nav>
       </div>
 
       <header class="mentor-card">
@@ -27,10 +43,12 @@
           <p class="mentor-meta" id="partner-meta"></p>
           <p class="mentor-intro" id="partner-intro"></p>
         </div>
+        <button type="button" class="reset-btn" id="reset-btn" title="테스트용: 메시지와 종료 상태를 모두 지움">초기화</button>
       </header>
 
       <main class="messages" id="messages" aria-live="polite"></main>
 
+      <p class="notice-banner" id="notice-banner" role="status" hidden></p>
       <p class="error-banner" id="error-banner" role="alert" hidden></p>
 
       <form class="composer" id="composer">
@@ -38,6 +56,46 @@
         <button type="submit" id="send-btn" disabled>전송</button>
       </form>
     </section>
+
+    <!-- 신고 창 -->
+    <div class="modal-backdrop" id="report-modal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="report-title">
+        <form id="report-form" novalidate>
+          <h2 id="report-title">신고하기</h2>
+          <fieldset class="report-reasons">
+            <legend>신고 사유</legend>
+            <label><input type="radio" name="reason" value="욕설·비방" /> 욕설·비방</label>
+            <label><input type="radio" name="reason" value="개인정보 요구" /> 개인정보 요구</label>
+            <label><input type="radio" name="reason" value="불쾌한 표현" /> 불쾌한 표현</label>
+            <label><input type="radio" name="reason" value="기타" /> 기타</label>
+          </fieldset>
+          <label class="field-label" for="report-details">상세 내용</label>
+          <textarea id="report-details" rows="4" placeholder="어떤 상황이었는지 알려 주세요"></textarea>
+          <p class="form-error" id="report-error" role="alert" hidden></p>
+          <div class="modal-actions">
+            <button type="button" class="secondary-btn" id="report-cancel">취소</button>
+            <button type="submit" class="primary-btn" id="report-submit">제출</button>
+          </div>
+        </form>
+        <div class="report-done" id="report-done" hidden>
+          <p class="modal-message">신고가 접수되었습니다</p>
+          <div class="modal-actions">
+            <button type="button" class="primary-btn" id="report-close">확인</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 상대의 대화 종료 요청 -->
+    <div class="modal-backdrop" id="end-request-modal" hidden>
+      <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="end-request-text">
+        <p class="modal-message" id="end-request-text"></p>
+        <div class="modal-actions">
+          <button type="button" class="secondary-btn" id="end-decline">거절</button>
+          <button type="button" class="primary-btn" id="end-agree">동의</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="mock-data.js"></script>
