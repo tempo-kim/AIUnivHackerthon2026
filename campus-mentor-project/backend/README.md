@@ -1,22 +1,32 @@
-# Backend
+# Backend — 매칭까지 (채팅 제외)
 
-| 경로 | 역할 |
-|------|------|
-| `app/` | FastAPI 서버 (`/health`, `/api/match`) |
-| `matching/` | 선배 CSV 규칙 매칭 |
-| `ai/stub_extract.py` | 키 없이 쓰는 임시 추출 (데모용) |
-| `examples/` | 프론트 연동용 요청·응답 JSON 예시 |
-| `scripts/smoke_match.ps1` | 로컬 스모크 테스트 |
+## 역할
 
-실제 LLM 추출기(`extractor.py`)는 `AI/extraction` 브랜치에서 작업 중입니다. 이 브랜치는 그 파일을 덮어쓰지 않습니다.
+| 단계 | 백엔드 |
+|------|--------|
+| 선배 데이터 | Syntitan 정리본 CSV 로드 (`/api/mentors`, import/reload) |
+| 고민 분석 | LLM 추출 (`extractor.py`), 키 없으면 stub |
+| 매칭 | 규칙 점수 (`matching/matcher.py`) → top_k |
+| 채팅 | 추후 |
 
-프론트엔드 파일은 수정하지 않습니다.
+## 실행
 
-## 프론트 연동 요약
+```bash
+cd campus-mentor-project/backend
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env   # OpenRouter 키 있으면 입력
+uvicorn app.main:app --reload --port 8000
+```
 
-- Base URL (로컬): `http://127.0.0.1:8000`
-- `POST /api/match`
-  - body A: `{ "concern_text": "...", "top_k": 3 }`
-  - body B: `{ "extraction": { "interests": [], "situation": "", "help_fields": [] }, "top_k": 3 }`
-- 응답: `extraction`, `matches[]`(`mentor_id`, `score`, `reasons`, ...), `extraction_source`(`stub`|`llm`|`client`)
-- 예시 파일: `examples/match.request.json`, `examples/match.response.example.json`
+- 헬스: `GET /health`
+- 선배 목록: `GET /api/mentors`
+- 매칭: `POST /api/match`
+- Syntitan CSV 반영: `POST /api/mentors/import` `{ "csv_text": "..." }`
+- 프론트: http://127.0.0.1:8000/frontend/main.html
+
+## LLM
+
+`.env`에 `OPENAI_API_KEY` (+ OpenRouter면 `OPENAI_BASE_URL`)가 있으면 추출에 LLM을 씁니다.  
+없으면 키워드 stub으로 데모 가능합니다.
