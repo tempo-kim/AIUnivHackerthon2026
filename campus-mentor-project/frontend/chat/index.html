@@ -8,24 +8,41 @@
 </head>
 <body>
   <div class="chat-app">
-    <header class="mentor-card">
-      <div class="avatar" id="mentor-avatar" aria-hidden="true"></div>
-      <div class="mentor-info">
-        <h1 id="mentor-name"></h1>
-        <p class="mentor-meta" id="mentor-meta"></p>
-        <p class="mentor-intro" id="mentor-intro"></p>
+    <section class="invalid-view" id="invalid-view" hidden>
+      <h1>대화방을 찾을 수 없어요</h1>
+      <p>주소를 <code>index.html?role=junior&amp;mentor=1</code> 또는 <code>index.html?role=senior&amp;mentor=1</code> 형식으로 열어 주세요.</p>
+    </section>
+
+    <section class="chat-view" id="chat-view" hidden>
+      <div class="role-bar">
+        <span class="role-badge" id="role-badge"></span>
+        <button type="button" class="reset-btn" id="reset-btn">대화 초기화</button>
       </div>
-    </header>
 
-    <main class="messages" id="messages" aria-live="polite"></main>
+      <header class="mentor-card">
+        <div class="avatar" id="partner-avatar" aria-hidden="true"></div>
+        <div class="mentor-info">
+          <p class="partner-label">대화 상대</p>
+          <h1 id="partner-name"></h1>
+          <p class="mentor-meta" id="partner-meta"></p>
+          <p class="mentor-intro" id="partner-intro"></p>
+        </div>
+      </header>
 
-    <form class="composer" id="composer">
-      <textarea id="question" rows="1" placeholder="선배에게 궁금한 점을 물어보세요" aria-label="질문 입력"></textarea>
-      <button type="submit" id="send-btn" disabled>전송</button>
-    </form>
+      <main class="messages" id="messages" aria-live="polite"></main>
+
+      <p class="error-banner" id="error-banner" role="alert" hidden></p>
+
+      <form class="composer" id="composer">
+        <textarea id="message-input" rows="1" aria-label="메시지 입력"></textarea>
+        <button type="submit" id="send-btn" disabled>전송</button>
+      </form>
+    </section>
   </div>
 
   <script src="mock-data.js"></script>
+  <script src="chat-store.js"></script>
+  <script src="api.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
