@@ -2,20 +2,18 @@
 
 ## 화면
 
-| 경로 | 설명 |
-|------|------|
-| `main.html` | 팀 플로우: 학적·이용 이유·수업·선배 유형(1~5점) 선택 후 `/api/match` |
-| `concern/` | 고민 문장 입력 → LLM/stub 분석 → 매칭 (백엔드 매칭 플로우) |
-| `result/` | 매칭 결과 표시 |
-| `chat/` | 대화 프로토타입 |
+- `main.html`: 후배의 학적과 이용 이유 선택, 고민 작성, 추천 요청. 선배 진입 버튼에서 기본 정보와 서술형 소개를 입력하고 확인할 수 있습니다.
+- `result/`: 백엔드 추천 결과 표시.
+- `choice/`: 채팅 화면과 연결된 예시 선배 선택 화면. 실제 추천 결과와는 아직 연결되지 않았습니다.
+- `chat/`: 예시 대화 화면.
+- `concern/`: 별도로 만든 고민 입력 화면.
 
-하단 내비에서 **고민 입력**으로 들어가면 문장 기반 매칭을 쓸 수 있습니다.
+## 메인 화면 연동
 
-## 실행
+메인 화면은 학적과 이용 이유를 선택하고, 자동 문장 뒤에 자유롭게 내용을 입력합니다. 자동 문장과 추가 내용을 합쳐 `POST /api/match`에 `concern_text`로 전송하며 `use_llm: true`를 전달합니다. 입력된 학적과 이용 이유는 `ppunppun-choice`, 전체 문장은 `ppunppun-concern`, 응답은 `ppunppun-match`로 `sessionStorage`에 저장합니다. 성공 시 실제 응답을 표시하는 `result/`로 이동합니다.
 
-```bash
-cd campus-mentor-project/backend
-uvicorn app.main:app --reload --port 8000
-```
+백엔드에 LLM 키가 설정되지 않았거나 백엔드의 처리 방식에 따라 임시 추출 결과가 사용될 수 있습니다. 서버 실행은 `backend/README.md`를 참고하세요. 결과 화면과 예시 선택·채팅 화면은 아직 실제 선배 ID로 이어지지 않았습니다.
 
-http://127.0.0.1:8000/frontend/main.html
+## 선배 소개 프로토타입
+
+선배는 닉네임, 전공, 학년 또는 졸업 여부와 자유 서술형 소개를 입력합니다. 확인 화면의 임시 저장은 브라우저 탭의 `sessionStorage` 키 `ppunppun-senior-draft`에만 저장하며, 서버 등록이나 실제 매칭에는 반영되지 않습니다. 테스트용 JSON 파일 내려받기는 브라우저의 다운로드 설정에 따라 저장됩니다. `mentor-profile.json`에는 `schema_version`, `display_name`, `major`, `status`, `introduction`이 들어갑니다. 이는 프론트엔드 테스트 형식으로, 백엔드 등록 API 형식이 아니므로 백엔드 담당자와 필드 및 등록 방식을 합의해야 합니다. 가상 정보로 테스트하세요.
