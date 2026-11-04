@@ -1,35 +1,27 @@
-# 캠퍼스 선배 매칭 MVP
+# 캠퍼스 선배 매칭 MVP (뻔뻔하게)
 
-이 폴더는 팀의 역할과 파일 위치를 정하기 위한 시작 틀입니다. 실행 가능한 앱은 아직 포함하지 않습니다. 프론트엔드와 백엔드 기술 스택은 팀에서 확정합니다.
+후배가 고민을 입력하면 LLM이 분석하고, Syntitan으로 정리된 선배 데이터와 매칭합니다.  
+**채팅은 다음 단계**에서 연결합니다.
 
-## 폴더와 담당
+## 폴더
 
 ```text
-frontend/          화면과 사용자 입력 (프론트엔드)
-backend/ai/        LLM 호출과 고민 조건 추출 (AI)
-backend/matching/  조건 비교와 선배 추천 (백엔드)
-data/              개인정보가 없는 가상 선배 데이터
+frontend/     시작 → 고민 입력 → 매칭 결과 (chat은 추후)
+backend/      FastAPI + LLM 추출 + 매칭
+data/         mentors.cleaned.csv (Syntitan 정리본), raw/
 ```
 
-프론트엔드가 고민을 입력하면 백엔드가 AI를 호출하고, AI 결과를 매칭 로직에 전달해 추천 결과를 반환하는 구조를 계획합니다. 파일명과 인터페이스는 실제 기술 스택을 선택한 뒤 팀에서 합의합니다.
+## 빠른 실행
 
-## 브랜치 예시
+```bash
+cd campus-mentor-project/backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
 
-- `front/input`: 입력 화면
-- `front/result`: 결과 화면
-- `back/matching`: 추천 로직
-- `ai/extraction`: LLM 조건 추출
-- `data/mentors`: 가상 선배 데이터
+http://127.0.0.1:8000/frontend/main.html
 
-각 브랜치는 `main`에서 생성하고, PR을 통해 검토 후 합칩니다. `/`는 브랜치 이름의 일부이며 상위 브랜치를 만들지 않습니다.
+## 브랜치
 
-## 협업 전 정할 것
-
-1. 프론트엔드·백엔드 기술 스택과 담당자
-2. 고민 분석 결과 및 선배 프로필의 공통 필드와 허용 값
-3. API 요청과 응답 형식, 오류 처리 방식
-4. Syntitan의 실제 제공 기능 및 사용 절차
-
-## 보안
-
-API 키는 코드나 GitHub에 올리지 않습니다. `.env`는 개인 PC나 배포 플랫폼의 비밀 설정에 두고, 실제 개인정보와 동의받지 않은 선배 정보는 저장소에 올리지 않습니다.
+백엔드·프론트 통합 작업: `back/match-api`  
+PR로 `main`에 합칩니다. API 키는 `.env`에만 두고 커밋하지 않습니다.

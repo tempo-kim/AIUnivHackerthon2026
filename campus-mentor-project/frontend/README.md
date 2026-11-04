@@ -1,7 +1,21 @@
-# 프론트엔드
+# 프론트엔드 (매칭까지)
 
-## 메인 화면 프로토타입
+## 화면 흐름
 
-`main.html`을 브라우저에서 열어 확인할 수 있습니다. 시작하기를 누르면 학적 단계, 서비스 이용 이유와 세부 관심사를 차례로 선택합니다. 로그인 버튼은 준비 중 안내만 표시합니다.
+1. `main.html` — 학적/이유/세부 선택 → `sessionStorage.ppunppun-choice`
+2. `concern/` — 고민 문장 입력 → `POST /api/match`
+3. `result/` — 추천 선배 표시 (`ppunppun-match`)
+4. `chat/` — **추후** (지금은 안내만)
 
-선택 완료 시 선택 내용을 브라우저의 `sessionStorage`에 `ppunppun-choice`라는 이름으로 저장하고 `frontend/choice/`로 이동합니다. 저장된 값은 `status`, `reason`, `detail` 필드로 구성됩니다. 하단의 선택창과 채팅창은 각각 `frontend/choice/`, `frontend/chat/`으로 이동합니다. 두 화면은 아직 만들어지지 않았으므로 연결 후 해당 경로를 팀에서 구현해야 합니다. 백엔드 및 로그인은 연결되지 않았습니다.
+## 실행
+
+백엔드와 함께 같은 서버로 여는 것을 권장합니다.
+
+```bash
+cd campus-mentor-project/backend
+uvicorn app.main:app --reload --port 8000
+```
+
+브라우저: http://127.0.0.1:8000/frontend/main.html
+
+로그인/회원가입은 아직 없습니다. 시연은 비로그인으로 진행합니다.

@@ -2,31 +2,55 @@ from pydantic import BaseModel, Field
 
 
 class Extraction(BaseModel):
-    """AI 추출 결과와 같은 필드. AI/extraction 브랜치 extractor와 맞춤."""
+    interests: list[str] = Field(default_factory=list)
+    situation: str = ""
+    help_fields: list[str] = Field(default_factory=list)
 
-    interests: list[str] = Field(default_factory=list, description="관심사 키워드")
-    situation: str = Field(default="", description="현재 상황 요약")
-    help_fields: list[str] = Field(default_factory=list, description="도움 분야")
+
+class ChoiceContext(BaseModel):
+    """main.html 선택값 (선택 사항). 고민 문장과 함께 LLM에 힌트로 전달."""
+
+    status: str | None = None
+    reason: str | None = None
+    detail: str | None = None
 
 
 class MatchRequest(BaseModel):
-    """고민 원문 또는 이미 추출된 조건 중 하나를 보냄."""
-
-    concern_text: str | None = Field(default=None, description="후배 고민 원문")
-    extraction: Extraction | None = Field(default=None, description="이미 추출된 조건")
+    concern_text: str | None = None
+    extraction: Extraction | None = None
+    choice: ChoiceContext | None = None
     top_k: int = Field(default=3, ge=1, le=10)
+    use_llm: bool = True
 
 
 class MentorMatch(BaseModel):
     mentor_id: str
+    display_name: str = ""
     major: str
-    experiences: list[str]
-    help_topics: list[str]
+    experiences: list[str] = Field(default_factory=list)
+    help_topics: list[str] = Field(default_factory=list)
+    bio: str = ""
     score: float
-    reasons: list[str]
+    reasons: list[str] = Field(default_factory=list)
 
 
 class MatchResponse(BaseModel):
     extraction: Extraction
     matches: list[MentorMatch]
-    extraction_source: str = Field(description="llm | stub | client")
+    extraction_source: str
+    mentor_source: str = ""
+
+
+class MentorOut(BaseModel):
+    mentor_id: str
+    display_name: str
+    major: str
+    experiences: list[str]
+    help_topics: list[str]
+    bio: str = ""
+
+
+class MentorImportRequest(BaseModel):
+    """Syntitan에서 받은 cleaned CSV 전체 텍스트."""
+
+    csv_text: str
