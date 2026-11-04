@@ -1,0 +1,21 @@
+{
+  "extraction": {
+    "interests": ["경영학과"],
+    "situation": "경영학과인데 수강신청이랑 시간표가 막막해요",
+    "help_fields": ["수강신청", "시간표"]
+  },
+  "matches": [
+    {
+      "mentor_id": "M001",
+      "major": "경영학과",
+      "experiences": ["장거리 통학", "복수전공"],
+      "help_topics": ["시간표", "수강신청"],
+      "score": 7.5,
+      "reasons": [
+        "도움 분야 일치: 수강신청, 시간표",
+        "전공 관련: 경영학과"
+      ]
+    }
+  ],
+  "extraction_source": "stub"
+}
