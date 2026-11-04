@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>고민 입력 · 뻔뻔하게</title>
+  <link rel="stylesheet" href="../shared/styles.css">
+</head>
+<body>
+  <header>
+    <div class="logo">🌱 뻔뻔하게</div>
+    <a class="login" href="../main.html" style="text-decoration:none">처음으로</a>
+  </header>
+  <main>
+    <div class="layout">
+      <section>
+        <span class="badge">Step 2 · 고민 입력</span>
+        <h1>지금 막힌 점을<br><span>적어 주세요</span></h1>
+        <p class="intro">LLM이 고민을 분석하고, Syntitan으로 정리된 선배 데이터와 매칭합니다.</p>
+        <p class="hint" id="choice-summary">선택 정보가 없습니다. 처음부터 진행해도 괜찮아요.</p>
+      </section>
+      <section class="card">
+        <h2>고민 내용</h2>
+        <p class="hint">자유롭게 적어도 됩니다. 예: 경영학과 수강신청이랑 시간표가 막막해요.</p>
+        <textarea class="concern" id="concern" placeholder="고민을 입력하세요"></textarea>
+        <div class="actions">
+          <button class="back" type="button" id="back">이전</button>
+          <button class="primary" type="button" id="submit">선배 매칭하기</button>
+        </div>
+        <p class="error" id="error" hidden></p>
+        <p class="note" id="status"></p>
+      </section>
+    </div>
+  </main>
+  <nav class="nav" aria-label="하단 메뉴">
+    <a href="../main.html"><span>☘</span>시작</a>
+    <a class="active" href="./"><span>✍</span>고민 입력</a>
+    <a href="../result/"><span>✨</span>매칭 결과</a>
+    <a href="../chat/"><span>💬</span>채팅(추후)</a>
+  </nav>
+  <script src="../shared/api.js"></script>
+  <script>
+    let choice = null;
+    try { choice = JSON.parse(sessionStorage.getItem('ppunppun-choice') || 'null'); } catch (e) {}
+    const summary = document.querySelector('#choice-summary');
+    if (choice) {
+      summary.textContent = `선택: ${choice.status || '-'} · ${choice.reason || '-'} · ${choice.detail || '-'}`;
+    }
+
+    document.querySelector('#back').onclick = () => { location.href = '../main.html'; };
+
+    document.querySelector('#submit').onclick = async () => {
+      const concern = document.querySelector('#concern').value.trim();
+      const error = document.querySelector('#error');
+      const status = document.querySelector('#status');
+      const btn = document.querySelector('#submit');
+      error.hidden = true;
+      if (!concern && !choice) {
+        error.hidden = false;
+        error.textContent = '고민 문장 또는 이전 선택 중 하나는 필요합니다.';
+        return;
+      }
+      btn.disabled = true;
+      status.textContent = '매칭 중… (서버가 꺼져 있으면 백엔드를 먼저 실행하세요)';
+      try {
+        const body = {
+          concern_text: concern || null,
+          choice: choice,
+          top_k: 3,
+          use_llm: true
+        };
+        const result = await MentorApi.match(body);
+        sessionStorage.setItem('ppunppun-match', JSON.stringify(result));
+        sessionStorage.setItem('ppunppun-concern', concern);
+        location.href = '../result/';
+      } catch (e) {
+        error.hidden = false;
+        error.textContent = e.message + ' — 터미널에서 uvicorn app.main:app --reload --port 8000 실행 후 http://127.0.0.1:8000/frontend/main.html 로 열어보세요.';
+        status.textContent = '';
+        btn.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

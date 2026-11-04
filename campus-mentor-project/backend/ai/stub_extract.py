@@ -1,8 +1,4 @@
-"""키 없이 쓸 수 있는 임시 추출기.
-
-실제 LLM 추출은 AI/extraction 브랜치의 extractor.py 를 사용한다.
-키가 없거나 LLM 호출이 실패하면 이 stub 으로 데모를 이어간다.
-"""
+"""API 키 없을 때 쓰는 키워드 기반 임시 추출."""
 
 from __future__ import annotations
 
@@ -18,6 +14,16 @@ KEYWORD_MAP: dict[str, list[str]] = {
     "경영": ["경영학과"],
     "컴공": ["컴퓨터공학과"],
     "컴퓨터": ["컴퓨터공학과"],
+    "진로": ["진로 탐색"],
+    "취업": ["취업 준비"],
+    "인턴": ["인턴십"],
+    "대외": ["대외활동"],
+    "동아리": ["동아리와 모임"],
+    "친구": ["친구 사귀기"],
+    "학교생활": ["학교생활"],
+    "학교적응": ["학교생활"],
+    "전공과목": ["수강신청"],
+    "밥집": ["학교생활"],
 }
 
 
@@ -34,7 +40,6 @@ def stub_extract(concern_text: str) -> dict:
                 else:
                     help_fields.append(item)
 
-    # 중복 제거, 순서 유지
     def unique(items: list[str]) -> list[str]:
         seen: set[str] = set()
         out: list[str] = []
@@ -46,12 +51,11 @@ def stub_extract(concern_text: str) -> dict:
 
     help_fields = unique(help_fields)
     interests = unique(interests)
-
     if not help_fields and not interests:
-        help_fields = ["수강신청"]
+        help_fields = ["학교생활"]
 
     return {
         "interests": interests,
-        "situation": text.strip()[:120],
+        "situation": text.strip()[:160],
         "help_fields": help_fields,
     }
