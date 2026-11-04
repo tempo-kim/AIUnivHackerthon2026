@@ -69,11 +69,24 @@
           top_k: 3,
           use_llm: true
         };
-        const result = await MentorApi.match(body);
-        sessionStorage.setItem('ppunppun-match', JSON.stringify(result));
-        sessionStorage.setItem('ppunppun-concern', concern);
-        location.href = '../result/';
-      } catch (e) {
+
+    // 📌 1단계: 백엔드 AI에게 키워드 추출 먼저 요청
+    status.textContent = 'AI가 고민글 키워드를 추출하는 중...';
+    const extraction = await MentorApi.extract(body);
+    
+    // 추출된 키워드(interests, situation, help_fields) 저장
+    sessionStorage.setItem('ppunppun-extraction', JSON.stringify(extraction));
+    console.log('AI 키워드 추출 완료:', extraction);
+
+    // 📌 2단계: 추출 결과를 가지고 멘토 매칭 진행
+    status.textContent = '매칭 멘토를 탐색 중입니다...';
+    const result = await MentorApi.match(body);
+
+    sessionStorage.setItem('ppunppun-match', JSON.stringify(result));
+    sessionStorage.setItem('ppunppun-concern', concern);
+    location.href = '../result/';
+
+  } catch (e) {
         error.hidden = false;
         error.textContent = e.message + ' — 터미널에서 uvicorn app.main:app --reload --port 8000 실행 후 http://127.0.0.1:8000/frontend/main.html 로 열어보세요.';
         status.textContent = '';
