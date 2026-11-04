@@ -1,21 +1,21 @@
-# 프론트엔드 (매칭까지)
+# 프론트엔드
 
-## 화면 흐름
+## 화면
 
-1. `main.html` — 학적/이유/세부 선택 → `sessionStorage.ppunppun-choice`
-2. `concern/` — 고민 문장 입력 → `POST /api/match`
-3. `result/` — 추천 선배 표시 (`ppunppun-match`)
-4. `chat/` — **추후** (지금은 안내만)
+| 경로 | 설명 |
+|------|------|
+| `main.html` | 팀 플로우: 학적·이용 이유·수업·선배 유형(1~5점) 선택 후 `/api/match` |
+| `concern/` | 고민 문장 입력 → LLM/stub 분석 → 매칭 (백엔드 매칭 플로우) |
+| `result/` | 매칭 결과 표시 |
+| `chat/` | 대화 프로토타입 |
+
+하단 내비에서 **고민 입력**으로 들어가면 문장 기반 매칭을 쓸 수 있습니다.
 
 ## 실행
-
-백엔드와 함께 같은 서버로 여는 것을 권장합니다.
 
 ```bash
 cd campus-mentor-project/backend
 uvicorn app.main:app --reload --port 8000
 ```
 
-브라우저: http://127.0.0.1:8000/frontend/main.html
-
-로그인/회원가입은 아직 없습니다. 시연은 비로그인으로 진행합니다.
+http://127.0.0.1:8000/frontend/main.html

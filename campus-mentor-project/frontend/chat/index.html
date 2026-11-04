@@ -1,29 +1,48 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>채팅 · 뻔뻔하게 (추후)</title>
-  <link rel="stylesheet" href="../shared/styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>선배와 대화</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header>
-    <div class="logo">🌱 뻔뻔하게</div>
-  </header>
-  <main>
-    <section class="card" style="max-width:640px;margin:auto">
-      <h2>채팅은 다음 단계에서</h2>
-      <p class="hint">이번 작업 범위는 <strong>고민 입력 → LLM 분석 → 선배 매칭</strong>까지입니다. 기존 chat 프로토타입 파일은 폴더에 남겨 두었고, 매칭 완료 후 대화는 추후 연결합니다.</p>
-      <div class="actions">
-        <a class="primary" href="../result/" style="text-align:center;text-decoration:none">매칭 결과로</a>
-      </div>
+  <div class="chat-app">
+    <section class="invalid-view" id="invalid-view" hidden>
+      <h1>대화방을 찾을 수 없어요</h1>
+      <p>주소를 <code>index.html?role=junior&amp;mentor=1</code> 또는 <code>index.html?role=senior&amp;mentor=1</code> 형식으로 열어 주세요.</p>
     </section>
-  </main>
-  <nav class="nav">
-    <a href="../main.html"><span>☘</span>시작</a>
-    <a href="../concern/"><span>✍</span>고민 입력</a>
-    <a href="../result/"><span>✨</span>매칭 결과</a>
-    <a class="active" href="./"><span>💬</span>채팅(추후)</a>
-  </nav>
+
+    <section class="chat-view" id="chat-view" hidden>
+      <div class="role-bar">
+        <span class="role-badge" id="role-badge"></span>
+        <button type="button" class="reset-btn" id="reset-btn">대화 초기화</button>
+      </div>
+
+      <header class="mentor-card">
+        <div class="avatar" id="partner-avatar" aria-hidden="true"></div>
+        <div class="mentor-info">
+          <p class="partner-label">대화 상대</p>
+          <h1 id="partner-name"></h1>
+          <p class="mentor-meta" id="partner-meta"></p>
+          <p class="mentor-intro" id="partner-intro"></p>
+        </div>
+      </header>
+
+      <main class="messages" id="messages" aria-live="polite"></main>
+
+      <p class="error-banner" id="error-banner" role="alert" hidden></p>
+
+      <form class="composer" id="composer">
+        <textarea id="message-input" rows="1" aria-label="메시지 입력"></textarea>
+        <button type="submit" id="send-btn" disabled>전송</button>
+      </form>
+    </section>
+  </div>
+
+  <script src="mock-data.js"></script>
+  <script src="chat-store.js"></script>
+  <script src="api.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
