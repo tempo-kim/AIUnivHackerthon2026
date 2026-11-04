@@ -10,7 +10,7 @@ load_dotenv()
 # 2. OpenRouter 연결 설정 (base_url 지정 필수)
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENROUTER_API_KEY"),
+    api_key=os.getenv("OPENAI_API_KEY"),
 )
 
 # 3. 추출 구조 정의
