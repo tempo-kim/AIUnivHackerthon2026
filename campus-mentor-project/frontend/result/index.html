@@ -17,7 +17,6 @@
         <span class="badge">Step 3 · 매칭 결과</span>
         <h1>맞는 선배를<br><span>찾았어요</span></h1>
         <p class="intro">채팅 연결은 다음 단계에서 붙입니다. 지금은 추천 결과까지입니다.</p>
-        <p class="hint" id="extract-box">분석 결과가 여기 표시됩니다.</p>
       </section>
       <section class="card">
         <h2>추천 선배</h2>
@@ -45,21 +44,12 @@
       alert('채팅은 다음 단계에서 연결합니다.');
     };
 
-    const box = document.querySelector('#extract-box');
     const list = document.querySelector('#list');
     const empty = document.querySelector('#empty');
 
     if (!result) {
       empty.hidden = false;
     } else {
-      const ex = result.extraction || {};
-      box.innerHTML = `
-        추출 방식: <strong>${result.extraction_source || '-'}</strong><br>
-        관심사: ${(ex.interests || []).join(', ') || '-'}<br>
-        도움 분야: ${(ex.help_fields || []).join(', ') || '-'}<br>
-        상황: ${ex.situation || '-'}<br>
-        선배 데이터: ${result.mentor_source || '-'}`;
-
       (result.matches || []).forEach((m, i) => {
         const el = document.createElement('article');
         el.className = 'mentor';
