@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +26,7 @@ from services.mentors import store
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
+ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
 
 app = FastAPI(title="뻔뻔하게 매칭")
 
@@ -83,6 +85,7 @@ def _concern_text(concern_text: str | None, choice: ChoiceContext | None) -> str
 
 
 def _extract(payload: MatchRequest) -> tuple[Extraction, str]:
+    load_dotenv(ENV_PATH, override=True)
     if payload.extraction is not None:
         return payload.extraction, "client"
 
