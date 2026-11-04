@@ -1,5 +1,6 @@
 """뻔뻔하게 — 선배 데이터 + LLM 분석 매칭 API (채팅 제외)."""
-
+# 팀원 백엔드 파일 상단
+from ai.extractor import extract_concern_info  # (내 파일 위치에 맞게 경로 지정)
 from __future__ import annotations
 
 import os
@@ -145,3 +146,28 @@ if FRONTEND_DIR.exists():
         return FileResponse(FRONTEND_DIR / "main.html")
 
     app.mount("/frontend", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+
+# 팀원 main.py 상단에 내 extractor 불러오기
+from ai.extractor import extract_concern_info  # 경로에 맞게 지정
+
+
+# 팀원 메인 파일의 매칭 엔드포인트
+@app.post("/api/match", response_model=MatchResponse)
+def match_mentors(req: MatchRequest):
+    # 1. 프론트에서 넘어온 고민 텍스트 가져오기
+    user_text = req.user_text or req.concern_text or ""
+    
+    # 2. 📌 여기에 내 추출 함수 사용!
+    extraction = extract_concern_info(user_text)
+    
+    # 3. 추출 결과를 바탕으로 팀원의 멘토 매칭 로직 수행
+    rows, source = store.match(extraction)
+    matches = [MentorMatch.model_validate(row) for row in rows]
+    
+    # 4. 최종 결과 반환
+    return MatchResponse(
+        extraction=extraction,
+        matches=matches,
+        extraction_source=source,
+        mentor_source=str(store.source_path.name) if store.source_path else "",
+    )
