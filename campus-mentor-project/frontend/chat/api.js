@@ -1,0 +1,90 @@
+// 대화 관련 API 호출을 한곳에 모은 파일.
+// USE_MOCK=true  → 서버 없이 chat-store.js(localStorage + BroadcastChannel) 사용
+// USE_MOCK=false → API_BASE_URL의 백엔드 API 호출
+// API 키나 비밀번호는 절대 이 파일(프론트엔드)에 넣지 말 것
+const API_BASE_URL = ""; // 비워 두면 현재 페이지와 같은 주소. 예: "http://localhost:8000"
+const USE_MOCK = true;
+
+const REQUEST_TIMEOUT_MS = 10000;
+const POLL_INTERVAL_MS = 3000; // 서버 모드에서 새 메시지를 확인하는 간격
+
+const ChatApi = (() => {
+  async function request(path, options = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers: { "Content-Type": "application/json", ...options.headers },
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`요청 실패 (${res.status})`);
+      return res.status === 204 ? null : await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // 서버 응답 형식이 조금 달라도 화면에서 쓰는 형태 { id, role, text, sentAt }로 맞춤
+  function normalizeMessage(raw) {
+    return {
+      id: String(raw.id ?? raw.messageId ?? `${raw.senderRole}-${raw.createdAt}-${raw.text}`),
+      role: raw.senderRole ?? raw.role,
+      text: raw.text,
+      sentAt: raw.createdAt ?? raw.sentAt ?? Date.now(),
+    };
+  }
+
+  function roomIdOf(mentorId) {
+    return `mentor-${mentorId}`;
+  }
+
+  // POST /api/messages
+  async function sendMessage(mentorId, senderRole, text) {
+    if (USE_MOCK) return ChatStore.sendMessage(roomIdOf(mentorId), { role: senderRole, text });
+
+    const data = await request("/api/messages", {
+      method: "POST",
+      body: JSON.stringify({ mentorId: String(mentorId), senderRole, text }),
+    });
+    // 서버가 저장된 메시지를 돌려주지 않으면 보낸 내용으로 화면에 표시
+    return normalizeMessage(data?.message ?? data ?? { senderRole, text, createdAt: Date.now() });
+  }
+
+  // GET /api/messages?mentorId=1
+  async function getMessages(mentorId) {
+    if (USE_MOCK) return ChatStore.loadMessages(roomIdOf(mentorId));
+
+    const data = await request(`/api/messages?mentorId=${encodeURIComponent(mentorId)}`);
+    const list = Array.isArray(data) ? data : data?.messages ?? [];
+    return list.map(normalizeMessage);
+  }
+
+  // 상대가 보낸 새 메시지 받기. 목 모드는 BroadcastChannel, 서버 모드는 주기적 조회
+  function subscribe(mentorId, { onMessage, onClear, onError, onRecover }) {
+    if (USE_MOCK) return ChatStore.subscribe(roomIdOf(mentorId), { onMessage, onClear });
+
+    let failed = false;
+    const timer = setInterval(async () => {
+      try {
+        const messages = await getMessages(mentorId);
+        messages.forEach(onMessage);
+        if (failed) onRecover?.();
+        failed = false;
+      } catch (err) {
+        failed = true;
+        onError?.(err);
+      }
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }
+
+  // 대화 초기화는 아직 서버 API가 없어 목 모드에서만 지원
+  const canClear = USE_MOCK;
+
+  function clearMessages(mentorId) {
+    if (USE_MOCK) ChatStore.clearMessages(roomIdOf(mentorId));
+  }
+
+  return { sendMessage, getMessages, subscribe, clearMessages, canClear };
+})();
