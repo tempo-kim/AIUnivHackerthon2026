@@ -1,4 +1,4 @@
-"""후배 고민 → JSON 조건 추출 (OpenRouter / OpenAI 호환)."""
+﻿"""후배 고민 → JSON 조건 추출 (OpenRouter / OpenAI 호환)."""
 
 from __future__ import annotations
 
@@ -41,7 +41,14 @@ def extract_concern_info(user_text: str) -> dict:
 - JSON 키 종류:
   - interests: 고민에서 추출된 핵심 관심사 키워드 목록 (한국어 단어 배열)
   - situation: 현재 처한 상황 한 줄 요약 (한국어 문장)
-  - help_fields: 선배에게 도움받고 싶은 분야 목록 (한국어 단어 배열)
+  - help_fields: 아래 표준 분야 중 해당하는 값만 선택한 목록
+    - 학교생활
+    - 전공공부
+    - 진로취업
+    - 인턴대외활동
+    - 대학원연구
+- help_fields에는 위 목록에 없는 표현을 만들지 마라.
+- 고민이 여러 분야에 걸치면 최대 2개까지 선택해라.
 """
 
     try:

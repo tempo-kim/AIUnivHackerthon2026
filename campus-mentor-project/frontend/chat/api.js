@@ -1,9 +1,9 @@
-// 대화 관련 API 호출을 한곳에 모은 파일.
+﻿// 대화 관련 API 호출을 한곳에 모은 파일.
 // USE_MOCK=true  → 서버 없이 chat-store.js(localStorage + BroadcastChannel) 사용
 // USE_MOCK=false → API_BASE_URL의 백엔드 API 호출
 // API 키나 비밀번호는 절대 이 파일(프론트엔드)에 넣지 말 것
-const API_BASE_URL = ""; // 비워 두면 현재 페이지와 같은 주소. 예: "http://localhost:8000"
-const USE_MOCK = true;
+const API_BASE_URL = ""; // FastAPI가 제공하는 /frontend 경로에서 상대 API를 호출
+const USE_MOCK = false;
 
 const REQUEST_TIMEOUT_MS = 10000;
 const POLL_INTERVAL_MS = 3000; // 서버 모드에서 새 메시지를 확인하는 간격

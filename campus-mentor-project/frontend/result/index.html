@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8">
@@ -16,7 +16,7 @@
       <section>
         <span class="badge">Step 3 · 매칭 결과</span>
         <h1>맞는 선배를<br><span>찾았어요</span></h1>
-        <p class="intro">채팅 연결은 다음 단계에서 붙입니다. 지금은 추천 결과까지입니다.</p>
+        <p class="intro">추천된 선배를 선택해 바로 대화를 시작해 보세요.</p>
       </section>
       <section class="card">
         <h2>추천 선배</h2>
@@ -24,7 +24,7 @@
         <p class="error" id="empty" hidden>저장된 매칭 결과가 없습니다. 고민 입력부터 진행해 주세요.</p>
         <div class="actions">
           <button class="back" type="button" id="to-concern">고민 다시 쓰기</button>
-          <button class="primary" type="button" id="to-chat">채팅은 추후 연결</button>
+          <button class="primary" type="button" id="to-chat">첫 번째 선배와 대화</button>
         </div>
       </section>
     </div>
@@ -41,7 +41,8 @@
 
     document.querySelector('#to-concern').onclick = () => { location.href = '../concern/'; };
     document.querySelector('#to-chat').onclick = () => {
-      alert('채팅은 다음 단계에서 연결합니다.');
+      const first = result?.matches?.[0];
+      if (first) location.href = `../chat/index.html?role=junior&mentor=${encodeURIComponent(first.mentor_id)}`;
     };
 
     const list = document.querySelector('#list');
@@ -58,7 +59,8 @@
           <div class="meta">${m.major || ''} · ${m.mentor_id}</div>
           <p class="hint">${m.bio || ''}</p>
           <div class="tags">${(m.help_topics || []).map(t => `<span class="tag">${t}</span>`).join('')}</div>
-          <ul class="reasons">${(m.reasons || []).map(r => `<li>${r}</li>`).join('')}</ul>`;
+          <ul class="reasons">${(m.reasons || []).map(r => `<li>${r}</li>`).join('')}</ul>
+          <a class="primary" href="../chat/index.html?role=junior&mentor=${encodeURIComponent(m.mentor_id)}" style="display:block;text-align:center;text-decoration:none;margin-top:16px">이 선배와 대화</a>`;
         list.appendChild(el);
       });
 
