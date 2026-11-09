@@ -34,6 +34,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
 
+load_dotenv(ENV_PATH, override=False)
+configured_origins = os.getenv("FRONTEND_ORIGIN", "").strip()
+allowed_origins = [
+    origin.strip()
+    for origin in configured_origins.split(",")
+    if origin.strip()
+]
+if not allowed_origins:
+    allowed_origins = ["http://127.0.0.1:8000", "http://localhost:8000"]
+
 app = FastAPI(title="뻔뻔하게 매칭")
 
 _messages: dict[str, list[dict]] = {}
@@ -42,7 +52,7 @@ _reports: list[dict] = []
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
