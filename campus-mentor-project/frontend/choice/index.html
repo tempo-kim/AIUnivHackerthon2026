@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>선배 선택 | 뻔뻔하게</title>
@@ -7,11 +7,30 @@
 
 .logo{display:inline-flex;align-items:center;line-height:0}.logo img{display:block;width:150px;height:90px;object-fit:contain;mix-blend-mode:multiply}@media(max-width:760px){.logo img{width:120px;height:72px}}
 </style></head><body>
-<header><a class="logo" href="../main.html"><img src="../assets/brand-logo.png" alt="뻔뻔하게 홈"></a><a class="home" href="../main.html">← 처음으로</a></header>
-<main><span class="badge">나와 함께할 선배 찾기</span><h1>어떤 선배와 이야기해 볼까요?</h1><p class="intro">선배의 이야기를 살펴보고 편하게 대화를 시작해 보세요.</p><p class="notice">화면을 확인할 수 있도록 예시 선배를 보여드리고 있어요. 선택하면 예시 채팅으로 이동합니다.</p><div class="grid" id="mentors"></div></main>
-<nav class="nav" aria-label="하단 메뉴"><a href="../main.html"><span>☘</span>홈</a><a href="../chat/index.html?role=junior&amp;mentor=1"><span>💬</span>예시 채팅</a></nav>
-<script src="../chat/mock-data.js"></script>
+<header>
+  <a class="logo" href="../main.html">
+    <img src="../assets/brand-logo.png" alt="뻔뻔하게 홈">
+  </a>
+  <a class="home" href="../main.html">← 처음으로</a>
+</header>
+
+<main>
+  <span class="badge">나와 함께할 선배 찾기</span>
+  <h1>어떤 선배와 이야기해 볼까요?</h1>
+  <p class="intro">선배의 이야기를 살펴보고 편하게 대화를 시작해 보세요.</p>
+  <p class="notice" id="notice">백엔드에서 선배 목록을 불러오는 중입니다.</p>
+  <div class="grid" id="mentors"></div>
+</main>
+
+<nav class="nav" aria-label="하단 메뉴">
+  <a href="../main.html"><span>☘</span>홈</a>
+  <a href="../chat/index.html?role=junior&amp;mentor=1"><span>💬</span>예시 채팅</a>
+</nav>
 <script>
 const list=document.querySelector('#mentors');
-MOCK_MENTORS.forEach((mentor,index)=>{const card=document.createElement('article');card.className='card';const avatar=document.createElement('div');avatar.className='avatar';avatar.setAttribute('aria-hidden','true');avatar.textContent=mentor.name.charAt(0);const name=document.createElement('h2');name.textContent=mentor.name+' 선배';const meta=document.createElement('p');meta.className='meta';meta.textContent=mentor.grade+' · '+mentor.major;const reason=document.createElement('p');reason.className='reason';reason.textContent=mentor.reason;const link=document.createElement('a');link.className='button';link.href='../chat/index.html?role=junior&mentor='+(index+1);link.textContent='대화 시작하기 →';card.append(avatar,name,meta,reason,link);list.appendChild(card)});
+const notice=document.querySelector('#notice');
+fetch('/api/mentors').then(response=>{if(!response.ok) throw new Error();return response.json()}).then(mentors=>{
+  notice.textContent='선배의 이야기를 살펴보고 편하게 대화를 시작해 보세요.';
+  mentors.forEach(mentor=>{const card=document.createElement('article');card.className='card';const avatar=document.createElement('div');avatar.className='avatar';avatar.setAttribute('aria-hidden','true');avatar.textContent=(mentor.display_name||'?').charAt(0);const name=document.createElement('h2');name.textContent=(mentor.display_name||mentor.mentor_id)+' 선배';const meta=document.createElement('p');meta.className='meta';meta.textContent=mentor.major;const reason=document.createElement('p');reason.className='reason';reason.textContent=mentor.bio||mentor.help_topics.join(' · ');const link=document.createElement('a');link.className='button';link.href='../chat/index.html?role=junior&mentor='+encodeURIComponent(mentor.mentor_id);link.textContent='대화 시작하기 →';card.append(avatar,name,meta,reason,link);list.appendChild(card)});
+}).catch(()=>{notice.textContent='선배 목록을 불러오지 못했어요. 백엔드 서버가 실행 중인지 확인해 주세요.'});
 </script></body></html>

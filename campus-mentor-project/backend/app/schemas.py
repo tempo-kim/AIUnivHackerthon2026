@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+﻿from pydantic import BaseModel, Field
 
 
 class Extraction(BaseModel):
@@ -13,6 +13,7 @@ class ChoiceContext(BaseModel):
     status: str | None = None
     reason: str | None = None
     detail: str | None = None
+    experience_preferences: list[str] = Field(default_factory=list)
 
 
 class MatchRequest(BaseModel):
@@ -54,3 +55,27 @@ class MentorImportRequest(BaseModel):
     """Syntitan에서 받은 cleaned CSV 전체 텍스트."""
 
     csv_text: str
+
+
+class MessageRequest(BaseModel):
+    mentorId: str
+    senderRole: str
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class EndRequest(BaseModel):
+    mentorId: str
+    requesterRole: str
+
+
+class EndResponseRequest(BaseModel):
+    mentorId: str
+    responderRole: str
+    agree: bool
+
+
+class ReportRequest(BaseModel):
+    mentorId: str
+    reporterRole: str
+    reason: str
+    details: str = Field(min_length=1, max_length=4000)

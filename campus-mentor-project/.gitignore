@@ -1,4 +1,4 @@
-.env
+﻿.env
 .env.*
 !.env.example
 .venv/
@@ -9,3 +9,4 @@ dist/
 build/
 .next/
 .DS_Store
+.vs/

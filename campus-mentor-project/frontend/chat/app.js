@@ -1,4 +1,4 @@
-// 주소 예시: index.html?role=junior&mentor=1 (후배), index.html?role=senior&mentor=1 (선배)
+﻿// 주소 예시: index.html?role=junior&mentor=1 (후배), index.html?role=senior&mentor=1 (선배)
 // 같은 mentor 값이면 후배·선배가 같은 대화방을 씀
 const CONNECT_LOADING_MS = 3000; // 첫 진입 "연결중" 로딩 시간
 const ROLE_LABELS = { junior: "후배", senior: "선배" };
@@ -6,9 +6,8 @@ const ROLE_LABELS = { junior: "후배", senior: "선배" };
 const params = new URLSearchParams(location.search);
 const myRole = params.get("role");
 const partnerRole = myRole === "junior" ? "senior" : "junior";
-const mentorNumber = Number(params.get("mentor"));
-const mentor = MOCK_MENTORS[mentorNumber - 1];
-const mentorId = String(mentorNumber);
+const mentorId = params.get("mentor") || "";
+let mentor = null;
 
 const ERROR_MESSAGES = {
   load: "대화를 불러오지 못했어요. 네트워크 연결을 확인한 뒤 새로고침해 주세요.",
@@ -276,7 +275,26 @@ function bindEvents() {
 }
 
 async function init() {
-  if (!ROLE_LABELS[myRole] || !mentor) {
+  if (!ROLE_LABELS[myRole] || !mentorId) {
+    loadingView.hidden = true;
+    invalidView.hidden = false;
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/mentors`);
+    if (!response.ok) throw new Error();
+    const mentors = await response.json();
+    const found = mentors.find((item) => String(item.mentor_id) === String(mentorId));
+    if (!found) throw new Error();
+    mentor = {
+      name: found.display_name || found.mentor_id,
+      major: found.major,
+      grade: "선배",
+      intro: found.bio || found.help_topics?.join(" · ") || "후배의 고민을 함께 들어드려요.",
+      color: "var(--mint)",
+    };
+  } catch {
     loadingView.hidden = true;
     invalidView.hidden = false;
     return;

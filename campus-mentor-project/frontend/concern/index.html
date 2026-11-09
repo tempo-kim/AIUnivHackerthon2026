@@ -61,21 +61,20 @@
         return;
       }
       btn.disabled = true;
-      status.textContent = '매칭 중… (서버가 꺼져 있으면 백엔드를 먼저 실행하세요)';
+      status.textContent = 'AI가 키워드를 분석하고 선배를 매칭하는 중...';
       try {
-        const body = {
+        const result = await MentorApi.match({
           concern_text: concern || null,
           choice: choice,
           top_k: 3,
           use_llm: true
-        };
-        const result = await MentorApi.match(body);
+        });
         sessionStorage.setItem('ppunppun-match', JSON.stringify(result));
         sessionStorage.setItem('ppunppun-concern', concern);
         location.href = '../result/';
       } catch (e) {
         error.hidden = false;
-        error.textContent = e.message + ' — 터미널에서 uvicorn app.main:app --reload --port 8000 실행 후 http://127.0.0.1:8000/frontend/main.html 로 열어보세요.';
+        error.textContent = e.message + ' – 백엔드 서버(uvicorn)가 켜져 있는지 확인해 주세요.';
         status.textContent = '';
         btn.disabled = false;
       }

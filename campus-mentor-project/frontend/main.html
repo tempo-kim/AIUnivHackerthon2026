@@ -1,26 +1,108 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>뻔뻔하게</title><style>
 *{box-sizing:border-box}body{margin:0;background:#f7f8ff;color:#1b2451;font-family:Pretendard,'Malgun Gothic',sans-serif}header{max-width:1080px;margin:auto;padding:24px;display:flex;align-items:center;justify-content:space-between}.logo{font-size:22px;font-weight:900;color:#283c91}button{font:inherit;cursor:pointer}.login{border:1px solid #dce2f5;border-radius:12px;background:white;color:#647092;padding:10px 18px}main{max-width:1050px;margin:45px auto 120px;padding:0 24px}.layout{display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center}.badge{background:#edeaff;color:#6140c4;padding:9px 14px;border-radius:30px;font-weight:700;font-size:13px}h1{font-size:clamp(38px,5vw,60px);letter-spacing:-.06em;line-height:1.2;margin:28px 0 18px}h1 span{color:#6d49d4}.intro{color:#72809b;line-height:1.8}.card{background:white;border:1px solid #e1e5f5;border-radius:24px;padding:32px;box-shadow:0 18px 60px #30346b10}h2{font-size:24px;letter-spacing:-.04em;line-height:1.4;margin:0 0 10px}.hint{color:#8590a9;font-size:14px;line-height:1.6}.primary,.back{border:0;border-radius:12px;padding:15px 20px;font-weight:700}.primary{background:#345fe0;color:white;flex:1}.primary:disabled{opacity:.4;cursor:not-allowed}.back{background:#eef0fb;color:#546286}.start{width:100%;margin-top:14px}.top{display:flex;justify-content:space-between;font-size:13px;color:#7d9182}.progress{height:6px;border-radius:10px;background:#eef0fb;margin:15px 0 26px}.bar{height:100%;background:#7656e2;border-radius:10px}.choices{display:grid;gap:9px;margin-top:20px}.choice{border:1px solid #dce2f5;background:white;color:#28335e;text-align:left;border-radius:12px;padding:14px}.choice:hover,.choice.selected{border-color:#7656e2;background:#f2efff;color:#6140c4}.actions{display:flex;gap:10px;margin-top:22px}.note{font-size:12px;color:#919bb1;line-height:1.6;margin:16px 0 0}.nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e5f3;display:flex;justify-content:center;gap:8px;padding:10px 20px calc(10px + env(safe-area-inset-bottom));z-index:2}.nav a{color:#687398;text-decoration:none;text-align:center;padding:8px 45px;border-radius:12px;font-size:13px}.nav a:hover{background:#f0efff;color:#5e43c8}.nav span{display:block;font-size:20px;margin-bottom:3px}.notice{color:#72809b;font-size:13px;margin:15px 0 0}@media(max-width:760px){main{margin:25px auto 110px}.layout{grid-template-columns:1fr;gap:30px}.card{padding:24px}h1{margin:20px 0}.nav a{padding:8px 35px}}
 .concern-input{width:100%;min-height:145px;resize:vertical;border:1px solid #dce2f5;border-radius:12px;padding:14px;font:inherit;line-height:1.7;color:#28335e}.prefix{background:#f0efff;border-radius:12px;padding:14px;line-height:1.7;color:#51478f;font-size:14px}.secondary{width:100%;margin-top:10px;background:#edeaff;color:#5c43b8;border:0;border-radius:12px;padding:15px;font-weight:700}.role-note{font-size:13px;color:#72809b;line-height:1.6}
 .logo{display:inline-flex;align-items:center;line-height:0}.logo img{display:block;width:150px;height:90px;object-fit:contain;mix-blend-mode:multiply}@media(max-width:760px){.logo img{width:120px;height:72px}}
 </style></head><body><header><a class="logo" href="./main.html" style="text-decoration:none"><img src="./assets/brand-logo.png" alt="뻔뻔하게 홈"></a><button class="login" id="login" type="button">로그인</button></header><main><div class="layout"><section><span class="badge">캠퍼스 생활, 뻔뻔하게 물어봐요</span><h1>궁금한 건<br><span>뻔뻔하게!</span></h1><p class="intro">학교생활의 사소한 질문부터 진로 고민까지.<br>나와 맞는 선배에게 편하게 물어보세요.</p></section><section class="card" id="app" aria-live="polite"></section></div></main><nav class="nav" aria-label="하단 메뉴"><a href="./main.html"><span>☘</span>홈</a><a href="./choice/index.html"><span>💬</span>채팅창</a></nav><script src="./universities.js"></script><script>
 const app = document.querySelector('#app');
-let selectedSchool='';
-try { selectedSchool=localStorage.getItem('ppunppun-school')||''; if(!schoolExamples.includes(selectedSchool)) { selectedSchool=''; localStorage.removeItem('ppunppun-school'); sessionStorage.removeItem('ppunppun-school'); } } catch(e) { selectedSchool=''; }
-function renderSchool(){
-  app.innerHTML='<span class="badge">함께할 학교 찾기</span><h2 style="margin-top:20px">어느 학교에 다니시나요?</h2><p class="hint">학교 이름을 검색하고 선택해 주세요.</p><input class="choice" id="school-search" style="width:100%;font:inherit" type="search" placeholder="예: 고려대학교" aria-label="학교 이름 검색" autocomplete="off"><div class="choices" id="school-results"></div><p class="note">학교 목록은 공공데이터를 기준으로 합니다.</p><p class="notice" id="login-message" role="status"></p>';
-  const input=app.querySelector('#school-search'),results=app.querySelector('#school-results');
-  input.value=selectedSchool;
-  function selectSchool(name){selectedSchool=name;try{localStorage.setItem('ppunppun-school',name);sessionStorage.setItem('ppunppun-school',name)}catch(e){}step=-1;render()}
-  function update(){results.replaceChildren();const value=input.value.trim();if(!value){const hint=document.createElement('p');hint.className='hint';hint.textContent='학교 이름을 입력하면 검색 결과가 보여요.';results.appendChild(hint);return}const matches=schoolExamples.filter(s=>s.toLowerCase().includes(value.toLowerCase()));matches.forEach(name=>{const b=document.createElement('button');b.className='choice';b.type='button';b.textContent=name;b.onclick=()=>selectSchool(name);results.appendChild(b)});if(!matches.length){const hint=document.createElement('p');hint.className='hint';hint.textContent='검색 결과가 없어요. 학교 이름을 다시 확인해 주세요.';results.appendChild(hint)}}
-  input.maxLength=100;input.oninput=update;update();
+let selectedSchool = '';
+
+try {
+  selectedSchool = localStorage.getItem('ppunppun-school') || '';
+
+  if (!schoolExamples.includes(selectedSchool)) {
+    selectedSchool = '';
+    localStorage.removeItem('ppunppun-school');
+    sessionStorage.removeItem('ppunppun-school');
+  }
+} catch (e) {
+  selectedSchool = '';
 }
 
-const answers = {status:'', reason:'', concern:''};
+function renderSchool() {
+  app.innerHTML = `
+    <span class="badge">함께할 학교 찾기</span>
+    <h2 style="margin-top:20px">어느 학교에 다니시나요?</h2>
+    <p class="hint">학교 이름을 검색하고 선택해 주세요.</p>
+    <input
+      class="choice"
+      id="school-search"
+      style="width:100%;font:inherit"
+      type="search"
+      placeholder="예: 고려대학교"
+      aria-label="학교 이름 검색"
+      autocomplete="off"
+    >
+    <div class="choices" id="school-results"></div>
+    <p class="note">학교 목록은 공공데이터를 기준으로 합니다.</p>
+    <p class="notice" id="login-message" role="status"></p>
+  `;
+
+  const input = app.querySelector('#school-search');
+  const results = app.querySelector('#school-results');
+  input.value = selectedSchool;
+
+  function selectSchool(name) {
+    selectedSchool = name;
+
+    try {
+      localStorage.setItem('ppunppun-school', name);
+      sessionStorage.setItem('ppunppun-school', name);
+    } catch (e) {}
+
+    step = -1;
+    render();
+  }
+
+  function update() {
+    results.replaceChildren();
+    const value = input.value.trim();
+
+    if (!value) {
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = '학교 이름을 입력하면 검색 결과가 보여요.';
+      results.appendChild(hint);
+      return;
+    }
+
+    const matches = schoolExamples.filter(s =>
+      s.toLowerCase().includes(value.toLowerCase())
+    );
+
+    matches.forEach(name => {
+      const button = document.createElement('button');
+      button.className = 'choice';
+      button.type = 'button';
+      button.textContent = name;
+      button.onclick = () => selectSchool(name);
+      results.appendChild(button);
+    });
+
+    if (!matches.length) {
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = '검색 결과가 없어요. 학교 이름을 다시 확인해 주세요.';
+      results.appendChild(hint);
+    }
+  }
+
+  input.maxLength = 100;
+  input.oninput = update;
+  update();
+}
+
+const answers = {
+  status: '',
+  reason: '',
+  experience_preferences: [],
+  concern: ''
+};
 let step = -1;
 const steps = [
   {key:'status', title:'현재 어떤 단계인가요?', hint:'나에게 해당하는 항목을 선택해 주세요.', options:['신입생','재학생','졸업준비생','졸업생']},
   {key:'reason', title:'어떤 도움을 받고 싶나요?', hint:'가장 관심 있는 분야를 골라주세요.', options:['학교적응','밥집 추천','전공지식','진로와 취업','대외활동']},
+  {key:'experience_preferences', title:'어떤 경험이 있는 선배를 원하나요?', hint:'최대 2개까지 선택할 수 있어요. 선택하지 않아도 추천받을 수 있습니다.', options:['비슷한 전공','비슷한 학년','취업 경험','인턴 경험','대외활동 경험','대학원·연구 경험','학교생활 경험'], multi:true},
   {key:'concern', title:'어떤 선배를 찾고 있나요?', hint:'아래 문장에 이어 원하는 이야기나 선배의 모습을 자유롭게 적어주세요.'}
 ];
 const seniorAnswers={display_name:'',major:'',status:'',introduction:''};
@@ -53,11 +135,11 @@ function render(){
     return;
   }
   const q=steps[step];
-  app.innerHTML=`<div class="top"><span>${step===2?'고민 작성':'기본 정보'}</span><strong>${step+1} / ${steps.length}</strong></div><div class="progress"><div class="bar" style="width:${(step+1)/steps.length*100}%"></div></div><h2>${q.title}</h2><p class="hint">${q.hint}</p><div class="choices"></div><div class="actions"><button class="back" id="prev">이전</button><button class="primary" id="next">${step===2?'선배 추천받기':'다음'}</button></div><p class="note">추천받기를 누르면 작성한 내용이 선배 추천을 위해 서버로 전송됩니다.</p><p class="notice" id="login-message" role="status"></p>`;
+   app.innerHTML=`<div class="top"><span>${q.key==='concern'?'고민 작성':'기본 정보'}</span><strong>${step+1} / ${steps.length}</strong></div><div class="progress"><div class="bar" style="width:${(step+1)/steps.length*100}%"></div></div><h2>${q.title}</h2><p class="hint">${q.hint}</p><div class="choices"></div><div class="actions"><button class="back" id="prev">이전</button><button class="primary" id="next">${q.key==='concern'?'선배 추천받기':'다음'}</button></div><p class="note">추천받기를 누르면 작성한 내용이 선배 추천을 위해 서버로 전송됩니다.</p><p class="notice" id="login-message" role="status"></p>`;
   const box=app.querySelector('.choices'),next=app.querySelector('#next');
-  if(q.options){
-    q.options.forEach(option=>{const button=document.createElement('button');button.className='choice'+(answers[q.key]===option?' selected':'');button.textContent=option;button.setAttribute('aria-pressed',String(answers[q.key]===option));button.onclick=()=>{answers[q.key]=option;render()};box.appendChild(button)});
-    next.disabled=!answers[q.key];
+   if(q.options){
+     q.options.forEach(option=>{const selected=q.multi?answers[q.key].includes(option):answers[q.key]===option;const button=document.createElement('button');button.className='choice'+(selected?' selected':'');button.textContent=option;button.setAttribute('aria-pressed',String(selected));button.onclick=()=>{if(q.multi){if(selected){answers[q.key]=answers[q.key].filter(item=>item!==option)}else if(answers[q.key].length<2){answers[q.key]=[...answers[q.key],option]}}else{answers[q.key]=option}render()};box.appendChild(button)});
+     next.disabled=false;
   }else{
     const prefix=document.createElement('div');prefix.className='prefix';prefix.textContent=`저는 ${selectedSchool} ${answers.status}이고, ${answers.reason} 관련 이야기를 나눌 선배를 찾고 있어요.`;box.appendChild(prefix);
     const input=document.createElement('textarea');input.className='concern-input';input.setAttribute('aria-label','추가 고민');input.placeholder='예: 친절하게 이야기해 주고 학교 근처 밥집을 잘 아는 선배를 만나고 싶어요.';input.value=answers.concern;input.maxLength=2000;input.oninput=()=>{answers.concern=input.value};box.appendChild(input);
@@ -67,14 +149,19 @@ function render(){
     if(step<steps.length-1){step++;render();return}
     const intro=`저는 ${selectedSchool} ${answers.status}이고, ${answers.reason} 관련 이야기를 나눌 선배를 찾고 있어요.`;
     const text=[intro,answers.concern.trim()].filter(Boolean).join('\n');
-    const choice={status:answers.status,reason:answers.reason,school:selectedSchool};
+    const choice = {
+      status: answers.status,
+      reason: answers.reason,
+      experience_preferences: answers.experience_preferences,
+      school: selectedSchool
+    };
     const notice=app.querySelector('#login-message'),prev=app.querySelector('#prev');
     next.disabled=true;prev.disabled=true;next.textContent='추천 요청 중...';notice.textContent='';
     try{
       sessionStorage.setItem('ppunppun-choice',JSON.stringify(choice));
       sessionStorage.setItem('ppunppun-concern',text);
       const base=location.protocol==='file:'?'http://127.0.0.1:8000':'';
-      const response=await fetch(base+'/api/match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({concern_text:text,top_k:3,use_llm:true})});
+      const response=await fetch(base+'/api/match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({concern_text:text,choice:choice,top_k:3,use_llm:true})});
       if(!response.ok)throw new Error('요청 실패');
       const result=await response.json();sessionStorage.setItem('ppunppun-match',JSON.stringify(result));
       location.href='./choice/index.html';
