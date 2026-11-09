@@ -1,4 +1,4 @@
-"""후배 고민 → JSON 조건 추출 (OpenRouter / OpenAI 호환)."""
+﻿"""후배 고민 → JSON 조건 추출 (OpenRouter / OpenAI 호환)."""
 
 from __future__ import annotations
 
@@ -8,15 +8,19 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
-# backend 폴더의 .env 파일 불러오기
-load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+# backend/.env 파일 경로 설정 및 로드
+env_path = Path(__file__).resolve().parents[1] / ".env"
+load_dotenv(env_path)
 
 
 def _client() -> OpenAI:
-    kwargs = {}
     base_url = os.getenv("OPENAI_BASE_URL", "").strip()
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
 
+    if not api_key:
+        print("⚠️ [경고]: .env 파일에 OPENAI_API_KEY가 비어있습니다. API 호출이 실패할 수 있습니다.")
+
+    kwargs = {}
     if base_url:
         kwargs["base_url"] = base_url
     if api_key:
@@ -34,10 +38,17 @@ def extract_concern_info(user_text: str) -> dict:
 - 모든 추출 결과(키워드, 문장 포함)는 반드시 한국어로만 작성해야 한다.
 - 영어를 사용하지 마라.
 
-* JSON 키 종류:
+- JSON 키 종류:
   - interests: 고민에서 추출된 핵심 관심사 키워드 목록 (한국어 단어 배열)
   - situation: 현재 처한 상황 한 줄 요약 (한국어 문장)
-  - help_fields: 선배에게 도움받고 싶은 분야 목록 (한국어 단어 배열)
+  - help_fields: 아래 표준 분야 중 해당하는 값만 선택한 목록
+    - 학교생활
+    - 전공공부
+    - 진로취업
+    - 인턴대외활동
+    - 대학원연구
+- help_fields에는 위 목록에 없는 표현을 만들지 마라.
+- 고민이 여러 분야에 걸치면 최대 2개까지 선택해라.
 """
 
     try:
@@ -51,9 +62,14 @@ def extract_concern_info(user_text: str) -> dict:
                 {"role": "user", "content": f"후배 고민글:\n{user_text}"},
             ],
             temperature=0.1,
+            timeout=15.0,  # 15초 넘게 응답이 없으면 멈추지 않고 예외 발생
         )
 
-        return json.loads(res.choices[0].message.content)
+        content = res.choices[0].message.content
+        if not content:
+            raise ValueError("AI 응답이 비어있습니다.")
+
+        return json.loads(content)
 
     except json.JSONDecodeError:
         print("⚠️ [오류]: LLM 응답을 JSON으로 파싱하는 데 실패했습니다.")

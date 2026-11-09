@@ -1,27 +1,37 @@
-// 백엔드 API 클라이언트 (매칭까지). 채팅 API는 추후.
-// 서버와 같은 출처로 열면 API_BASE_URL을 "" 로 두면 됩니다.
-// file:// 로 열 때는 "http://127.0.0.1:8000"
-const API_BASE_URL = window.PPUN_API_BASE || (location.protocol === "file:" ? "http://127.0.0.1:8000" : "");
+const API_BASE = location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
 
 async function apiRequest(path, options = {}) {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
   });
-  if (!res.ok) {
+
+  if (!response.ok) {
     let detail = "";
     try {
-      const err = await res.json();
-      detail = err.detail ? `: ${typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)}` : "";
-    } catch (_) {}
-    throw new Error(`요청 실패 (${res.status})${detail}`);
+      const body = await response.json();
+      if (typeof body.detail === "string") detail = body.detail;
+      else if (body.detail) detail = JSON.stringify(body.detail);
+    } catch (e) {}
+    throw new Error(detail || `요청 실패 (${response.status})`);
   }
-  return res.status === 204 ? null : res.json();
+
+  return response.json();
 }
 
 const MentorApi = {
   health: () => apiRequest("/health"),
   listMentors: () => apiRequest("/api/mentors"),
+
+  extract: (concernText) =>
+    apiRequest("/api/extract", {
+      method: "POST",
+      body: JSON.stringify({ concern_text: concernText, use_llm: true }),
+    }),
+
   match: (body) =>
     apiRequest("/api/match", {
       method: "POST",

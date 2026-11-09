@@ -1,0 +1,5 @@
+﻿services:
+  - type: web
+    name: my-app
+    env: python # 또는 node, static 등
+    plan: free  # <- 무료 플랜 명시
