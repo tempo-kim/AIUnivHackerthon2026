@@ -79,7 +79,6 @@ class MentorStore:
             with target.open(encoding="utf-8-sig", newline="") as f:
                 for row in csv.DictReader(f):
                     key = _row_key(row) or f"row-{next_id}"
-<<<<<<< Updated upstream
                     existing = merged.get(key)
                     if existing is None:
                         generated_id = f"M{next_id:03d}"
@@ -87,13 +86,6 @@ class MentorStore:
                     else:
                         # 같은 선배가 다른 파일에 다시 나오면 기존 ID를 유지한다
                         generated_id = existing.mentor_id
-=======
-                    if key in merged:
-                        generated_id = merged[key].mentor_id
-                    else:
-                        generated_id = f"M{next_id:03d}"
-                        next_id += 1
->>>>>>> Stashed changes
                     merged[key] = _row_to_mentor(row, generated_id)
         if not merged:
             raise FileNotFoundError("멘토 CSV를 찾을 수 없습니다.")
