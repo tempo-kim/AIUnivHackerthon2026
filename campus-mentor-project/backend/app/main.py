@@ -9,6 +9,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -161,6 +162,11 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+
+@app.get("/", include_in_schema=False)
+def home():
+    return RedirectResponse(url="/frontend/main.html")
 
 
 @app.get("/api/mentors", response_model=list[MentorOut])
