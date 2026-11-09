@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -11,14 +13,13 @@ from openai import OpenAI
 # backend/.env 파일 경로 설정 및 로드
 env_path = Path(__file__).resolve().parents[1] / ".env"
 load_dotenv(env_path)
+_llm_executor = ThreadPoolExecutor(max_workers=2)
 
 
+@lru_cache(maxsize=1)
 def _client() -> OpenAI:
     base_url = os.getenv("OPENAI_BASE_URL", "").strip()
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
-
-    if not api_key:
-        print("⚠️ [경고]: .env 파일에 OPENAI_API_KEY가 비어있습니다. API 호출이 실패할 수 있습니다.")
 
     kwargs = {}
     if base_url:
@@ -27,6 +28,20 @@ def _client() -> OpenAI:
         kwargs["api_key"] = api_key
 
     return OpenAI(**kwargs)
+
+
+def _request_llm(user_text: str, model_name: str, system_prompt: str):
+    return _client().chat.completions.create(
+        model=model_name,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"후배 고민글:\n{user_text}"},
+        ],
+        temperature=0.1,
+        timeout=2.5,
+        max_retries=0,
+    )
 
 
 def extract_concern_info(user_text: str) -> dict:
@@ -54,16 +69,8 @@ def extract_concern_info(user_text: str) -> dict:
     try:
         model_name = os.getenv("LLM_MODEL", "openai/gpt-4o-mini")
 
-        res = _client().chat.completions.create(
-            model=model_name,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"후배 고민글:\n{user_text}"},
-            ],
-            temperature=0.1,
-            timeout=15.0,  # 15초 넘게 응답이 없으면 멈추지 않고 예외 발생
-        )
+        future = _llm_executor.submit(_request_llm, user_text, model_name, system_prompt)
+        res = future.result(timeout=2.0)
 
         content = res.choices[0].message.content
         if not content:
@@ -72,14 +79,12 @@ def extract_concern_info(user_text: str) -> dict:
         return json.loads(content)
 
     except json.JSONDecodeError:
-        print("⚠️ [오류]: LLM 응답을 JSON으로 파싱하는 데 실패했습니다.")
         return {
             "interests": [],
             "situation": "JSON 파싱 에러",
             "help_fields": [],
         }
-    except Exception as e:
-        print(f"⚠️ [오류 발생]: {e}")
+    except Exception:
         return {
             "interests": [],
             "situation": "정보 추출 실패",
