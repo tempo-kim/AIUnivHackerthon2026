@@ -13,7 +13,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from ai.extractor import extract_concern_info
+from ai.extractor import extract_concern_info, recommend_mentors
 from ai.stub_extract import stub_extract
 from app.schemas import (
     ChoiceContext,
@@ -129,16 +129,20 @@ def _extract(payload: MatchRequest) -> tuple[Extraction, str]:
             detail="concern_text 또는 extraction이 필요합니다.",
         )
 
-    if payload.use_llm and os.getenv("OPENAI_API_KEY", "").strip():
+    if payload.use_llm:
+        if not os.getenv("OPENAI_API_KEY", "").strip():
+            raise HTTPException(status_code=503, detail="LLM 설정이 없습니다.")
         raw = extract_concern_info(text)
-        if not _llm_failed(raw):
-            return _from_llm(raw), "llm"
+        if _llm_failed(raw):
+            raise HTTPException(status_code=503, detail="LLM 고민 분석에 실패했습니다.")
+        return _from_llm(raw), "llm"
 
     return Extraction(**stub_extract(text)), "stub"
 
 
 def _match_response(payload: MatchRequest) -> MatchResponse:
     extraction, source = _extract(payload)
+    mentors = store.as_matching_rows()
     ranked = match_mentors(
         interests=extraction.interests,
         help_fields=extraction.help_fields,
@@ -146,14 +150,35 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
         choice_reason=payload.choice.reason if payload.choice else "",
         experience_preferences=payload.choice.experience_preferences if payload.choice else [],
         choice_status=payload.choice.status if payload.choice else "",
-        mentors=store.as_matching_rows(),
-        top_k=payload.top_k,
+        mentors=mentors,
+        top_k=max(payload.top_k, min(8, len(mentors))),
     )
+    recommendation_source = "rules"
+    if payload.use_llm and ranked:
+        recommendation = recommend_mentors(
+            concern_text=_concern_text(payload.concern_text, payload.choice),
+            extraction=extraction.model_dump(),
+            candidates=ranked,
+            top_k=payload.top_k,
+        )
+        if recommendation:
+            ranked_by_id = {str(row["mentor_id"]): row for row in ranked}
+            reordered = []
+            selected_ids = set()
+            for item in recommendation:
+                row = ranked_by_id[item["mentor_id"]].copy()
+                row["reasons"] = [*row.get("reasons", []), "AI 추천: " + item["reason"]]
+                reordered.append(row)
+                selected_ids.add(item["mentor_id"])
+            reordered.extend(row for row in ranked if str(row["mentor_id"]) not in selected_ids)
+            ranked = reordered
+            recommendation_source = "llm"
     mentor_source = store.source_path.name if store.source_path else ""
     return MatchResponse(
         extraction=extraction,
-        matches=[MentorMatch(**row) for row in ranked],
+        matches=[MentorMatch(**row) for row in ranked[:payload.top_k]],
         extraction_source=source,
+        recommendation_source=recommendation_source,
         mentor_source=mentor_source,
     )
 

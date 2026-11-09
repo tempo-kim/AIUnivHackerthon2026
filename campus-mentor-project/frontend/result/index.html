@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>추천 선배 | 뻔뻔하게</title>
@@ -19,6 +19,7 @@
   <h1>어떤 선배와 이야기해 볼까요?</h1>
   <p class="intro">선배의 이야기를 살펴보고 편하게 대화를 시작해 보세요.</p>
   <p class="notice" id="notice">추천 결과를 확인하고 있어요.</p><p class="meta" id="analysis-status" aria-live="polite"></p>
+<p class="hint" id="analysis-source"></p>
   <div class="grid" id="mentors"></div><p id="retry" hidden><a class="home" href="../main.html">← 처음부터 다시 입력하기</a></p>
 </main>
 
@@ -35,13 +36,23 @@ let result=null;
 try{result=JSON.parse(sessionStorage.getItem('ppunppun-match')||'null')}catch(e){}
 const matches=Array.isArray(result?.matches)?result.matches:[];
 const status=document.querySelector('#analysis-status');
-if(result){status.textContent=({llm:'분석 방식: AI 언어 모델',stub:'분석 방식: 임시 키워드 분석 (AI 미사용)',client:'분석 방식: 입력된 조건 사용'})[result.extraction_source]||'분석 방식을 확인할 수 없어요.';}
+if(result){
+  const extractionLabel=({llm:'LLM이 고민 내용을 분석',stub:'규칙 기반 분석',client:'입력된 조건 사용'})[result.extraction_source]||'분석 방식 확인 불가';
+  const recommendationLabel=result.recommendation_source==='llm'?'LLM이 후보 선배를 최종 비교':'규칙 기반 후보 정렬';
+  status.textContent=`분석 방식: ${extractionLabel} · 추천 방식: ${recommendationLabel}`;
+}
 if(!result||!Array.isArray(result.matches)){
   notice.textContent='아직 추천 결과가 없어요. 처음부터 고민을 입력해 주세요.';retry.hidden=false;
 }else if(matches.length===0){
   notice.textContent='입력한 조건에 맞는 선배를 찾지 못했어요. 고민을 다시 작성해 주세요.';retry.hidden=false;
 }else{
   notice.textContent='입력한 고민을 바탕으로 추천한 선배예요.';
+  const analysisSource = document.querySelector('#analysis-source');
+  if (analysisSource) {
+    analysisSource.textContent = result.extraction_source === 'llm'
+      ? '분석 방식: AI LLM이 고민 문장에서 관심사와 상황을 추출했습니다.'
+      : '분석 방식: 규칙 기반 분석이 사용되었습니다.';
+  }
   matches.forEach(mentor=>{
     const card=document.createElement('article');card.className='card';
     const avatar=document.createElement('div');avatar.className='avatar';avatar.setAttribute('aria-hidden','true');avatar.textContent=String(mentor.display_name||mentor.mentor_id||'?').charAt(0);

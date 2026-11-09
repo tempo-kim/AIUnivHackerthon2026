@@ -30,6 +30,16 @@ def _client() -> OpenAI:
     return OpenAI(**kwargs)
 
 
+def _model_name() -> str:
+    configured = os.getenv("LLM_MODEL", "").strip()
+    base_url = os.getenv("OPENAI_BASE_URL", "").strip()
+    if configured:
+        if not base_url and configured.startswith("openai/"):
+            return configured.removeprefix("openai/")
+        return configured
+    return "openai/gpt-4o-mini" if base_url else "gpt-4o-mini"
+
+
 def _request_llm(user_text: str, model_name: str, system_prompt: str):
     return _client().chat.completions.create(
         model=model_name,
@@ -40,7 +50,6 @@ def _request_llm(user_text: str, model_name: str, system_prompt: str):
         ],
         temperature=0.1,
         timeout=2.5,
-        max_retries=0,
     )
 
 
@@ -67,10 +76,10 @@ def extract_concern_info(user_text: str) -> dict:
 """
 
     try:
-        model_name = os.getenv("LLM_MODEL", "openai/gpt-4o-mini")
+        model_name = _model_name()
 
         future = _llm_executor.submit(_request_llm, user_text, model_name, system_prompt)
-        res = future.result(timeout=2.0)
+        res = future.result(timeout=2.5)
 
         content = res.choices[0].message.content
         if not content:
@@ -90,6 +99,72 @@ def extract_concern_info(user_text: str) -> dict:
             "situation": "정보 추출 실패",
             "help_fields": [],
         }
+
+
+def recommend_mentors(
+    *,
+    concern_text: str,
+    extraction: dict,
+    candidates: list[dict],
+    top_k: int,
+) -> list[dict] | None:
+    """규칙 기반 후보를 LLM이 최종 비교·정렬한다."""
+    if not candidates:
+        return []
+
+    system_prompt = """
+너는 대학생 멘토링 서비스의 최종 멘토 추천 담당자야.
+후배의 고민과 후보 선배 정보를 비교해 가장 잘 맞는 순서로 추천해.
+반드시 JSON 하나만 반환하고 후보에 없는 mentor_id는 절대 만들지 마.
+추천 이유는 후보 정보에 근거한 한국어 한 문장으로 작성해.
+반환 형식: {"recommendations":[{"mentor_id":"후보 ID","reason":"추천 이유"}]}
+"""
+    request_payload = {
+        "concern": concern_text[:2000],
+        "extraction": extraction,
+        "candidates": [
+            {
+                "mentor_id": row.get("mentor_id"),
+                "major": row.get("major", ""),
+                "experiences": row.get("experiences", []),
+                "help_topics": row.get("help_topics", []),
+                "bio": str(row.get("bio", ""))[:500],
+            }
+            for row in candidates
+        ],
+        "top_k": top_k,
+    }
+    try:
+        model_name = _model_name()
+        future = _llm_executor.submit(
+            _request_llm,
+            json.dumps(request_payload, ensure_ascii=False),
+            model_name,
+            system_prompt,
+        )
+        content = future.result(timeout=1.8).choices[0].message.content
+        recommendations = json.loads(content or "").get("recommendations")
+        if not isinstance(recommendations, list):
+            return None
+
+        valid_ids = {str(row.get("mentor_id")) for row in candidates}
+        result: list[dict] = []
+        seen: set[str] = set()
+        for item in recommendations:
+            if not isinstance(item, dict):
+                continue
+            mentor_id = str(item.get("mentor_id") or "")
+            reason = str(item.get("reason") or "").strip()
+            if mentor_id not in valid_ids or mentor_id in seen or not reason:
+                continue
+            result.append({"mentor_id": mentor_id, "reason": reason[:200]})
+            seen.add(mentor_id)
+            if len(result) >= min(top_k, len(candidates)):
+                break
+
+        return result or None
+    except Exception:
+        return None
 
 
 if __name__ == "__main__":
