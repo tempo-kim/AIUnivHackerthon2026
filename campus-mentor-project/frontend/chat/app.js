@@ -2,6 +2,32 @@
 // 같은 mentor 값이면 후배·선배가 같은 대화방을 씀
 const CONNECT_LOADING_MS = 3000; // 첫 진입 "연결중" 로딩 시간
 const ROLE_LABELS = { junior: "후배", senior: "선배" };
+const REACTIONS = ["👍", "✅", "❤️", "😂", "🙏", "👏", "감사합니다!", "확인했어요!"];
+
+// 첫 질문 추천 문장 (템플릿). keyword가 후배의 고민에 있으면 먼저 보여줌
+const TOPIC_QUESTIONS = {
+  동아리: { keyword: "동아리", question: "선배님은 동아리를 어떻게 고르고 시작하셨어요?" },
+  "취업 준비": { keyword: "취업", question: "선배님은 취업 준비를 어떻게 시작하셨어요?" },
+  인턴: { keyword: "인턴", question: "선배님은 인턴 지원을 어떻게 준비하셨어요?" },
+  공모전: { keyword: "공모전", question: "선배님은 공모전 팀을 어떻게 꾸려서 준비하셨어요?" },
+  연구실: { keyword: "연구", question: "선배님은 연구실 경험을 어떻게 시작하셨어요?" },
+  "대학원 준비": { keyword: "대학원", question: "선배님은 대학원 준비를 어떻게 시작하셨어요?" },
+  학생회: { keyword: "학생회", question: "학생회 활동이 학교생활에 어떤 도움이 되었는지 궁금해요." },
+};
+const REASON_QUESTIONS = {
+  학교적응: "학교에 적응할 때 제일 도움이 됐던 건 뭐였어요?",
+  "밥집 추천": "선배님이 자주 가시는 학교 근처 밥집을 추천해 주실 수 있어요?",
+  전공지식: "전공 공부는 어떤 순서로 하면 좋을까요?",
+  "진로와 취업": "진로를 정할 때 선배님은 무엇을 가장 먼저 해 보셨어요?",
+  대외활동: "처음 해 볼 만한 대외활동을 추천해 주실 수 있어요?",
+};
+const GENERIC_QUESTIONS = [
+  "제 시기에 미리 해 두면 좋은 일이 있을까요?",
+  "학교 다니면서 가장 잘했다고 생각하는 일은 뭐예요?",
+  "지금 돌아보면 다르게 해 보고 싶은 일이 있으세요?",
+];
+const SINGLE_EMOJI =
+  /^(?:\p{Regional_Indicator}{2}|\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})?(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})?)*)$/u;
 
 const params = new URLSearchParams(location.search);
 const myRole = params.get("role");
@@ -30,6 +56,11 @@ const reportBtn = $("report-btn");
 const endBtn = $("end-btn");
 const errorBanner = $("error-banner");
 const noticeBanner = $("notice-banner");
+const suggestionsEl = $("suggestions");
+const suggestionList = $("suggestion-list");
+const reactionArea = $("composer-area");
+const reactionToggle = $("reaction-toggle");
+const reactionPanel = $("reaction-panel");
 
 const reportModal = $("report-modal");
 const reportForm = $("report-form");
@@ -104,11 +135,13 @@ function appendMessage(message) {
   messagesEl.querySelector(".empty-state")?.remove();
 
   const bubble = document.createElement("div");
-  bubble.className = `bubble ${message.role === myRole ? "me" : "other"}`;
+  const emojiOnly = SINGLE_EMOJI.test(message.text.trim());
+  bubble.className = `bubble ${message.role === myRole ? "me" : "other"}${emojiOnly ? " emoji-only" : ""}`;
   bubble.textContent = message.text;
   // 종료 안내는 항상 맨 아래에 두기
   messagesEl.insertBefore(bubble, messagesEl.querySelector(".ended-card"));
   messagesEl.scrollTop = messagesEl.scrollHeight;
+  updateSuggestions();
 }
 
 function renderMessages(messages) {
@@ -116,17 +149,125 @@ function renderMessages(messages) {
   shownIds.clear();
   if (messages.length === 0) showEmptyState();
   messages.forEach(appendMessage);
+  updateSuggestions();
 }
 
 function updateSendState() {
   const ended = endState.status === "ended";
   input.disabled = ended;
   sendBtn.disabled = ended || isSending || input.value.trim() === "";
+  reactionToggle.disabled = ended || isSending;
+  if (ended) closeReactionPanel();
 }
 
 function autoResize() {
   input.style.height = "auto";
   input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+}
+
+// ---- 첫 질문 추천 (후배 화면) ----
+function readConcern() {
+  try {
+    return sessionStorage.getItem("ppunppun-concern") || "";
+  } catch {
+    return "";
+  }
+}
+
+// CSV의 "공모전 (교내, 교외)"가 쉼표로 잘려 들어오므로 앞부분만 쓰고 조각은 버림
+function cleanTopics(topics) {
+  const names = topics
+    .filter((topic) => !topic.includes(")"))
+    .map((topic) => topic.split("(")[0].trim())
+    .filter((topic) => topic && topic !== "others" && topic !== "없음");
+  return [...new Set(names)];
+}
+
+function buildSuggestions() {
+  const concern = readConcern();
+  const reason = Object.keys(REASON_QUESTIONS).find((key) => concern.includes(key));
+  const topicItems = cleanTopics(mentor.helpTopics).map(
+    (topic) => TOPIC_QUESTIONS[topic] ?? { keyword: topic, question: `선배님은 ${topic} 경험을 어떻게 시작하셨어요?` }
+  );
+  // 고민에 나온 주제를 앞으로 (같은 조건이면 원래 순서 유지)
+  const matched = topicItems.filter((item) => concern.includes(item.keyword));
+  const others = topicItems.filter((item) => !concern.includes(item.keyword));
+  const questions = [
+    ...(reason ? [REASON_QUESTIONS[reason]] : []),
+    ...[...matched, ...others].map((item) => item.question),
+    ...GENERIC_QUESTIONS,
+  ];
+  return questions.slice(0, 3);
+}
+
+function renderSuggestions() {
+  if (myRole !== "junior") return;
+  suggestionList.replaceChildren(
+    ...buildSuggestions().map((question) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "suggestion-btn";
+      button.textContent = question;
+      button.addEventListener("click", () => {
+        // 바로 보내지 않고 입력창에 채워서 고칠 수 있게 함
+        input.value = question;
+        autoResize();
+        updateSendState();
+        input.focus();
+        input.setSelectionRange(question.length, question.length);
+      });
+      return button;
+    })
+  );
+}
+
+function updateSuggestions() {
+  suggestionsEl.hidden = !(myRole === "junior" && shownIds.size === 0 && endState.status !== "ended");
+}
+
+// ---- 빠른 반응 ----
+function renderReactionPanel() {
+  reactionPanel.replaceChildren(
+    ...REACTIONS.map((reaction) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = reaction.length <= 2 ? "reaction-btn" : "reaction-btn text";
+      button.textContent = reaction;
+      button.addEventListener("click", () => sendText(reaction));
+      return button;
+    })
+  );
+}
+
+function closeReactionPanel() {
+  reactionPanel.hidden = true;
+  reactionToggle.setAttribute("aria-expanded", "false");
+}
+
+function toggleReactionPanel() {
+  reactionPanel.hidden = !reactionPanel.hidden;
+  reactionToggle.setAttribute("aria-expanded", String(!reactionPanel.hidden));
+}
+
+// 일반 입력과 빠른 반응이 함께 쓰는 전송. 성공하면 true
+async function sendText(text) {
+  closeReactionPanel();
+  if (!text || isSending || endState.status === "ended") return false; // 빈 메시지·중복 전송 방지
+
+  isSending = true;
+  updateSendState();
+  try {
+    appendMessage(await ChatApi.sendMessage(mentorId, myRole, text));
+    hideError();
+    return true;
+  } catch {
+    // 입력한 내용은 지우지 않아서 바로 다시 보낼 수 있음
+    showError(ERROR_MESSAGES.send);
+    return false;
+  } finally {
+    isSending = false;
+    updateSendState();
+  }
 }
 
 // ---- 대화 종료 ----
@@ -161,6 +302,7 @@ function applyEndState(state, { live = false } = {}) {
     showNotice("");
   }
   updateSendState();
+  updateSuggestions();
 }
 
 async function runEndAction(action) {
@@ -216,23 +358,16 @@ async function handleReportSubmit(e) {
 function bindEvents() {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const text = input.value.trim();
-    if (!text || isSending || endState.status === "ended") return; // 빈 메시지·중복 전송 방지
-
-    isSending = true;
-    updateSendState();
-    try {
-      appendMessage(await ChatApi.sendMessage(mentorId, myRole, text));
-      hideError();
+    if (await sendText(input.value.trim())) {
       input.value = "";
       autoResize();
-    } catch {
-      // 입력한 내용은 지우지 않아서 바로 다시 보낼 수 있음
-      showError(ERROR_MESSAGES.send);
-    } finally {
-      isSending = false;
       updateSendState();
     }
+  });
+
+  reactionToggle.addEventListener("click", toggleReactionPanel);
+  document.addEventListener("click", (e) => {
+    if (!reactionPanel.hidden && !reactionArea.contains(e.target)) closeReactionPanel();
   });
 
   input.addEventListener("input", () => {
@@ -271,6 +406,7 @@ function bindEvents() {
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !reportModal.hidden) closeReportModal();
+    if (e.key === "Escape") closeReactionPanel();
   });
 }
 
@@ -292,7 +428,8 @@ async function init() {
       major: found.major,
       grade: "선배",
       intro: found.bio || found.help_topics?.join(" · ") || "후배의 고민을 함께 들어드려요.",
-      color: "var(--mint)",
+      color: "var(--blue)",
+      helpTopics: found.help_topics ?? [],
     };
   } catch {
     loadingView.hidden = true;
@@ -302,6 +439,8 @@ async function init() {
 
   $("loading-text").textContent = `${ROLE_LABELS[partnerRole]}와 연결중입니다`;
   renderHeader();
+  renderSuggestions();
+  renderReactionPanel();
   resetBtn.hidden = !ChatApi.canClear;
 
   // 로딩을 보여주는 동안 대화와 종료 상태를 미리 불러옴

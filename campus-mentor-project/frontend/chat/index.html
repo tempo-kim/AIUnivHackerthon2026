@@ -51,10 +51,19 @@
       <p class="notice-banner" id="notice-banner" role="status" hidden></p>
       <p class="error-banner" id="error-banner" role="alert" hidden></p>
 
-      <form class="composer" id="composer">
-        <textarea id="message-input" rows="1" aria-label="메시지 입력"></textarea>
-        <button type="submit" id="send-btn" disabled>전송</button>
-      </form>
+      <section class="suggestions" id="suggestions" aria-label="추천 질문" hidden>
+        <p class="suggestions-label">이렇게 물어볼 수 있어요</p>
+        <div class="suggestion-list" id="suggestion-list"></div>
+      </section>
+
+      <div class="composer-area" id="composer-area">
+        <div class="reaction-panel" id="reaction-panel" role="group" aria-label="빠른 반응 보내기" hidden></div>
+        <form class="composer" id="composer">
+          <button type="button" class="reaction-toggle" id="reaction-toggle" aria-label="빠른 반응 열기" aria-expanded="false" aria-controls="reaction-panel">😊</button>
+          <textarea id="message-input" rows="1" aria-label="메시지 입력"></textarea>
+          <button type="submit" id="send-btn" disabled>전송</button>
+        </form>
+      </div>
     </section>
 
     <!-- 신고 창 -->
