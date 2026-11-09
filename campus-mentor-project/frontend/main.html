@@ -1,9 +1,103 @@
 ﻿<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>뻔뻔하게</title><style>
-*{box-sizing:border-box}body{margin:0;background:#f7f9f4;color:#25372b;font-family:Pretendard,'Malgun Gothic',sans-serif}header{max-width:1080px;margin:auto;padding:24px;display:flex;align-items:center;justify-content:space-between}.logo{font-size:22px;font-weight:900;color:#358158}button{font:inherit;cursor:pointer}.login{border:1px solid #dce8dd;border-radius:12px;background:white;color:#617767;padding:10px 18px}main{max-width:1050px;margin:45px auto 120px;padding:0 24px}.layout{display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center}.badge{background:#e1f2e6;color:#328359;padding:9px 14px;border-radius:30px;font-weight:700;font-size:13px}h1{font-size:clamp(38px,5vw,60px);letter-spacing:-.06em;line-height:1.2;margin:28px 0 18px}h1 span{color:#3e9664}.intro{color:#718579;line-height:1.8}.card{background:white;border:1px solid #e2ede3;border-radius:24px;padding:32px;box-shadow:0 18px 60px #274e3010}h2{font-size:24px;letter-spacing:-.04em;line-height:1.4;margin:0 0 10px}.hint{color:#829489;font-size:14px;line-height:1.6}.primary,.back{border:0;border-radius:12px;padding:15px 20px;font-weight:700}.primary{background:#398c5d;color:white;flex:1}.primary:disabled{opacity:.4;cursor:not-allowed}.back{background:#edf3ed;color:#55715e}.start{width:100%;margin-top:14px}.top{display:flex;justify-content:space-between;font-size:13px;color:#7d9182}.progress{height:6px;border-radius:10px;background:#edf3ed;margin:15px 0 26px}.bar{height:100%;background:#55aa78;border-radius:10px}.choices{display:grid;gap:9px;margin-top:20px}.choice{border:1px solid #dce8dd;background:white;color:#344b3b;text-align:left;border-radius:12px;padding:14px}.choice:hover,.choice.selected{border-color:#4ba774;background:#f0faf2;color:#257649}.actions{display:flex;gap:10px;margin-top:22px}.note{font-size:12px;color:#91a297;line-height:1.6;margin:16px 0 0}.nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e3ebe3;display:flex;justify-content:center;gap:8px;padding:10px 20px calc(10px + env(safe-area-inset-bottom));z-index:2}.nav a{color:#668072;text-decoration:none;text-align:center;padding:8px 45px;border-radius:12px;font-size:13px}.nav a:hover{background:#f0f8f1;color:#32845a}.nav span{display:block;font-size:20px;margin-bottom:3px}.notice{color:#72877a;font-size:13px;margin:15px 0 0}@media(max-width:760px){main{margin:25px auto 110px}.layout{grid-template-columns:1fr;gap:30px}.card{padding:24px}h1{margin:20px 0}.nav a{padding:8px 35px}}
-.concern-input{width:100%;min-height:145px;resize:vertical;border:1px solid #dce8dd;border-radius:12px;padding:14px;font:inherit;line-height:1.7;color:#344b3b}.prefix{background:#f0f8f1;border-radius:12px;padding:14px;line-height:1.7;color:#3d6e50;font-size:14px}.secondary{width:100%;margin-top:10px;background:#eff6ef;color:#397a53;border:0;border-radius:12px;padding:15px;font-weight:700}.role-note{font-size:13px;color:#718579;line-height:1.6}</style></head><body><header><div class="logo">🌱 뻔뻔하게</div><button class="login" id="login" type="button">로그인</button></header><main><div class="layout"><section><span class="badge">캠퍼스 생활, 뻔뻔하게 물어봐요</span><h1>궁금한 건<br><span>뻔뻔하게!</span></h1><p class="intro">학교생활의 사소한 질문부터 진로 고민까지.<br>나와 맞는 선배에게 편하게 물어보세요.</p></section><section class="card" id="app" aria-live="polite"></section></div></main><nav class="nav" aria-label="하단 메뉴"><a href="./choice/"><span>☘</span>선택창</a><a href="./choice/index.html"><span>💬</span>채팅창</a></nav><script>
+*{box-sizing:border-box}body{margin:0;background:#f7f8ff;color:#1b2451;font-family:Pretendard,'Malgun Gothic',sans-serif}header{max-width:1080px;margin:auto;padding:24px;display:flex;align-items:center;justify-content:space-between}.logo{font-size:22px;font-weight:900;color:#283c91}button{font:inherit;cursor:pointer}.login{border:1px solid #dce2f5;border-radius:12px;background:white;color:#647092;padding:10px 18px}main{max-width:1050px;margin:45px auto 120px;padding:0 24px}.layout{display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center}.badge{background:#edeaff;color:#6140c4;padding:9px 14px;border-radius:30px;font-weight:700;font-size:13px}h1{font-size:clamp(38px,5vw,60px);letter-spacing:-.06em;line-height:1.2;margin:28px 0 18px}h1 span{color:#6d49d4}.intro{color:#72809b;line-height:1.8}.card{background:white;border:1px solid #e1e5f5;border-radius:24px;padding:32px;box-shadow:0 18px 60px #30346b10}h2{font-size:24px;letter-spacing:-.04em;line-height:1.4;margin:0 0 10px}.hint{color:#8590a9;font-size:14px;line-height:1.6}.primary,.back{border:0;border-radius:12px;padding:15px 20px;font-weight:700}.primary{background:#345fe0;color:white;flex:1}.primary:disabled{opacity:.4;cursor:not-allowed}.back{background:#eef0fb;color:#546286}.start{width:100%;margin-top:14px}.top{display:flex;justify-content:space-between;font-size:13px;color:#7d9182}.progress{height:6px;border-radius:10px;background:#eef0fb;margin:15px 0 26px}.bar{height:100%;background:#7656e2;border-radius:10px}.choices{display:grid;gap:9px;margin-top:20px}.choice{border:1px solid #dce2f5;background:white;color:#28335e;text-align:left;border-radius:12px;padding:14px}.choice:hover,.choice.selected{border-color:#7656e2;background:#f2efff;color:#6140c4}.actions{display:flex;gap:10px;margin-top:22px}.note{font-size:12px;color:#919bb1;line-height:1.6;margin:16px 0 0}.nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e5f3;display:flex;justify-content:center;gap:8px;padding:10px 20px calc(10px + env(safe-area-inset-bottom));z-index:2}.nav a{color:#687398;text-decoration:none;text-align:center;padding:8px 45px;border-radius:12px;font-size:13px}.nav a:hover{background:#f0efff;color:#5e43c8}.nav span{display:block;font-size:20px;margin-bottom:3px}.notice{color:#72809b;font-size:13px;margin:15px 0 0}@media(max-width:760px){main{margin:25px auto 110px}.layout{grid-template-columns:1fr;gap:30px}.card{padding:24px}h1{margin:20px 0}.nav a{padding:8px 35px}}
+.concern-input{width:100%;min-height:145px;resize:vertical;border:1px solid #dce2f5;border-radius:12px;padding:14px;font:inherit;line-height:1.7;color:#28335e}.prefix{background:#f0efff;border-radius:12px;padding:14px;line-height:1.7;color:#51478f;font-size:14px}.secondary{width:100%;margin-top:10px;background:#edeaff;color:#5c43b8;border:0;border-radius:12px;padding:15px;font-weight:700}.role-note{font-size:13px;color:#72809b;line-height:1.6}
+.logo{display:inline-flex;align-items:center;line-height:0}.logo img{display:block;width:150px;height:90px;object-fit:contain;mix-blend-mode:multiply}@media(max-width:760px){.logo img{width:120px;height:72px}}
+</style></head><body><header><a class="logo" href="./main.html" style="text-decoration:none"><img src="./assets/brand-logo.png" alt="뻔뻔하게 홈"></a><button class="login" id="login" type="button">로그인</button></header><main><div class="layout"><section><span class="badge">캠퍼스 생활, 뻔뻔하게 물어봐요</span><h1>궁금한 건<br><span>뻔뻔하게!</span></h1><p class="intro">학교생활의 사소한 질문부터 진로 고민까지.<br>나와 맞는 선배에게 편하게 물어보세요.</p></section><section class="card" id="app" aria-live="polite"></section></div></main><nav class="nav" aria-label="하단 메뉴"><a href="./main.html"><span>☘</span>홈</a><a href="./choice/index.html"><span>💬</span>채팅창</a></nav><script src="./universities.js"></script><script>
 const app = document.querySelector('#app');
-const answers = {status:'', reason:'', experience_preferences:[], concern:''};
+let selectedSchool = '';
+
+try {
+  selectedSchool = localStorage.getItem('ppunppun-school') || '';
+
+  if (!schoolExamples.includes(selectedSchool)) {
+    selectedSchool = '';
+    localStorage.removeItem('ppunppun-school');
+    sessionStorage.removeItem('ppunppun-school');
+  }
+} catch (e) {
+  selectedSchool = '';
+}
+
+function renderSchool() {
+  app.innerHTML = `
+    <span class="badge">함께할 학교 찾기</span>
+    <h2 style="margin-top:20px">어느 학교에 다니시나요?</h2>
+    <p class="hint">학교 이름을 검색하고 선택해 주세요.</p>
+    <input
+      class="choice"
+      id="school-search"
+      style="width:100%;font:inherit"
+      type="search"
+      placeholder="예: 고려대학교"
+      aria-label="학교 이름 검색"
+      autocomplete="off"
+    >
+    <div class="choices" id="school-results"></div>
+    <p class="note">학교 목록은 공공데이터를 기준으로 합니다.</p>
+    <p class="notice" id="login-message" role="status"></p>
+  `;
+
+  const input = app.querySelector('#school-search');
+  const results = app.querySelector('#school-results');
+  input.value = selectedSchool;
+
+  function selectSchool(name) {
+    selectedSchool = name;
+
+    try {
+      localStorage.setItem('ppunppun-school', name);
+      sessionStorage.setItem('ppunppun-school', name);
+    } catch (e) {}
+
+    step = -1;
+    render();
+  }
+
+  function update() {
+    results.replaceChildren();
+    const value = input.value.trim();
+
+    if (!value) {
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = '학교 이름을 입력하면 검색 결과가 보여요.';
+      results.appendChild(hint);
+      return;
+    }
+
+    const matches = schoolExamples.filter(s =>
+      s.toLowerCase().includes(value.toLowerCase())
+    );
+
+    matches.forEach(name => {
+      const button = document.createElement('button');
+      button.className = 'choice';
+      button.type = 'button';
+      button.textContent = name;
+      button.onclick = () => selectSchool(name);
+      results.appendChild(button);
+    });
+
+    if (!matches.length) {
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = '검색 결과가 없어요. 학교 이름을 다시 확인해 주세요.';
+      results.appendChild(hint);
+    }
+  }
+
+  input.maxLength = 100;
+  input.oninput = update;
+  update();
+}
+
+const answers = {
+  status: '',
+  reason: '',
+  experience_preferences: [],
+  concern: ''
+};
 let step = -1;
 const steps = [
   {key:'status', title:'현재 어떤 단계인가요?', hint:'나에게 해당하는 항목을 선택해 주세요.', options:['신입생','재학생','졸업준비생','졸업생']},
@@ -24,16 +118,18 @@ function renderSenior(){
   }else if(seniorStep===1){
     const area=document.createElement('textarea');area.className='concern-input';area.setAttribute('aria-label','선배 소개와 경험');area.placeholder='예: 자료구조를 수강했고, 학교 주변 혼밥하기 좋은 밥집을 잘 알아요. 후배의 고민을 편하게 들어줄게요.';area.maxLength=2000;area.value=seniorAnswers.introduction;area.oninput=()=>{seniorAnswers.introduction=area.value;next.disabled=!area.value.trim()};box.appendChild(area);next.disabled=!area.value.trim();
   }else{
-    const summary=document.createElement('div');summary.className='prefix';summary.style.whiteSpace='pre-wrap';summary.textContent=`닉네임: ${seniorAnswers.display_name.trim()}\n전공: ${seniorAnswers.major.trim()}\n학년 또는 졸업 여부: ${seniorAnswers.status.trim()}\n\n소개와 경험\n${seniorAnswers.introduction.trim()}`;box.appendChild(summary);
+    const summary=document.createElement('div');summary.className='prefix';summary.style.whiteSpace='pre-wrap';summary.textContent=`학교: ${selectedSchool}\n닉네임: ${seniorAnswers.display_name.trim()}\n전공: ${seniorAnswers.major.trim()}\n학년 또는 졸업 여부: ${seniorAnswers.status.trim()}\n\n소개와 경험\n${seniorAnswers.introduction.trim()}`;box.appendChild(summary);
     const download=document.createElement('button');download.className='secondary';download.textContent='테스트용 JSON 파일 내려받기';download.onclick=()=>{const data=seniorPayload();const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='mentor-profile.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);notice.textContent='파일을 내려받았어요. 브라우저의 다운로드 목록을 확인해 주세요.'};box.appendChild(download);
   }
   app.querySelector('#senior-prev').onclick=()=>{if(seniorStep===0){step=-1;render()}else{seniorStep--;renderSenior()}};
   next.onclick=()=>{if(!review){seniorStep++;renderSenior();return}try{sessionStorage.setItem('ppunppun-senior-draft',JSON.stringify(seniorPayload()));notice.textContent='이 브라우저 탭에 임시 저장했어요. 실제 등록은 아직 되지 않았어요.'}catch(e){notice.textContent='임시 저장을 할 수 없어요. 브라우저 저장 설정을 확인해 주세요.'}};
 }
-function seniorPayload(){return {schema_version:1,display_name:seniorAnswers.display_name.trim(),major:seniorAnswers.major.trim(),status:seniorAnswers.status.trim(),introduction:seniorAnswers.introduction.trim()}}
+function seniorPayload(){return {schema_version:1,school:selectedSchool,display_name:seniorAnswers.display_name.trim(),major:seniorAnswers.major.trim(),status:seniorAnswers.status.trim(),introduction:seniorAnswers.introduction.trim()}}
 function render(){
   if(step<0){
-    app.innerHTML='<h2>무엇이든 물어볼 준비됐나요?</h2><p class="hint">나의 상황과 고민을 알려주면 어울리는 선배를 찾아볼 수 있어요.</p><button class="primary start" id="start">후배로 시작하기 →</button><button class="secondary" id="senior">선배로 시작하기</button><p class="notice" id="login-message" role="status"></p>';
+    app.innerHTML='<h2>무엇이든 물어볼 준비됐나요?</h2><p class="hint" id="school-label"></p><button class="back" id="change-school" type="button">학교 변경</button><p class="hint">나의 상황과 고민을 알려주면 어울리는 선배를 찾아볼 수 있어요.</p><button class="primary start" id="start">후배로 시작하기 →</button><button class="secondary" id="senior">선배로 시작하기</button><p class="notice" id="login-message" role="status"></p>';
+    app.querySelector('#school-label').textContent='선택한 학교: '+selectedSchool;
+    app.querySelector('#change-school').onclick=renderSchool;
     app.querySelector('#start').onclick=()=>{step=0;render()};
     app.querySelector('#senior').onclick=()=>{seniorStep=0;renderSenior()};
     return;
@@ -45,15 +141,20 @@ function render(){
      q.options.forEach(option=>{const selected=q.multi?answers[q.key].includes(option):answers[q.key]===option;const button=document.createElement('button');button.className='choice'+(selected?' selected':'');button.textContent=option;button.setAttribute('aria-pressed',String(selected));button.onclick=()=>{if(q.multi){if(selected){answers[q.key]=answers[q.key].filter(item=>item!==option)}else if(answers[q.key].length<2){answers[q.key]=[...answers[q.key],option]}}else{answers[q.key]=option}render()};box.appendChild(button)});
      next.disabled=false;
   }else{
-    const prefix=document.createElement('div');prefix.className='prefix';prefix.textContent=`저는 ${answers.status}이고 ${answers.reason}을(를) 위해 선배를 찾고 있어요.`;box.appendChild(prefix);
+    const prefix=document.createElement('div');prefix.className='prefix';prefix.textContent=`저는 ${selectedSchool} ${answers.status}이고, ${answers.reason} 관련 이야기를 나눌 선배를 찾고 있어요.`;box.appendChild(prefix);
     const input=document.createElement('textarea');input.className='concern-input';input.setAttribute('aria-label','추가 고민');input.placeholder='예: 친절하게 이야기해 주고 학교 근처 밥집을 잘 아는 선배를 만나고 싶어요.';input.value=answers.concern;input.maxLength=2000;input.oninput=()=>{answers.concern=input.value};box.appendChild(input);
   }
   app.querySelector('#prev').onclick=()=>{step--;render()};
   next.onclick=async()=>{
     if(step<steps.length-1){step++;render();return}
-    const intro=`저는 ${answers.status}이고 ${answers.reason}을(를) 위해 선배를 찾고 있어요.`;
+    const intro=`저는 ${selectedSchool} ${answers.status}이고, ${answers.reason} 관련 이야기를 나눌 선배를 찾고 있어요.`;
     const text=[intro,answers.concern.trim()].filter(Boolean).join('\n');
-     const choice={status:answers.status,reason:answers.reason,experience_preferences:answers.experience_preferences};
+    const choice = {
+      status: answers.status,
+      reason: answers.reason,
+      experience_preferences: answers.experience_preferences,
+      school: selectedSchool
+    };
     const notice=app.querySelector('#login-message'),prev=app.querySelector('#prev');
     next.disabled=true;prev.disabled=true;next.textContent='추천 요청 중...';notice.textContent='';
     try{
@@ -63,10 +164,10 @@ function render(){
       const response=await fetch(base+'/api/match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({concern_text:text,choice:choice,top_k:3,use_llm:true})});
       if(!response.ok)throw new Error('요청 실패');
       const result=await response.json();sessionStorage.setItem('ppunppun-match',JSON.stringify(result));
-      location.href='./result/';
+      location.href='./choice/index.html';
     }catch(e){notice.textContent='추천 요청에 실패했어요. 서버 연결을 확인한 뒤 다시 시도해 주세요.';next.disabled=false;prev.disabled=false;next.textContent='다시 시도'}
   };
 }
 document.querySelector('#login').onclick=()=>{app.querySelector('#login-message').textContent='로그인 기능은 준비 중이에요.'};
-render();
+if(selectedSchool){render()}else{renderSchool()}
 </script></body></html>
