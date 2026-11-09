@@ -60,15 +60,65 @@ const ChatApi = (() => {
     return list.map(normalizeMessage);
   }
 
-  // 상대가 보낸 새 메시지 받기. 목 모드는 BroadcastChannel, 서버 모드는 주기적 조회
-  function subscribe(mentorId, { onMessage, onClear, onError, onRecover }) {
-    if (USE_MOCK) return ChatStore.subscribe(roomIdOf(mentorId), { onMessage, onClear });
+  // ---- 대화 종료 ----
+  // 상태 형식: { status: "active" | "pending" | "ended", requestedBy, declinedBy }
+  function normalizeEndState(raw) {
+    return {
+      status: raw?.status ?? "active",
+      requestedBy: raw?.requestedBy ?? null,
+      declinedBy: raw?.declinedBy ?? null,
+    };
+  }
+
+  // GET /api/chat-end?mentorId=1
+  async function getEndState(mentorId) {
+    if (USE_MOCK) return ChatStore.loadEndState(roomIdOf(mentorId));
+    return normalizeEndState(await request(`/api/chat-end?mentorId=${encodeURIComponent(mentorId)}`));
+  }
+
+  // POST /api/chat-end/request  body: {"mentorId":"1","requesterRole":"junior"}
+  async function requestEnd(mentorId, requesterRole) {
+    if (USE_MOCK) return ChatStore.requestEnd(roomIdOf(mentorId), requesterRole);
+    const data = await request("/api/chat-end/request", {
+      method: "POST",
+      body: JSON.stringify({ mentorId: String(mentorId), requesterRole }),
+    });
+    return normalizeEndState(data);
+  }
+
+  // POST /api/chat-end/respond  body: {"mentorId":"1","responderRole":"senior","agree":true}
+  async function respondEnd(mentorId, responderRole, agree) {
+    if (USE_MOCK) return ChatStore.respondEnd(roomIdOf(mentorId), responderRole, agree);
+    const data = await request("/api/chat-end/respond", {
+      method: "POST",
+      body: JSON.stringify({ mentorId: String(mentorId), responderRole, agree }),
+    });
+    return normalizeEndState(data);
+  }
+
+  // ---- 신고 ----
+  // POST /api/reports  body: {"mentorId":"1","reporterRole":"junior","reason":"욕설·비방","details":"..."}
+  async function submitReport(mentorId, reporterRole, reason, details) {
+    const report = { mentorId: String(mentorId), reporterRole, reason, details };
+    if (USE_MOCK) return ChatStore.saveReport(report);
+    return request("/api/reports", { method: "POST", body: JSON.stringify(report) });
+  }
+
+  // 상대가 보낸 새 메시지·종료 상태 받기. 목 모드는 BroadcastChannel, 서버 모드는 주기적 조회
+  function subscribe(mentorId, { onMessage, onClear, onEndState, onError, onRecover }) {
+    if (USE_MOCK) return ChatStore.subscribe(roomIdOf(mentorId), { onMessage, onClear, onEndState });
 
     let failed = false;
+    let lastEndState = "";
     const timer = setInterval(async () => {
       try {
-        const messages = await getMessages(mentorId);
+        const [messages, endState] = await Promise.all([getMessages(mentorId), getEndState(mentorId)]);
         messages.forEach(onMessage);
+        const endStateKey = JSON.stringify(endState);
+        if (endStateKey !== lastEndState) {
+          lastEndState = endStateKey;
+          onEndState?.(endState);
+        }
         if (failed) onRecover?.();
         failed = false;
       } catch (err) {
@@ -86,5 +136,15 @@ const ChatApi = (() => {
     if (USE_MOCK) ChatStore.clearMessages(roomIdOf(mentorId));
   }
 
-  return { sendMessage, getMessages, subscribe, clearMessages, canClear };
+  return {
+    sendMessage,
+    getMessages,
+    getEndState,
+    requestEnd,
+    respondEnd,
+    submitReport,
+    subscribe,
+    clearMessages,
+    canClear,
+  };
 })();
