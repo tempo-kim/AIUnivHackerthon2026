@@ -119,7 +119,6 @@ def _concern_text(concern_text: str | None, choice: ChoiceContext | None) -> str
 
 
 def _extract(payload: MatchRequest) -> tuple[Extraction, str]:
-    load_dotenv(ENV_PATH, override=True)
     if payload.extraction is not None:
         return payload.extraction, "client"
 
