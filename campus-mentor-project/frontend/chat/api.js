@@ -24,6 +24,9 @@ const ChatApi = (() => {
       if (!res.ok) {
         const err = new Error(`요청 실패 (${res.status})`);
         err.status = res.status;
+        // 서버가 보낸 안내 문구(예: 부적절한 채팅 안내)를 화면에서 쓸 수 있게 담아 둠
+        const body = await res.json().catch(() => null);
+        if (typeof body?.detail === "string") err.detail = body.detail;
         throw err;
       }
       return res.status === 204 ? null : await res.json();
@@ -42,6 +45,15 @@ const ChatApi = (() => {
     };
   }
 
+  // 목 모드: 서버와 같은 욕설 검사. 걸리면 서버의 400 응답과 같은 형태로 실패
+  function rejectBadwords(text) {
+    if (!BadWords.contains(text)) return;
+    const err = new Error("요청 실패 (400)");
+    err.status = 400;
+    err.detail = BadWords.CHAT_MESSAGE;
+    throw err;
+  }
+
   // 대화방은 선배 + 후배 단위
   function roomPrefixOf(mentorId) {
     return `mentor-${mentorId}:`;
@@ -57,7 +69,10 @@ const ChatApi = (() => {
 
   // POST /api/messages
   async function sendMessage(mentorId, juniorId, senderRole, text) {
-    if (USE_MOCK) return ChatStore.sendMessage(roomIdOf(mentorId, juniorId), { role: senderRole, text });
+    if (USE_MOCK) {
+      rejectBadwords(text);
+      return ChatStore.sendMessage(roomIdOf(mentorId, juniorId), { role: senderRole, text });
+    }
 
     const data = await request("/api/messages", {
       method: "POST",
@@ -122,7 +137,10 @@ const ChatApi = (() => {
   // POST /api/reports  body: {"mentorId":"M001","juniorId":"J-xxxxxxxx","reporterRole":"junior","reason":"욕설·비방","details":"..."}
   async function submitReport(mentorId, juniorId, reporterRole, reason, details) {
     const report = { mentorId: String(mentorId), juniorId, reporterRole, reason, details };
-    if (USE_MOCK) return ChatStore.saveReport(report);
+    if (USE_MOCK) {
+      rejectBadwords(details);
+      return ChatStore.saveReport(report);
+    }
     return request("/api/reports", { method: "POST", body: JSON.stringify(report) });
   }
 

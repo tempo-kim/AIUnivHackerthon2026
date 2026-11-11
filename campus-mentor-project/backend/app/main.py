@@ -37,6 +37,7 @@ from app.schemas import (
 )
 from matching.matcher import match_mentors
 from services import storage
+from services.badwords import contains_badword
 from services.mentors import Mentor, store
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -146,6 +147,16 @@ def _require_room_member(mentor_id: str, junior_id: str, authorization: str) -> 
     if storage.token_mentor(token) == mentor_id or storage.token_junior(token) == junior_id:
         return
     raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+
+
+CHAT_BADWORD_DETAIL = "부적절한 채팅입니다. 바른 표현을 사용해 주세요."
+PROFILE_BADWORD_DETAIL = "부적절한 표현이 포함돼 있어요"
+
+
+def _reject_badwords(detail: str, *texts: str) -> None:
+    """금지어가 있으면 400. 어떤 단어가 걸렸는지는 응답에 넣지 않는다."""
+    if any(contains_badword(text) for text in texts):
+        raise HTTPException(status_code=400, detail=detail)
 
 
 def _check_new_pin(pin: str, pin_confirm: str) -> None:
@@ -401,6 +412,7 @@ def register_mentor(payload: MentorRegisterRequest):
     if len(introduction) > 300:
         raise HTTPException(status_code=400, detail="소개는 300자 이내로 입력해 주세요.")
     _check_new_pin(payload.pin, payload.pin_confirm)
+    _reject_badwords(PROFILE_BADWORD_DETAIL, display_name, introduction)
     with _register_lock:
         if storage.name_taken(display_name) or any(
             mentor.display_name == display_name for mentor in store.list()
@@ -430,6 +442,7 @@ def register_junior(payload: JuniorRegisterRequest):
     if len(display_name) > 30:
         raise HTTPException(status_code=400, detail="닉네임은 30자 이내로 입력해 주세요.")
     _check_new_pin(payload.pin, payload.pin_confirm)
+    _reject_badwords(PROFILE_BADWORD_DETAIL, display_name)
     try:
         junior_id = storage.add_junior(display_name, payload.pin)
     except sqlite3.IntegrityError as exc:
@@ -655,6 +668,7 @@ def send_message(payload: RoomMessageRequest, authorization: str = Header(defaul
     _require_role(payload.senderRole, payload.mentorId, payload.juniorId, authorization)
     if storage.get_end_state(room)["status"] == "ended":
         raise HTTPException(status_code=409, detail="종료된 대화입니다.")
+    _reject_badwords(CHAT_BADWORD_DETAIL, payload.text)
     message = {
         "id": str(uuid.uuid4()),
         "senderRole": payload.senderRole,
@@ -707,6 +721,7 @@ def respond_chat_end(payload: RoomEndResponseRequest, authorization: str = Heade
 def create_report(payload: RoomReportRequest, authorization: str = Header(default="")):
     _chat_room(payload.mentorId, payload.juniorId)
     _require_role(payload.reporterRole, payload.mentorId, payload.juniorId, authorization)
+    _reject_badwords(CHAT_BADWORD_DETAIL, payload.details)
     storage.add_report(
         {
             "reportId": str(uuid.uuid4()),
