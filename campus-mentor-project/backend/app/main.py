@@ -247,7 +247,9 @@ def _rank_mentors(payload: MatchRequest, extraction: Extraction, mentors: list[d
     )
 
 
-def _apply_llm_ranking(ranked: list[dict], analysis: dict, top_k: int) -> list[dict]:
+def _apply_llm_ranking(
+    ranked: list[dict], analysis: dict, top_k: int, rank_offset: int = 0
+) -> list[dict]:
     suitability = {
         item["mentor_id"]: item
         for item in analysis.get("suitability", [])
@@ -269,9 +271,14 @@ def _apply_llm_ranking(ranked: list[dict], analysis: dict, top_k: int) -> list[d
         reordered.append(copied)
         selected_ids.add(mentor_id)
 
+    for item in sorted(
+        analysis.get("suitability", []),
+        key=lambda item: item.get("fit", 0) if isinstance(item, dict) else 0,
+        reverse=True,
+    ):
+        take(str(item.get("mentor_id") or ""), str(item.get("reason") or "").strip())
+
     for item in analysis.get("recommendations", []):
-        if len(reordered) >= top_k:
-            break
         take(str(item.get("mentor_id") or ""), str(item.get("reason") or "").strip())
 
     leftovers: list[dict] = []
@@ -288,7 +295,7 @@ def _apply_llm_ranking(ranked: list[dict], analysis: dict, top_k: int) -> list[d
         leftovers.append(copied)
     leftovers.sort(key=lambda item: item["score"], reverse=True)
     reordered.extend(leftovers)
-    return reordered[:top_k]
+    return reordered[rank_offset : rank_offset + top_k]
 
 
 def _match_response(payload: MatchRequest) -> MatchResponse:
@@ -316,10 +323,12 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
         analysis = analyze_and_recommend(
             concern_text=text or seed.situation,
             candidates=shortlist,
-            top_k=payload.top_k,
+            top_k=len(shortlist),
         )
-        if not analysis or not analysis.get("recommendations"):
-            ranked = shortlist[:payload.top_k]
+        if not analysis or not (
+            analysis.get("recommendations") or analysis.get("suitability")
+        ):
+            ranked = shortlist[payload.rank_offset : payload.rank_offset + payload.top_k]
             return MatchResponse(
                 extraction=seed,
                 matches=[MentorMatch(**row) for row in ranked],
@@ -328,7 +337,9 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
                 mentor_source=mentor_source,
             )
         extraction = payload.extraction or _from_llm(analysis)
-        ranked = _apply_llm_ranking(shortlist, analysis, payload.top_k)
+        ranked = _apply_llm_ranking(
+            shortlist, analysis, payload.top_k, payload.rank_offset
+        )
         return MatchResponse(
             extraction=extraction,
             matches=[MentorMatch(**row) for row in ranked],

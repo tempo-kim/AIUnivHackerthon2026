@@ -281,7 +281,7 @@ def analyze_and_recommend(
             model_name,
             system_prompt,
             timeout=LLM_MATCH_TIMEOUT, # 늘어난 타임아웃 적용
-            max_tokens=1000,
+            max_tokens=3000,
         )
         res = future.result(timeout=LLM_MATCH_TIMEOUT + 1.0)
         content = res.choices[0].message.content if res.choices else ""

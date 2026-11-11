@@ -21,6 +21,7 @@ class MatchRequest(BaseModel):
     extraction: Extraction | None = None
     choice: ChoiceContext | None = None
     top_k: int = Field(default=3, ge=1, le=10)
+    rank_offset: int = Field(default=0, ge=0, le=1000)
     use_llm: bool = True
 
 
