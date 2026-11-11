@@ -169,6 +169,13 @@ def _concern_text(concern_text: str | None, choice: ChoiceContext | None) -> str
         )
         if hint and hint not in body:
             parts.append(hint)
+        preferences = " · ".join(
+            preference.strip()
+            for preference in choice.experience_preferences
+            if preference and preference.strip()
+        )
+        if preferences and preferences not in body:
+            parts.append(f"선배 경험 선호: {preferences}")
     return "\n".join(parts)
 
 

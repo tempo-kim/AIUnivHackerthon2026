@@ -220,12 +220,15 @@ def analyze_and_recommend(
 [매칭 평가 기준]
 1. 좋은 매칭 (Good Match) - 우선순위:
   - 후배의 체크박스 선호(상황, 고민 이유, 경험 선호 등)와 줄글 고민을 종합적으로 고려해라.
-  - 고민 키워드가 선배의 전문 분야/경험과 '직접 겹치는 선배'를 1순위로 추천해라.
-  - 겹치는 단어가 직접적으로 없더라도, 고민 내용과 가장 비슷한 분야/연관 단어/유사 상황을 바탕으로 후배에게 '가장 실질적인 도움을 줄 수 있는 선배'를 추천해라.
+  - 후배가 근본적으로 해결하고 싶은 고민의 핵심 키워드가 선배의 전공, 도움 분야, 경험, 소개와 직접 겹치는 선배를 1순위로 추천해라.
+  - 직접 겹치는 고민 키워드가 없으면 후배의 고민과 최대한 비슷한 분야, 연관 단어, 유사 상황, 경험을 순서대로 비교해 가장 실질적인 도움을 줄 수 있는 선배를 추천해라.
+  - 체크박스 선호와 줄글 고민이 서로 다르면 줄글의 근본 고민을 우선하되, 체크박스는 동률 후보의 우선순위를 정하는 데 사용해라.
 
 2. 나쁜 매칭 (Bad Match) - 금지:
   - 후배가 근본적으로 해결하고 싶어 하는 고민 키워드와 겹치는 점이나 연관성이 전혀 없는 선배는 추천하지 마라.
   - 프로필 상 스펙이나 이름값만 높고, 후배의 고민 주제와 상관없는 선배는 배제해라.
+  - 단순히 같은 학교, 같은 학년, 인기 있어 보인다는 이유만으로 점수를 높이지 마라.
+  - 관련성이 없으면 fit을 낮게 평가하고 recommendations에 포함하지 마라.
 
 [필드]
 - interests: 고민 핵심 키워드 3~6개
@@ -234,6 +237,7 @@ def analyze_and_recommend(
 - suitability: 전달된 후보 전원. mentor_id, fit(0~100 숫자, 기준에 맞춰 엄격히 평가), reason(후보 근거 한 문장)
 - recommendations: suitability가 높은 순서의 상위 인원. mentor_id, reason(매칭 평가 기준을 근거로 한 추천 이유)
   배열 순서가 최종 순위다. 후보에 없는 mentor_id는 만들지 마.
+  suitability의 fit과 recommendations의 순서는 반드시 같은 판단 기준을 따라라. 추천 이유에는 실제로 겹치거나 유사한 후배 고민과 선배 정보를 구체적으로 밝혀라.
 
 반환 형식:
 {"interests":[],"situation":"","help_fields":[],"suitability":[{"mentor_id":"","fit":0,"reason":""}],"recommendations":[{"mentor_id":"","reason":""}]}
@@ -267,3 +271,15 @@ def analyze_and_recommend(
             timeout=LLM_MATCH_TIMEOUT, # 늘어난 타임아웃 적용
             max_tokens=1000,
         )
+        res = future.result(timeout=LLM_MATCH_TIMEOUT + 1.0)
+        content = res.choices[0].message.content if res.choices else ""
+        parsed = _parse_match_analysis(content, candidates, top_k)
+        if parsed is None:
+            raise ValueError("AI 매칭 응답 형식이 올바르지 않습니다.")
+        return parsed
+    except json.JSONDecodeError as exc:
+        print(f"[LLM Error] 매칭 응답 JSON 파싱 에러: {exc}")
+    except Exception as exc:
+        print(f"[LLM Error] analyze_and_recommend 에러 발생: {exc}")
+        traceback.print_exc()
+    return None
