@@ -142,7 +142,7 @@ def recommend_mentors(
             model_name,
             system_prompt,
         )
-        content = future.result(timeout=1.8).choices[0].message.content
+        content = future.result(timeout=2.5).choices[0].message.content
         recommendations = json.loads(content or "").get("recommendations")
         if not isinstance(recommendations, list):
             return None
