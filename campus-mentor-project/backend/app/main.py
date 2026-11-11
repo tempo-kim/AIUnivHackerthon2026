@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
+import secrets
 import sqlite3
 import threading
 import time
@@ -515,6 +517,89 @@ def get_messages(mentorId: str, juniorId: str = "", authorization: str = Header(
     return storage.list_messages(room)
 
 
+# ---- 관리자 (신고 확인에만 비밀번호 필요) ----
+ADMIN_TOKEN_SECONDS = 12 * 60 * 60
+_admin_tokens: dict[str, float] = {}  # 토큰 해시 → 만료 시각
+_admin_fails = {"count": 0, "until": 0.0}
+_admin_lock = threading.Lock()
+
+
+class AdminLoginRequest(BaseModel):
+    password: str = ""
+
+
+def _admin_password() -> str:
+    password = os.getenv("ADMIN_PASSWORD", "").strip()
+    if not password:
+        raise HTTPException(status_code=503, detail="관리자 비밀번호가 설정되지 않았습니다.")
+    return password
+
+
+def _require_admin(authorization: str) -> None:
+    _admin_password()
+    token_hash = hashlib.sha256(_bearer(authorization).encode()).hexdigest()
+    with _admin_lock:
+        expires = _admin_tokens.get(token_hash)
+        if expires is None or expires < time.time():
+            _admin_tokens.pop(token_hash, None)
+            raise HTTPException(status_code=401, detail="관리자 로그인이 필요합니다.")
+
+
+@app.post("/api/admin/login")
+def admin_login(payload: AdminLoginRequest):
+    password = _admin_password()
+    now = time.time()
+    with _admin_lock:
+        if _admin_fails["until"] > now:
+            raise HTTPException(status_code=429, detail="로그인 시도가 너무 많아요. 5분 후 다시 시도해 주세요.")
+        if not secrets.compare_digest(payload.password.encode(), password.encode()):
+            _admin_fails["count"] += 1
+            if _admin_fails["count"] >= LOGIN_MAX_FAILS:
+                _admin_fails.update(count=0, until=now + LOGIN_LOCK_SECONDS)
+                raise HTTPException(status_code=429, detail="5번 틀려서 5분 동안 로그인할 수 없어요.")
+            raise HTTPException(status_code=401, detail="비밀번호가 맞지 않아요.")
+        _admin_fails["count"] = 0
+        token = secrets.token_urlsafe(32)
+        _admin_tokens[hashlib.sha256(token.encode()).hexdigest()] = now + ADMIN_TOKEN_SECONDS
+    return {"token": token, "expiresIn": ADMIN_TOKEN_SECONDS}
+
+
+def _find_report(report_id: str) -> dict:
+    report = next((item for item in _reports if item["reportId"] == report_id), None)
+    if report is None:
+        raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다.")
+    return report
+
+
+@app.get("/api/admin/reports")
+def get_admin_reports(authorization: str = Header(default="")):
+    _require_admin(authorization)
+    mentor_names = {mentor.mentor_id: mentor.display_name for mentor in store.list()}
+    junior_names = storage.junior_names([item["juniorId"] for item in _reports])
+    reports = [
+        {
+            "reportId": item["reportId"],
+            "mentorName": mentor_names.get(item["mentorId"], item["mentorId"]),
+            "juniorName": junior_names.get(item["juniorId"], ""),
+            "reporterRole": "선배" if item["reporterRole"] == "senior" else "후배",
+            "reason": item["reason"],
+            "detail": item["details"],
+            "createdAt": item["createdAt"],
+        }
+        for item in _reports
+    ]
+    reports.sort(key=lambda item: datetime.fromisoformat(item["createdAt"]), reverse=True)
+    return reports
+
+
+@app.get("/api/admin/reports/{report_id}/messages")
+def get_admin_report_messages(report_id: str, authorization: str = Header(default="")):
+    """신고된 대화방의 메시지만 볼 수 있다."""
+    _require_admin(authorization)
+    report = _find_report(report_id)
+    return storage.list_messages(f"{report['mentorId']}:{report['juniorId']}")
+
+
 @app.get("/api/admin/matches")
 def get_admin_matches():
     """시연용 관리자 화면: 전체 대화방 목록(최근순). 메시지 내용은 넣지 않는다."""
@@ -522,6 +607,7 @@ def get_admin_matches():
     rooms = storage.list_rooms("")
     junior_ids = [room["room"].partition(":")[2] for room in rooms]
     junior_names = storage.junior_names(junior_ids)
+    reported_rooms = {f"{item['mentorId']}:{item['juniorId']}" for item in _reports}
     matches = []
     for room, junior_id in zip(rooms, junior_ids):
         mentor_id = room["room"].partition(":")[0]
@@ -535,6 +621,7 @@ def get_admin_matches():
                 "lastAt": room["lastAt"],
                 "messageCount": room["messageCount"],
                 "status": room["status"],
+                "reported": room["room"] in reported_rooms,
             }
         )
     matches.sort(key=lambda item: datetime.fromisoformat(item["lastAt"]), reverse=True)
@@ -620,7 +707,13 @@ def respond_chat_end(payload: RoomEndResponseRequest, authorization: str = Heade
 def create_report(payload: RoomReportRequest, authorization: str = Header(default="")):
     _chat_room(payload.mentorId, payload.juniorId)
     _require_role(payload.reporterRole, payload.mentorId, payload.juniorId, authorization)
-    _reports.append({**payload.model_dump(), "createdAt": datetime.now(timezone.utc).isoformat()})
+    _reports.append(
+        {
+            **payload.model_dump(),
+            "reportId": str(uuid.uuid4()),
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        }
+    )
     return {"status": "received"}
 
 
