@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -735,6 +735,15 @@ def create_report(payload: RoomReportRequest, authorization: str = Header(defaul
         }
     )
     return {"status": "received"}
+
+
+@app.middleware("http")
+async def no_cache_frontend_html(request: Request, call_next):
+    """/frontend의 HTML은 항상 서버에 새로 확인하게 해서 바뀐 화면(하단 메뉴 등)이 바로 보이게 한다."""
+    response = await call_next(request)
+    if request.url.path.startswith("/frontend") and response.headers.get("content-type", "").startswith("text/html"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 if FRONTEND_DIR.is_dir():
