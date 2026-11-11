@@ -7,9 +7,10 @@
 <style>
   *{box-sizing:border-box}
   body{margin:0;background:#f6f7fd;color:#1b2451;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+  [hidden]{display:none !important}
   header{max-width:880px;margin:auto;padding:24px 16px 8px;display:flex;align-items:center;gap:14px}
   header img{height:44px}
-  header h1{margin:0;font-size:22px}
+  header h1{margin:0;font-size:22px;flex:1}
   main{max-width:880px;margin:auto;padding:8px 16px 40px}
   .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:12px 0 20px}
   .stat{background:#fff;border:1px solid #e1e5f5;border-radius:18px;padding:18px}
@@ -29,22 +30,28 @@
   .badge.new{background:#f3c64d;color:#3d2c00}
   .badge.on{background:#e3ebff;color:#2b4fc2}
   .badge.off{background:#eceef4;color:#69728c}
+  .badge.reported{background:#ffe1e1;color:#b42323}
   .empty,.error{text-align:center;color:#647092;padding:28px 0}
   .error{color:#c03a3a}
   .tabs{display:flex;gap:8px;margin:8px 0 4px}
   .tab{border:1px solid #dce2f5;background:#fff;color:#647092;border-radius:12px;padding:10px 18px;font:inherit;font-weight:700;cursor:pointer}
   .tab[aria-selected="true"]{background:#345fe0;border-color:#345fe0;color:#fff}
   .tab .count{display:inline-block;min-width:20px;margin-left:6px;border-radius:999px;background:#f3c64d;color:#3d2c00;font-size:12px;padding:1px 6px}
-  .badge.reported{background:#ffe1e1;color:#b42323}
-  .card{background:#fff;border:1px solid #e1e5f5;border-radius:18px;padding:20px;max-width:420px}
-  .card h2{margin:0 0 6px;font-size:18px}
-  .card p{margin:0 0 14px;font-size:13px;color:#647092}
-  .card input{width:100%;font:inherit;padding:12px 14px;border:1px solid #dce2f5;border-radius:12px}
   .btn{border:0;border-radius:12px;padding:12px 18px;font:inherit;font-weight:700;cursor:pointer;background:#345fe0;color:#fff}
-  .btn.ghost{background:#fff;color:#647092;border:1px solid #dce2f5}
+  .btn.ghost{background:#fff;color:#647092;border:1px solid #dce2f5;padding:9px 14px}
   .btn:disabled{opacity:.5;cursor:not-allowed}
-  .row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
-  .form-error{color:#c03a3a;font-size:13px;margin:10px 0 0;min-height:1em}
+  /* 비밀번호 화면 */
+  .login-view{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+  .login-card{width:100%;max-width:380px;background:#fff;border:1px solid #e1e5f5;border-radius:24px;padding:28px 24px;text-align:center;box-shadow:0 18px 60px #30346b10}
+  .login-card img{height:56px;margin-bottom:12px}
+  .login-card h1{margin:0 0 6px;font-size:22px}
+  .login-card p{margin:0 0 18px;font-size:13px;color:#647092}
+  .login-card input{width:100%;font:inherit;padding:13px 14px;border:1px solid #dce2f5;border-radius:12px;margin-bottom:12px}
+  .login-card input:focus{outline:3px solid #345fe033;border-color:#345fe0}
+  .login-card .btn{width:100%}
+  .form-error{color:#c03a3a;font-size:13px;margin:12px 0 0;min-height:1.2em}
+  .back-home{display:inline-block;margin-top:14px;font-size:13px;color:#647092}
+  /* 신고 */
   li.report{cursor:pointer;flex-direction:column;align-items:stretch}
   li.report:hover,li.report:focus-visible{border-color:#345fe0;outline:none}
   li.report.selected{border-color:#345fe0;box-shadow:0 0 0 2px #345fe033}
@@ -64,42 +71,48 @@
 </style>
 </head>
 <body>
-<header>
-  <img src="./assets/brand-logo.png" alt="뻔뻔하게" />
-  <h1>뻔뻔하게 관리자 화면</h1>
-</header>
-<main>
-  <nav class="tabs" role="tablist" aria-label="관리자 메뉴">
-    <button class="tab" role="tab" id="tab-matches" aria-selected="true" aria-controls="panel-matches">매칭</button>
-    <button class="tab" role="tab" id="tab-reports" aria-selected="false" aria-controls="panel-reports">신고<span class="count" id="new-report-count" hidden></span></button>
-  </nav>
-  <section id="panel-matches" role="tabpanel" aria-labelledby="tab-matches">
-  <section class="stats" aria-label="요약">
-    <div class="stat"><span>총 매칭 수</span><strong id="total">-</strong></div>
-    <div class="stat active"><span>진행 중 대화</span><strong id="active">-</strong></div>
-  </section>
-  <div class="list-head">
-    <h2>매칭 목록</h2>
-    <span class="updated" id="updated" aria-live="polite"></span>
-  </div>
-  <ul id="list"></ul>
-  <p class="empty" id="empty" hidden>아직 매칭된 대화가 없어요.</p>
-  <p class="error" id="error" role="alert" hidden>목록을 불러오지 못했어요. 서버 연결을 확인해 주세요.</p>
-  </section>
+<!-- 첫 화면: 관리자 비밀번호 -->
+<section class="login-view" id="login-view" hidden>
+  <form class="login-card" id="admin-login" novalidate>
+    <img src="./assets/brand-logo.png" alt="뻔뻔하게" />
+    <h1>관리자 로그인</h1>
+    <p>관리자 비밀번호를 입력해 주세요.</p>
+    <input type="password" id="admin-password" autocomplete="current-password" aria-label="관리자 비밀번호" placeholder="관리자 비밀번호" />
+    <button class="btn" id="admin-login-btn" type="submit">확인</button>
+    <p class="form-error" id="admin-login-error" role="alert"></p>
+    <a class="back-home" href="./main.html">← 처음 화면으로</a>
+  </form>
+</section>
 
-  <section id="panel-reports" role="tabpanel" aria-labelledby="tab-reports" hidden>
-    <form class="card" id="admin-login" hidden>
-      <h2>신고 확인</h2>
-      <p>신고 내용과 신고된 대화를 보려면 관리자 비밀번호가 필요해요.</p>
-      <input type="password" id="admin-password" autocomplete="current-password" aria-label="관리자 비밀번호" placeholder="관리자 비밀번호" />
-      <div class="row"><button class="btn" id="admin-login-btn" type="submit">확인</button></div>
-      <p class="form-error" id="admin-login-error" role="alert"></p>
-    </form>
-    <div id="reports-area" hidden>
+<!-- 로그인 후: 매칭 목록 + 신고 -->
+<div id="app-view" hidden>
+  <header>
+    <img src="./assets/brand-logo.png" alt="뻔뻔하게" />
+    <h1>뻔뻔하게 관리자 화면</h1>
+    <button class="btn ghost" id="admin-logout" type="button">로그아웃</button>
+  </header>
+  <main>
+    <nav class="tabs" role="tablist" aria-label="관리자 메뉴">
+      <button class="tab" role="tab" id="tab-matches" aria-selected="true" aria-controls="panel-matches">매칭</button>
+      <button class="tab" role="tab" id="tab-reports" aria-selected="false" aria-controls="panel-reports">신고<span class="count" id="new-report-count" hidden></span></button>
+    </nav>
+
+    <section id="panel-matches" role="tabpanel" aria-labelledby="tab-matches">
+      <section class="stats" aria-label="요약">
+        <div class="stat"><span>총 매칭 수</span><strong id="total">-</strong></div>
+        <div class="stat active"><span>진행 중 대화</span><strong id="active">-</strong></div>
+      </section>
       <div class="list-head">
-        <h2>신고 목록</h2>
-        <button class="btn ghost" id="admin-logout" type="button">로그아웃</button>
+        <h2>매칭 목록</h2>
+        <span class="updated" id="updated" aria-live="polite"></span>
       </div>
+      <ul id="list"></ul>
+      <p class="empty" id="empty" hidden>아직 매칭된 대화가 없어요.</p>
+      <p class="error" id="error" role="alert" hidden>목록을 불러오지 못했어요. 서버 연결을 확인해 주세요.</p>
+    </section>
+
+    <section id="panel-reports" role="tabpanel" aria-labelledby="tab-reports" hidden>
+      <div class="list-head"><h2>신고 목록</h2></div>
       <ul id="report-list"></ul>
       <p class="empty" id="report-empty" hidden>아직 접수된 신고가 없어요.</p>
       <p class="error" id="report-error" role="alert" hidden></p>
@@ -108,20 +121,30 @@
         <p class="hint">읽기 전용 · 신고된 대화만 볼 수 있어요</p>
         <div class="msgs" id="viewer-msgs"></div>
       </section>
-    </div>
-  </section>
-</main>
+    </section>
+  </main>
+</div>
+
 <script>
-// 시연용 관리자 화면. 메시지 내용은 받지도 보여주지도 않음
+// 시연용 관리자 화면. 매칭 목록에는 메시지 내용이 없고, 신고된 대화만 열람 가능
 const POLL_MS = 2000;
-const NEW_BADGE_MS = 30000; // "새 매칭" 표시 유지 시간
+const NEW_BADGE_MS = 30000; // "새 매칭"·"새 신고" 표시 유지 시간
 const API_BASE = location.protocol === 'file:' ? 'http://127.0.0.1:8000' : '';
-const seen = new Set();
-const newSince = new Map(); // key → 처음 본 시각
-let firstLoad = true;
+const ADMIN_TOKEN_KEY = 'ppunppun-admin-token';
+const $ = (id) => document.getElementById(id);
+
+let pollTimer = null;
+const seenMatches = new Set();
+const newMatches = new Map();
+let firstMatchLoad = true;
+const seenReports = new Set();
+const newReports = new Map();
+let firstReportLoad = true;
+let selectedReportId = null;
 let loading = false;
 
-const keyOf = (m) => `${m.mentorId}|${m.juniorName}|${m.createdAt}`;
+function adminToken() { try { return sessionStorage.getItem(ADMIN_TOKEN_KEY) || ''; } catch { return ''; } }
+function setAdminToken(token) { try { if (token) sessionStorage.setItem(ADMIN_TOKEN_KEY, token); else sessionStorage.removeItem(ADMIN_TOKEN_KEY); } catch {} }
 
 function formatTime(value) {
   const d = new Date(value);
@@ -137,97 +160,32 @@ function el(tag, className, text) {
   return node;
 }
 
-function render(matches) {
-  const now = Date.now();
-  matches.forEach((m) => {
-    const key = keyOf(m);
-    if (!seen.has(key)) {
-      seen.add(key);
-      if (!firstLoad) newSince.set(key, now); // 처음 열었을 때 있던 매칭은 새 매칭으로 보지 않음
-    }
-  });
-  firstLoad = false;
-  const isNew = (m) => newSince.has(keyOf(m)) && now - newSince.get(keyOf(m)) < NEW_BADGE_MS;
-  // 새 매칭을 맨 위로, 나머지는 서버가 준 최근순 유지
-  const ordered = [...matches.filter(isNew), ...matches.filter((m) => !isNew(m))];
-
-  const items = ordered.map((m) => {
-    const li = el('li', isNew(m) ? 'new' : '');
-    const pair = el('div', 'pair');
-    if (isNew(m)) { pair.append(el('span', 'badge new', '새 매칭'), ' '); }
-    pair.append(m.juniorName || '이름 없는 후배', el('span', 'arrow', '→'), m.mentorName || m.mentorId);
-    const meta = el('div', 'meta');
-    meta.append(el('span', '', `연결 ${formatTime(m.createdAt)}`), el('span', '', `메시지 ${m.messageCount}개`));
-    const ended = m.status === 'ended';
-    li.append(pair, meta);
-    if (m.reported) li.append(el('span', 'badge reported', '신고됨'));
-    li.append(el('span', `badge ${ended ? 'off' : 'on'}`, ended ? '종료' : '진행중'));
-    return li;
-  });
-  document.getElementById('list').replaceChildren(...items);
-  document.getElementById('empty').hidden = matches.length > 0;
-  document.getElementById('total').textContent = matches.length;
-  document.getElementById('active').textContent = matches.filter((m) => m.status !== 'ended').length;
-}
-
-async function refresh() {
-  if (loading) return;
-  loading = true;
-  try {
-    const res = await fetch(`${API_BASE}/api/admin/matches`, { cache: 'no-store' });
-    if (!res.ok) throw new Error(res.status);
-    render(await res.json());
-    document.getElementById('error').hidden = true;
-    document.getElementById('updated').textContent = `마지막 갱신 ${formatTime(new Date())}`;
-  } catch {
-    document.getElementById('error').hidden = false;
-  } finally {
-    loading = false;
-  }
-}
-
-refresh();
-setInterval(refresh, POLL_MS);
-
-// ---- 신고 (관리자 비밀번호 필요. 토큰은 이 탭의 sessionStorage에만 저장) ----
-const ADMIN_TOKEN_KEY = 'ppunppun-admin-token';
-const $ = (id) => document.getElementById(id);
-const seenReports = new Set();
-const newReports = new Map();
-let firstReportLoad = true;
-let reportsLoading = false;
-let selectedReportId = null;
-
-function adminToken() { try { return sessionStorage.getItem(ADMIN_TOKEN_KEY) || ''; } catch { return ''; } }
-function setAdminToken(token) { try { if (token) sessionStorage.setItem(ADMIN_TOKEN_KEY, token); else sessionStorage.removeItem(ADMIN_TOKEN_KEY); } catch {} }
-
-function selectTab(name) {
-  const reports = name === 'reports';
-  $('tab-matches').setAttribute('aria-selected', String(!reports));
-  $('tab-reports').setAttribute('aria-selected', String(reports));
-  $('panel-matches').hidden = reports;
-  $('panel-reports').hidden = !reports;
-  if (reports) { showReportsArea(); refreshReports(); }
-}
-$('tab-matches').onclick = () => selectTab('matches');
-$('tab-reports').onclick = () => selectTab('reports');
-
-function showReportsArea() {
-  const loggedIn = Boolean(adminToken());
-  $('admin-login').hidden = loggedIn;
-  $('reports-area').hidden = !loggedIn;
-  if (!loggedIn && !$('panel-reports').hidden) setTimeout(() => $('admin-password').focus(), 0);
-}
-
-function adminLogout(message) {
+// ---- 화면 전환 ----
+function showLogin(message) {
+  clearInterval(pollTimer);
+  pollTimer = null;
   setAdminToken('');
+  seenMatches.clear(); newMatches.clear(); firstMatchLoad = true;
   seenReports.clear(); newReports.clear(); firstReportLoad = true; selectedReportId = null;
-  $('report-list').replaceChildren(); $('viewer').hidden = true; $('new-report-count').hidden = true;
+  $('list').replaceChildren(); $('report-list').replaceChildren(); $('viewer').hidden = true;
+  $('app-view').hidden = true;
+  $('login-view').hidden = false;
   $('admin-login-error').textContent = message || '';
-  showReportsArea();
+  $('admin-password').value = '';
+  $('admin-password').focus();
 }
-$('admin-logout').onclick = () => adminLogout();
 
+function showApp() {
+  $('login-view').hidden = true;
+  $('app-view').hidden = false;
+  refreshAll();
+  clearInterval(pollTimer);
+  pollTimer = setInterval(refreshAll, POLL_MS);
+}
+
+$('admin-logout').onclick = () => showLogin();
+
+// Enter로도 제출(form submit)
 $('admin-login').onsubmit = async (event) => {
   event.preventDefault();
   const btn = $('admin-login-btn');
@@ -240,30 +198,79 @@ $('admin-login').onsubmit = async (event) => {
       body: JSON.stringify({ password: $('admin-password').value }),
     });
     const data = await res.json().catch(() => ({}));
-    if (res.ok) {
+    if (res.ok && data.token) {
       setAdminToken(data.token);
       $('admin-password').value = '';
-      showReportsArea();
-      refreshReports();
-    } else if (res.status === 503) {
-      $('admin-login-error').textContent = '서버에 관리자 비밀번호가 설정되지 않았어요.';
-    } else {
-      $('admin-login-error').textContent = typeof data.detail === 'string' ? data.detail : '로그인하지 못했어요.';
+      showApp();
+      return;
     }
+    $('admin-login-error').textContent =
+      res.status === 401 ? '비밀번호가 맞지 않아요'
+      : res.status === 429 ? '잠시 후 다시 시도해 주세요'
+      : res.status === 503 ? '서버에 관리자 비밀번호가 설정되지 않았어요'
+      : '로그인하지 못했어요. 다시 시도해 주세요';
+    $('admin-password').select();
   } catch {
-    $('admin-login-error').textContent = '서버에 연결하지 못했어요.';
+    $('admin-login-error').textContent = '서버에 연결하지 못했어요';
   } finally {
     btn.disabled = false;
   }
 };
 
+// 토큰이 만료·무효면(401) 비밀번호 화면으로
 async function adminFetch(path) {
   const res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${adminToken()}` }, cache: 'no-store' });
-  if (res.status === 401) { adminLogout('다시 로그인해 주세요.'); throw new Error('401'); }
+  if (res.status === 401) { showLogin('다시 로그인해 주세요'); throw new Error('401'); }
   if (!res.ok) { const err = new Error(String(res.status)); err.status = res.status; throw err; }
   return res.json();
 }
 
+// ---- 탭 ----
+function selectTab(name) {
+  const reports = name === 'reports';
+  $('tab-matches').setAttribute('aria-selected', String(!reports));
+  $('tab-reports').setAttribute('aria-selected', String(reports));
+  $('panel-matches').hidden = reports;
+  $('panel-reports').hidden = !reports;
+}
+$('tab-matches').onclick = () => selectTab('matches');
+$('tab-reports').onclick = () => selectTab('reports');
+
+// ---- 매칭 목록 ----
+const matchKey = (m) => `${m.mentorId}|${m.juniorName}|${m.createdAt}`;
+
+function renderMatches(matches) {
+  const now = Date.now();
+  matches.forEach((m) => {
+    const key = matchKey(m);
+    if (!seenMatches.has(key)) {
+      seenMatches.add(key);
+      if (!firstMatchLoad) newMatches.set(key, now); // 처음 열었을 때 있던 매칭은 새 매칭으로 보지 않음
+    }
+  });
+  firstMatchLoad = false;
+  const isNew = (m) => newMatches.has(matchKey(m)) && now - newMatches.get(matchKey(m)) < NEW_BADGE_MS;
+  const ordered = [...matches.filter(isNew), ...matches.filter((m) => !isNew(m))];
+  const items = ordered.map((m) => {
+    const li = el('li', isNew(m) ? 'new' : '');
+    const pair = el('div', 'pair');
+    if (isNew(m)) pair.append(el('span', 'badge new', '새 매칭'), ' ');
+    pair.append(m.juniorName || '이름 없는 후배', el('span', 'arrow', '→'), m.mentorName || m.mentorId);
+    const meta = el('div', 'meta');
+    meta.append(el('span', '', `연결 ${formatTime(m.createdAt)}`), el('span', '', `메시지 ${m.messageCount}개`));
+    const ended = m.status === 'ended';
+    li.append(pair, meta);
+    if (m.reported) li.append(el('span', 'badge reported', '신고됨'));
+    li.append(el('span', `badge ${ended ? 'off' : 'on'}`, ended ? '종료' : '진행중'));
+    return li;
+  });
+  $('list').replaceChildren(...items);
+  $('empty').hidden = matches.length > 0;
+  $('total').textContent = matches.length;
+  $('active').textContent = matches.filter((m) => m.status !== 'ended').length;
+}
+
+// ---- 신고 목록 ----
 function renderReports(reports) {
   const now = Date.now();
   reports.forEach((r) => {
@@ -296,22 +303,6 @@ function renderReports(reports) {
   $('new-report-count').textContent = fresh;
 }
 
-async function refreshReports() {
-  if (!adminToken() || reportsLoading) return;
-  reportsLoading = true;
-  try {
-    renderReports(await adminFetch('/api/admin/reports'));
-    $('report-error').hidden = true;
-  } catch (err) {
-    if (err.message !== '401') {
-      $('report-error').textContent = err.status === 503 ? '서버에 관리자 비밀번호가 설정되지 않았어요.' : '신고 목록을 불러오지 못했어요.';
-      $('report-error').hidden = false;
-    }
-  } finally {
-    reportsLoading = false;
-  }
-}
-
 async function openReport(report) {
   selectedReportId = report.reportId;
   document.querySelectorAll('#report-list li').forEach((li) => li.classList.remove('selected'));
@@ -332,9 +323,34 @@ async function openReport(report) {
   }
 }
 
-// 로그인돼 있으면 매칭 탭을 보고 있어도 신고를 계속 확인해 새 신고 개수를 탭에 표시
-setInterval(refreshReports, POLL_MS);
+// ---- 2초마다 매칭·신고 함께 갱신 ----
+async function refreshAll() {
+  if (loading || !adminToken()) return;
+  loading = true;
+  try {
+    const [matches, reports] = await Promise.allSettled([adminFetch('/api/admin/matches'), adminFetch('/api/admin/reports')]);
+    if (!adminToken()) return; // 401로 로그아웃됨
+    if (matches.status === 'fulfilled') {
+      renderMatches(matches.value);
+      $('error').hidden = true;
+      $('updated').textContent = `마지막 갱신 ${formatTime(new Date())}`;
+    } else {
+      $('error').hidden = false;
+    }
+    if (reports.status === 'fulfilled') {
+      renderReports(reports.value);
+      $('report-error').hidden = true;
+    } else {
+      $('report-error').textContent = '신고 목록을 불러오지 못했어요.';
+      $('report-error').hidden = false;
+    }
+  } finally {
+    loading = false;
+  }
+}
 
+// 저장된 토큰이 있으면 바로 목록(무효면 첫 요청의 401로 비밀번호 화면), 없으면 비밀번호 화면
+if (adminToken()) showApp(); else showLogin();
 </script>
 </body>
 </html>
