@@ -1,9 +1,11 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>뻔뻔하게</title><style>
-*{box-sizing:border-box}body{margin:0;background:#f7f8ff;color:#1b2451;font-family:Pretendard,'Malgun Gothic',sans-serif}header{max-width:1080px;margin:auto;padding:24px;display:flex;align-items:center;justify-content:space-between}.logo{font-size:22px;font-weight:900;color:#283c91}button{font:inherit;cursor:pointer}.login{border:1px solid #dce2f5;border-radius:12px;background:white;color:#647092;padding:10px 18px}main{max-width:1050px;margin:45px auto 120px;padding:0 24px}.layout{display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center}.badge{background:#edeaff;color:#6140c4;padding:9px 14px;border-radius:30px;font-weight:700;font-size:13px}h1{font-size:clamp(38px,5vw,60px);letter-spacing:-.06em;line-height:1.2;margin:28px 0 18px}h1 span{color:#6d49d4}.intro{color:#72809b;line-height:1.8}.card{background:white;border:1px solid #e1e5f5;border-radius:24px;padding:32px;box-shadow:0 18px 60px #30346b10}h2{font-size:24px;letter-spacing:-.04em;line-height:1.4;margin:0 0 10px}.hint{color:#8590a9;font-size:14px;line-height:1.6}.primary,.back{border:0;border-radius:12px;padding:15px 20px;font-weight:700}.primary{background:#345fe0;color:white;flex:1}.primary:disabled{opacity:.4;cursor:not-allowed}.back{background:#eef0fb;color:#546286}.start{width:100%;margin-top:14px}.top{display:flex;justify-content:space-between;font-size:13px;color:#7d9182}.progress{height:6px;border-radius:10px;background:#eef0fb;margin:15px 0 26px}.bar{height:100%;background:#7656e2;border-radius:10px}.choices{display:grid;gap:9px;margin-top:20px}.choice{border:1px solid #dce2f5;background:white;color:#28335e;text-align:left;border-radius:12px;padding:14px}.choice:hover,.choice.selected{border-color:#7656e2;background:#f2efff;color:#6140c4}.actions{display:flex;gap:10px;margin-top:22px}.note{font-size:12px;color:#919bb1;line-height:1.6;margin:16px 0 0}.nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e5f3;display:flex;justify-content:center;gap:8px;padding:10px 20px calc(10px + env(safe-area-inset-bottom));z-index:2}.nav a{color:#687398;text-decoration:none;text-align:center;padding:8px 45px;border-radius:12px;font-size:13px}.nav a:hover{background:#f0efff;color:#5e43c8}.nav span{display:block;font-size:20px;margin-bottom:3px}.notice{color:#72809b;font-size:13px;margin:15px 0 0}@media(max-width:760px){main{margin:25px auto 110px}.layout{grid-template-columns:1fr;gap:30px}.card{padding:24px}h1{margin:20px 0}.nav a{padding:8px 35px}}
-.concern-input{width:100%;min-height:145px;resize:vertical;border:1px solid #dce2f5;border-radius:12px;padding:14px;font:inherit;line-height:1.7;color:#28335e}.prefix{background:#f0efff;border-radius:12px;padding:14px;line-height:1.7;color:#51478f;font-size:14px}.secondary{width:100%;margin-top:10px;background:#edeaff;color:#5c43b8;border:0;border-radius:12px;padding:15px;font-weight:700}.role-note{font-size:13px;color:#72809b;line-height:1.6}
+*{box-sizing:border-box}body{margin:0;background:#f7f8ff;color:#1b2451;font-family:Pretendard,'Malgun Gothic',sans-serif}header{max-width:1080px;margin:auto;padding:24px;display:flex;align-items:center;justify-content:space-between}.logo{font-size:22px;font-weight:900;color:#283c91}button{font:inherit;cursor:pointer}main{max-width:1050px;margin:45px auto 120px;padding:0 24px}.layout{display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center}.badge{background:#edeaff;color:#6140c4;padding:9px 14px;border-radius:30px;font-weight:700;font-size:13px}h1{font-size:clamp(38px,5vw,60px);letter-spacing:-.06em;line-height:1.2;margin:28px 0 18px}h1 span{color:#6d49d4}.intro{color:#72809b;line-height:1.8}.card{background:white;border:1px solid #e1e5f5;border-radius:24px;padding:32px;box-shadow:0 18px 60px #30346b10}h2{font-size:24px;letter-spacing:-.04em;line-height:1.4;margin:0 0 10px}.hint{color:#8590a9;font-size:14px;line-height:1.6}.primary,.back{border:0;border-radius:12px;padding:15px 20px;font-weight:700}.primary{background:#345fe0;color:white;flex:1}.primary:disabled{opacity:.4;cursor:not-allowed}.back{background:#eef0fb;color:#546286}.start{width:100%;margin-top:14px}.top{display:flex;justify-content:space-between;font-size:13px;color:#7d9182}.progress{height:6px;border-radius:10px;background:#eef0fb;margin:15px 0 26px}.bar{height:100%;background:#7656e2;border-radius:10px}.choices{display:grid;gap:9px;margin-top:20px}.choice{border:1px solid #dce2f5;background:white;color:#28335e;text-align:left;border-radius:12px;padding:14px}.choice:hover,.choice.selected{border-color:#7656e2;background:#f2efff;color:#6140c4}.actions{display:flex;gap:10px;margin-top:22px}.note{font-size:12px;color:#919bb1;line-height:1.6;margin:16px 0 0}.nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e5f3;display:flex;justify-content:center;gap:8px;padding:10px 20px calc(10px + env(safe-area-inset-bottom));z-index:2}.nav a{color:#687398;text-decoration:none;text-align:center;padding:8px 45px;border-radius:12px;font-size:13px}.nav a:hover{background:#f0efff;color:#5e43c8}.nav span{display:block;font-size:20px;margin-bottom:3px}.notice{color:#72809b;font-size:13px;margin:15px 0 0}@media(max-width:760px){main{margin:25px auto 110px}.layout{grid-template-columns:1fr;gap:30px}.card{padding:24px}h1{margin:20px 0}.nav a{padding:8px 35px}}
+.concern-input{width:100%;min-height:145px;resize:vertical;border:1px solid #dce2f5;border-radius:12px;padding:14px;font:inherit;line-height:1.7;color:#28335e}.prefix{background:#f0efff;border-radius:12px;padding:14px;line-height:1.7;color:#51478f;font-size:14px}.secondary{width:100%;margin-top:10px;background:#edeaff;color:#5c43b8;border:0;border-radius:12px;padding:15px;font-weight:700}
+.outline-btn{display:block;width:100%;margin:10px 0 0;background:transparent;color:#5c43b8;border:1px solid #cfc6f5;border-radius:12px;padding:14px 15px;font-weight:700;text-align:center;white-space:normal;word-break:keep-all;cursor:pointer}
+.outline-btn:hover{background:#f7f5ff}.role-note{font-size:13px;color:#72809b;line-height:1.6}
 .logo{display:inline-flex;align-items:center;line-height:0}.logo img{display:block;width:150px;height:90px;object-fit:contain;mix-blend-mode:multiply}@media(max-width:760px){.logo img{width:120px;height:72px}}
-</style></head><body><header><a class="logo" href="./main.html" style="text-decoration:none"><img src="./assets/brand-logo.png" alt="뻔뻔하게 홈"></a><button class="login" id="login" type="button">로그인</button></header><main><div class="layout"><section><span class="badge">캠퍼스 생활, 뻔뻔하게 물어봐요</span><h1>궁금한 건<br><span>뻔뻔하게!</span></h1><p class="intro">학교생활의 사소한 질문부터 진로 고민까지.<br>나와 맞는 선배에게 편하게 물어보세요.</p></section><section class="card" id="app" aria-live="polite"></section></div></main><nav class="nav" aria-label="하단 메뉴"><a href="./main.html"><span>☘</span>홈</a><a href="./result/index.html" id="junior-chat-nav"><span>💬</span>채팅창</a></nav><script src="./universities.js"></script><script src="./assets/achievements.js"></script><script>
+</style></head><body><header><a class="logo" href="./main.html" style="text-decoration:none"><img src="./assets/brand-logo.png" alt="뻔뻔하게 홈"></a></header><main><div class="layout"><section><span class="badge">캠퍼스 생활, 뻔뻔하게 물어봐요</span><h1>궁금한 건<br><span>뻔뻔하게!</span></h1><p class="intro">학교생활의 사소한 질문부터 진로 고민까지.<br>나와 맞는 선배에게 편하게 물어보세요.</p></section><section class="card" id="app" aria-live="polite"></section></div></main><nav class="nav" aria-label="하단 메뉴"><a href="./main.html"><span>☘</span>홈</a><a href="./result/index.html" id="junior-chat-nav"><span>💬</span>채팅창</a></nav><script src="./universities.js"></script><script src="./assets/achievements.js"></script><script>
 const app = document.querySelector('#app');
 
 function configureChatNav(role){
@@ -130,17 +132,105 @@ const steps = [
   {key:'concern', title:'어떤 선배를 찾고 있나요?', hint:'아래 문장에 이어 원하는 이야기나 선배의 모습을 자유롭게 적어주세요.'}
 ];
 const seniorAnswers={display_name:'',major:'',status:'',introduction:''};
-let seniorStep=0;
+let seniorStep=0,seniorPin='',seniorPinConfirm='';
+const SENIOR_SESSION_KEY='ppunppun-senior-session';
+const PIN_RE=/^[0-9]{4,6}$/;
+function apiBase(){return location.protocol==='file:'?'http://127.0.0.1:8000':''}
+function savedSeniorSession(){try{const s=JSON.parse(localStorage.getItem(SENIOR_SESSION_KEY)||'null');return s&&s.mentor_id&&s.token?s:null}catch(e){return null}}
+function goSeniorInbox(session){try{localStorage.setItem(SENIOR_SESSION_KEY,JSON.stringify({mentor_id:session.mentor_id,token:session.token}))}catch(e){}location.href='chat/index.html?role=senior&mentor='+encodeURIComponent(session.mentor_id)}
+function pinInput(onChange){const input=document.createElement('input');input.className='choice';input.style.cssText='display:block;width:100%;margin-top:6px;font:inherit';input.type='password';input.inputMode='numeric';input.autocomplete='off';input.maxLength=6;input.placeholder='숫자 4~6자리';input.oninput=()=>{input.value=input.value.replace(/[^0-9]/g,'');onChange(input.value)};return input}
+// PIN + PIN 확인 칸. 두 값이 다르면 안내 문구를 보여 줌. onChange(pin, confirm)
+function pinConfirmFields(onChange,label){
+  let pin='',confirm='';
+  const pinLabel=document.createElement('label');pinLabel.className='role-note';pinLabel.textContent=label||'PIN';
+  const confirmLabel=document.createElement('label');confirmLabel.className='role-note';confirmLabel.textContent='PIN 확인';
+  const mismatch=document.createElement('p');mismatch.className='notice';mismatch.setAttribute('role','alert');mismatch.style.cssText='margin:4px 0 0;color:#d14343';mismatch.hidden=true;mismatch.textContent='PIN이 일치하지 않아요';
+  const changed=()=>{mismatch.hidden=!confirm||pin===confirm;onChange(pin,confirm)};
+  pinLabel.appendChild(pinInput(v=>{pin=v;changed()}));confirmLabel.appendChild(pinInput(v=>{confirm=v;changed()}));
+  return [pinLabel,confirmLabel,mismatch];
+}
+function textField(label,onInput){const field=document.createElement('label');field.className='role-note';field.textContent=label;const input=document.createElement('input');input.className='choice';input.style.cssText='display:block;width:100%;margin-top:6px;font:inherit';input.maxLength=30;input.oninput=()=>onInput(input.value);field.appendChild(input);return field}
+// ---- 후배 가입·로그인 ----
+const JUNIOR_SESSION_KEY='ppunppun-junior-session';
+function savedJuniorSession(){try{const s=JSON.parse(localStorage.getItem(JUNIOR_SESSION_KEY)||'null');return s&&s.junior_id&&s.token?s:null}catch(e){return null}}
+function afterJuniorLogin(){
+  // 채팅 화면에서 로그인하러 왔으면 그 대화로 돌아감
+  const next=new URLSearchParams(location.search).get('next')||'';
+  if(/^chat\/index\.html\?role=junior&/.test(next)){location.href=next;return}
+  if(!selectedSchool){renderSchool();return}
+  step=0;render();
+}
+function startJunior(){if(savedJuniorSession()){afterJuniorLogin()}else{renderJuniorAuth('register')}}
+async function logoutJunior(){
+  const s=savedJuniorSession();
+  try{if(s)await fetch(apiBase()+'/api/juniors/logout',{method:'POST',headers:{Authorization:'Bearer '+s.token}})}catch(e){}
+  try{localStorage.removeItem(JUNIOR_SESSION_KEY)}catch(e){}
+  step=-1;if(selectedSchool){render()}else{renderSchool()}
+}
+function renderJuniorAuth(mode){
+  PpunAchievements.setRole("junior");
+  configureChatNav('junior');
+  if(savedJuniorSession()){afterJuniorLogin();return}
+  const register=mode==='register';
+  app.innerHTML=`<h2>${register?'후배로 가입하기':'후배 로그인'}</h2><p class="hint">${register?'닉네임과 PIN을 정하면 다른 기기에서도 대화를 이어갈 수 있어요.':'가입할 때 정한 닉네임과 PIN을 입력해 주세요.'}</p><div class="choices"></div><div class="actions"><button class="back" id="junior-auth-prev">이전</button><button class="primary" id="junior-auth-submit" disabled>${register?'가입하기':'로그인'}</button></div><button class="outline-btn" id="junior-auth-switch" type="button">${register?'이미 등록했어요(로그인)':'처음이에요(가입하기)'}</button><p class="notice" id="login-message" role="status"></p>`;
+  const box=app.querySelector('.choices'),submit=app.querySelector('#junior-auth-submit'),notice=app.querySelector('#login-message');
+  let name='',pin='',confirm='';
+  const update=()=>{submit.disabled=!name.trim()||!PIN_RE.test(pin)||(register&&pin!==confirm)};
+  box.appendChild(textField('닉네임',v=>{name=v;update()}));
+  if(register){box.append(...pinConfirmFields((p,c)=>{pin=p;confirm=c;update()}))}
+  else{const pinLabel=document.createElement('label');pinLabel.className='role-note';pinLabel.textContent='PIN';pinLabel.appendChild(pinInput(v=>{pin=v;update()}));box.appendChild(pinLabel)}
+  app.querySelector('#junior-auth-prev').onclick=()=>{step=-1;if(selectedSchool){render()}else{renderSchool()}};
+  app.querySelector('#junior-auth-switch').onclick=()=>renderJuniorAuth(register?'login':'register');
+  submit.onclick=async()=>{
+    submit.disabled=true;submit.textContent='확인 중...';notice.textContent='';
+    let message=(register?'가입하지':'로그인하지')+' 못했어요. 네트워크 연결을 확인하고 다시 시도해 주세요.';
+    try{
+      const body=register?{display_name:name.trim(),pin,pin_confirm:confirm}:{display_name:name.trim(),pin};
+      const res=await fetch(apiBase()+(register?'/api/juniors/register':'/api/juniors/login'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const data=await res.json().catch(()=>({}));
+      if(res.ok){
+        try{localStorage.setItem(JUNIOR_SESSION_KEY,JSON.stringify({junior_id:data.junior_id,token:data.token,display_name:data.display_name}))}catch(e){}
+        afterJuniorLogin();return;
+      }
+      if(typeof data.detail==='string')message=data.detail;
+    }catch(e){}
+    notice.textContent=message;submit.textContent=register?'가입하기':'로그인';update();
+  };
+}
+function renderSeniorLogin(){
+  document.querySelector('#junior-chat-nav').hidden=true;
+  const saved=savedSeniorSession();if(saved){goSeniorInbox(saved);return}
+  app.innerHTML='<h2>선배 로그인</h2><p class="hint">등록할 때 정한 닉네임과 PIN을 입력해 주세요.</p><div class="choices"></div><div class="actions"><button class="back" id="senior-login-prev">이전</button><button class="primary" id="senior-login-submit" disabled>로그인</button></div><p class="notice" id="login-message" role="status"></p>';
+  const box=app.querySelector('.choices'),submit=app.querySelector('#senior-login-submit'),notice=app.querySelector('#login-message');
+  let name='',pin='';const update=()=>{submit.disabled=!name.trim()||!PIN_RE.test(pin)};
+  const nameLabel=document.createElement('label');nameLabel.className='role-note';nameLabel.textContent='닉네임';const nameInput=document.createElement('input');nameInput.className='choice';nameInput.style.cssText='display:block;width:100%;margin-top:6px;font:inherit';nameInput.maxLength=30;nameInput.oninput=()=>{name=nameInput.value;update()};nameLabel.appendChild(nameInput);
+  const pinLabel=document.createElement('label');pinLabel.className='role-note';pinLabel.textContent='PIN';pinLabel.appendChild(pinInput(v=>{pin=v;update()}));
+  box.append(nameLabel,pinLabel);
+  app.querySelector('#senior-login-prev').onclick=()=>{if(selectedSchool){step=-1;render()}else{renderSchool()}};
+  submit.onclick=async()=>{
+    submit.disabled=true;submit.textContent='확인 중...';notice.textContent='';
+    let message='로그인하지 못했어요. 네트워크 연결을 확인하고 다시 시도해 주세요.';
+    try{
+      const res=await fetch(apiBase()+'/api/mentors/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({display_name:name.trim(),pin})});
+      const data=await res.json().catch(()=>({}));
+      if(res.ok){goSeniorInbox(data);return}
+      if(typeof data.detail==='string')message=data.detail;
+    }catch(e){}
+    notice.textContent=message;submit.textContent='로그인';update();
+  };
+}
 function renderSenior(){
   PpunAchievements.setRole("senior");
   configureChatNav('senior');
   const review=seniorStep===2;
   const titles=['선배님의 기본 정보를 알려주세요','후배에게 어떤 이야기를 들려줄 수 있나요?','작성한 내용을 확인해 주세요'];
-  app.innerHTML=`<div class="top"><span>선배 소개 작성</span><strong>${seniorStep+1} / 3</strong></div><div class="progress"><div class="bar" style="width:${(seniorStep+1)/3*100}%"></div></div><h2>${titles[seniorStep]}</h2><p class="hint">${review?'내용을 확인하고 임시 저장하거나 테스트 파일을 내려받을 수 있어요.':seniorStep===0?'후배에게 보여줄 닉네임과 전공, 학적을 적어주세요.':'수업, 학교생활, 진로, 밥집 등 경험과 도움을 줄 수 있는 내용을 자유롭게 적어주세요.'}</p><div class="choices"></div><div class="actions"><button class="back" id="senior-prev">이전</button><button class="primary" id="senior-next">${review?'임시 저장하기':'다음'}</button></div><p class="note">아직 실제 선배 등록은 되지 않아요. 테스트에는 가상의 정보를 사용해 주세요.</p><p class="notice" id="login-message" role="status"></p>`;
+  app.innerHTML=`<div class="top"><span>선배 소개 작성</span><strong>${seniorStep+1} / 3</strong></div><div class="progress"><div class="bar" style="width:${(seniorStep+1)/3*100}%"></div></div><h2>${titles[seniorStep]}</h2><p class="hint">${review?'내용을 확인하고 등록하면 바로 후배의 질문을 받을 수 있어요.':seniorStep===0?'후배에게 보여줄 닉네임과 전공, 학적을 적어주세요.':'수업, 학교생활, 진로, 밥집 등 경험과 도움을 줄 수 있는 내용을 자유롭게 적어주세요.'}</p><div class="choices"></div><div class="actions"><button class="back" id="senior-prev">이전</button><button class="primary" id="senior-next">${review?'선배 등록하기':'다음'}</button></div><p class="note">테스트에는 가상의 정보를 사용해 주세요.</p><p class="notice" id="login-message" role="status"></p>`;
   const box=app.querySelector('.choices'), next=app.querySelector('#senior-next'),notice=app.querySelector('#login-message');
   if(seniorStep===0){
     [['display_name','닉네임','예: 초록 선배'],['major','전공','예: 컴퓨터공학과'],['status','학년 또는 졸업 여부','예: 3학년 재학 중']].forEach(([key,label,placeholder])=>{const field=document.createElement('label');field.className='role-note';field.textContent=label;const input=document.createElement('input');input.className='choice';input.style.cssText='display:block;width:100%;margin-top:6px;font:inherit';input.placeholder=placeholder;input.maxLength=100;input.value=seniorAnswers[key];input.oninput=()=>{seniorAnswers[key]=input.value;update()};field.appendChild(input);box.appendChild(field)});
-    function update(){next.disabled=!seniorAnswers.display_name.trim()||!seniorAnswers.major.trim()||!seniorAnswers.status.trim()}update();
+    seniorPin='';seniorPinConfirm='';
+    box.append(...pinConfirmFields((p,c)=>{seniorPin=p;seniorPinConfirm=c;update()},'로그인 PIN (다시 접속할 때 닉네임과 함께 입력해요)'));
+    function update(){next.disabled=!seniorAnswers.display_name.trim()||!seniorAnswers.major.trim()||!seniorAnswers.status.trim()||!PIN_RE.test(seniorPin)||seniorPin!==seniorPinConfirm}update();
   }else if(seniorStep===1){
     const area=document.createElement('textarea');area.className='concern-input';area.setAttribute('aria-label','선배 소개와 경험');area.placeholder='예: 자료구조를 수강했고, 학교 주변 혼밥하기 좋은 밥집을 잘 알아요. 후배의 고민을 편하게 들어줄게요.';area.maxLength=2000;area.value=seniorAnswers.introduction;area.oninput=()=>{seniorAnswers.introduction=area.value;next.disabled=!area.value.trim()};box.appendChild(area);next.disabled=!area.value.trim();
   }else{
@@ -148,7 +238,24 @@ function renderSenior(){
     const download=document.createElement('button');download.className='secondary';download.textContent='테스트용 JSON 파일 내려받기';download.onclick=()=>{const data=seniorPayload();const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='mentor-profile.json';document.body.appendChild(a);a.click();a.remove();PpunAchievements.award('profile-ready');setTimeout(()=>URL.revokeObjectURL(url),1000);notice.textContent='파일을 내려받았어요. 브라우저의 다운로드 목록을 확인해 주세요.'};box.appendChild(download);
   }
   app.querySelector('#senior-prev').onclick=()=>{if(seniorStep===0){step=-1;render()}else{seniorStep--;renderSenior()}};
-  next.onclick=()=>{if(!review){seniorStep++;renderSenior();return}try{sessionStorage.setItem('ppunppun-senior-draft',JSON.stringify(seniorPayload()));PpunAchievements.award('introduction');if(seniorAnswers.introduction.trim().length>=200)PpunAchievements.award('storyteller');renderSeniorHome()}catch(e){notice.textContent='임시 저장을 할 수 없어요. 브라우저 저장 설정을 확인해 주세요.'}};
+  next.onclick=async()=>{
+    if(!review){seniorStep++;renderSenior();return}
+    const prev=app.querySelector('#senior-prev');
+    next.disabled=true;prev.disabled=true;next.textContent='등록 중...';notice.textContent='';
+    let message='등록하지 못했어요. 네트워크 연결을 확인하고 다시 시도해 주세요.';
+    try{
+      const {display_name,major,status,introduction}=seniorPayload();
+      const res=await fetch(apiBase()+'/api/mentors/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({display_name,major,status,introduction,pin:seniorPin,pin_confirm:seniorPinConfirm})});
+      const data=await res.json().catch(()=>({}));
+      if(res.ok){
+        seniorPin='';seniorPinConfirm='';
+        try{PpunAchievements.award('introduction');if(introduction.length>=200)PpunAchievements.award('storyteller')}catch(e){}
+        goSeniorInbox(data);return;
+      }
+      if(typeof data.detail==='string')message=data.detail;
+    }catch(e){}
+    notice.textContent=message;next.disabled=false;prev.disabled=false;next.textContent='선배 등록하기';
+  };
 }
 function renderSeniorHome(){
   PpunAchievements.setRole("senior");
@@ -161,6 +268,7 @@ function renderSeniorHome(){
   app.querySelector('#switch-role').onclick=()=>{step=-1;render()};
 }
 function startSenior(){
+  const session=savedSeniorSession();if(session){goSeniorInbox(session);return}
   try{const saved=JSON.parse(sessionStorage.getItem('ppunppun-senior-draft')||'null');if(saved&&saved.school===selectedSchool&&saved.display_name&&saved.major&&saved.status&&saved.introduction){Object.assign(seniorAnswers,{display_name:saved.display_name,major:saved.major,status:saved.status,introduction:saved.introduction});renderSeniorHome();return}}catch(e){}
   seniorStep=0;renderSenior();
 }
@@ -169,15 +277,21 @@ function render(){
   PpunAchievements.setRole("junior");
   configureChatNav('junior');
   if(step<0){
-    app.innerHTML='<h2>무엇이든 물어볼 준비됐나요?</h2><p class="hint" id="school-label"></p><button class="back" id="change-school" type="button">학교 변경</button><p class="hint">나의 상황과 고민을 알려주면 어울리는 선배를 찾아볼 수 있어요.</p><button class="primary start" id="start">후배로 시작하기 →</button><button class="secondary" id="senior">선배로 시작하기</button><p class="notice" id="login-message" role="status"></p>';
+    app.innerHTML='<h2>무엇이든 물어볼 준비됐나요?</h2><p class="hint" id="school-label"></p><button class="back" id="change-school" type="button">학교 변경</button><p class="hint">나의 상황과 고민을 알려주면 어울리는 선배를 찾아볼 수 있어요.</p><button class="primary start" id="start">후배로 시작하기 →</button><button class="secondary" id="senior">선배로 시작하기</button><button class="outline-btn" id="junior-login" type="button">후배 로그인</button><button class="outline-btn" id="senior-login" type="button">선배 로그인</button><p class="notice" id="login-message" role="status"></p>';
     app.querySelector('#school-label').textContent='선택한 학교: '+selectedSchool;
     app.querySelector('#change-school').onclick=renderSchool;
-    app.querySelector('#start').onclick=()=>{step=0;render()};
+    app.querySelector('#start').onclick=startJunior;
     app.querySelector('#senior').onclick=startSenior;
+    app.querySelector('#junior-login').onclick=()=>renderJuniorAuth('login');
+    app.querySelector('#senior-login').onclick=renderSeniorLogin;
     return;
   }
+  const juniorSession=savedJuniorSession();
+  if(!juniorSession){renderJuniorAuth('register');return}
   const q=steps[step];
-   app.innerHTML=`<div class="top"><span>${q.key==='concern'?'고민 작성':'기본 정보'}</span><strong>${step+1} / ${steps.length}</strong></div><div class="progress"><div class="bar" style="width:${(step+1)/steps.length*100}%"></div></div><h2>${q.title}</h2><p class="hint">${q.hint}</p><div class="choices"></div><div class="actions"><button class="back" id="prev">이전</button><button class="primary" id="next">${q.key==='concern'?'선배 추천받기':'다음'}</button></div><p class="note">추천받기를 누르면 작성한 내용이 선배 추천을 위해 서버로 전송됩니다.</p><p class="notice" id="login-message" role="status"></p>`;
+   app.innerHTML=`<div class="top"><span>${q.key==='concern'?'고민 작성':'기본 정보'}</span><strong>${step+1} / ${steps.length}</strong></div><div class="progress"><div class="bar" style="width:${(step+1)/steps.length*100}%"></div></div><h2>${q.title}</h2><p class="hint">${q.hint}</p><div class="choices"></div><div class="actions"><button class="back" id="prev">이전</button><button class="primary" id="next">${q.key==='concern'?'선배 추천받기':'다음'}</button></div><p class="note">추천받기를 누르면 작성한 내용이 선배 추천을 위해 서버로 전송됩니다.</p><p class="notice" id="login-message" role="status"></p><p class="note" id="junior-who"></p><button class="outline-btn" id="junior-logout" type="button">로그아웃</button>`;
+  app.querySelector('#junior-who').textContent=(juniorSession.display_name||'후배')+'님으로 로그인 중이에요.';
+  app.querySelector('#junior-logout').onclick=logoutJunior;
   const box=app.querySelector('.choices'),next=app.querySelector('#next');
    if(q.options){
      q.options.forEach(option=>{const selected=q.multi?answers[q.key].includes(option):answers[q.key]===option;const button=document.createElement('button');button.className='choice'+(selected?' selected':'');button.textContent=option;button.setAttribute('aria-pressed',String(selected));button.onclick=()=>{if(q.multi){if(selected){answers[q.key]=answers[q.key].filter(item=>item!==option)}else if(answers[q.key].length<2){answers[q.key]=[...answers[q.key],option]}}else{answers[q.key]=option}render()};box.appendChild(button)});
@@ -200,7 +314,7 @@ function render(){
     const notice=app.querySelector('#login-message'),prev=app.querySelector('#prev');
     next.disabled=true;prev.disabled=true;next.textContent='추천 요청 중...';notice.textContent='';
      const controller=new AbortController();
-     const timeout=setTimeout(()=>controller.abort(),5000);
+      const timeout=setTimeout(()=>controller.abort(),30000);
     try{
       sessionStorage.setItem('ppunppun-choice',JSON.stringify(choice));
       sessionStorage.setItem('ppunppun-concern',text);
@@ -213,6 +327,5 @@ function render(){
     }catch(e){notice.textContent='추천 요청에 실패했어요. 서버 연결을 확인한 뒤 다시 시도해 주세요.';next.disabled=false;prev.disabled=false;next.textContent='다시 시도'}
   };
 }
-document.querySelector('#login').onclick=()=>{app.querySelector('#login-message').textContent='로그인 기능은 준비 중이에요.'};
-if(selectedSchool){render()}else{renderSchool()}
+if(new URLSearchParams(location.search).has('senior-login')){renderSeniorLogin()}else if(new URLSearchParams(location.search).has('junior-login')){renderJuniorAuth('login')}else if(selectedSchool){render()}else{renderSchool()}
 </script></body></html>
