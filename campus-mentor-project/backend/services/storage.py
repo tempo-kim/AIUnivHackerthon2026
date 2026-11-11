@@ -69,6 +69,15 @@ def init() -> None:
                 created_at TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS messages_room ON messages (room);
+            CREATE TABLE IF NOT EXISTS reports (
+                report_id TEXT PRIMARY KEY,
+                mentor_id TEXT NOT NULL,
+                junior_id TEXT NOT NULL,
+                reporter_role TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                details TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS end_states (
                 room TEXT PRIMARY KEY,
                 status TEXT NOT NULL,
@@ -278,6 +287,48 @@ def list_rooms(prefix: str) -> list[dict]:
         }
         for row in rows
     ]
+
+
+# ---- 신고 ----
+def _report_dict(row: sqlite3.Row) -> dict:
+    return {
+        "reportId": row["report_id"],
+        "mentorId": row["mentor_id"],
+        "juniorId": row["junior_id"],
+        "reporterRole": row["reporter_role"],
+        "reason": row["reason"],
+        "details": row["details"],
+        "createdAt": row["created_at"],
+    }
+
+
+def add_report(report: dict) -> None:
+    with _db() as conn:
+        conn.execute(
+            "INSERT INTO reports VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                report["reportId"],
+                report["mentorId"],
+                report["juniorId"],
+                report["reporterRole"],
+                report["reason"],
+                report["details"],
+                report["createdAt"],
+            ),
+        )
+
+
+def list_reports() -> list[dict]:
+    """신고 전체(최근순)."""
+    with _db() as conn:
+        rows = conn.execute("SELECT * FROM reports ORDER BY created_at DESC").fetchall()
+    return [_report_dict(row) for row in rows]
+
+
+def get_report(report_id: str) -> dict | None:
+    with _db() as conn:
+        row = conn.execute("SELECT * FROM reports WHERE report_id = ?", (report_id,)).fetchone()
+    return _report_dict(row) if row else None
 
 
 # ---- 대화 종료 상태 ----

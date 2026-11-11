@@ -55,7 +55,6 @@ if not allowed_origins:
 
 app = FastAPI(title="뻔뻔하게 매칭")
 
-_reports: list[dict] = []
 _register_lock = threading.Lock()
 _login_fails: dict[str, dict] = {}  # 닉네임별 {"count": 연속 실패 수, "until": 잠금 해제 시각}
 _login_lock = threading.Lock()
@@ -565,7 +564,7 @@ def admin_login(payload: AdminLoginRequest):
 
 
 def _find_report(report_id: str) -> dict:
-    report = next((item for item in _reports if item["reportId"] == report_id), None)
+    report = storage.get_report(report_id)
     if report is None:
         raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다.")
     return report
@@ -575,7 +574,8 @@ def _find_report(report_id: str) -> dict:
 def get_admin_reports(authorization: str = Header(default="")):
     _require_admin(authorization)
     mentor_names = {mentor.mentor_id: mentor.display_name for mentor in store.list()}
-    junior_names = storage.junior_names([item["juniorId"] for item in _reports])
+    saved = storage.list_reports()
+    junior_names = storage.junior_names([item["juniorId"] for item in saved])
     reports = [
         {
             "reportId": item["reportId"],
@@ -586,7 +586,7 @@ def get_admin_reports(authorization: str = Header(default="")):
             "detail": item["details"],
             "createdAt": item["createdAt"],
         }
-        for item in _reports
+        for item in saved
     ]
     reports.sort(key=lambda item: datetime.fromisoformat(item["createdAt"]), reverse=True)
     return reports
@@ -607,7 +607,7 @@ def get_admin_matches():
     rooms = storage.list_rooms("")
     junior_ids = [room["room"].partition(":")[2] for room in rooms]
     junior_names = storage.junior_names(junior_ids)
-    reported_rooms = {f"{item['mentorId']}:{item['juniorId']}" for item in _reports}
+    reported_rooms = {f"{item['mentorId']}:{item['juniorId']}" for item in storage.list_reports()}
     matches = []
     for room, junior_id in zip(rooms, junior_ids):
         mentor_id = room["room"].partition(":")[0]
@@ -707,10 +707,14 @@ def respond_chat_end(payload: RoomEndResponseRequest, authorization: str = Heade
 def create_report(payload: RoomReportRequest, authorization: str = Header(default="")):
     _chat_room(payload.mentorId, payload.juniorId)
     _require_role(payload.reporterRole, payload.mentorId, payload.juniorId, authorization)
-    _reports.append(
+    storage.add_report(
         {
-            **payload.model_dump(),
             "reportId": str(uuid.uuid4()),
+            "mentorId": payload.mentorId,
+            "juniorId": payload.juniorId,
+            "reporterRole": payload.reporterRole,
+            "reason": payload.reason,
+            "details": payload.details,
             "createdAt": datetime.now(timezone.utc).isoformat(),
         }
     )
