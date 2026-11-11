@@ -614,8 +614,9 @@ def get_admin_report_messages(report_id: str, authorization: str = Header(defaul
 
 
 @app.get("/api/admin/matches")
-def get_admin_matches():
+def get_admin_matches(authorization: str = Header(default="")):
     """시연용 관리자 화면: 전체 대화방 목록(최근순). 메시지 내용은 넣지 않는다."""
+    _require_admin(authorization)
     mentor_names = {mentor.mentor_id: mentor.display_name for mentor in store.list()}
     rooms = storage.list_rooms("")
     junior_ids = [room["room"].partition(":")[2] for room in rooms]
