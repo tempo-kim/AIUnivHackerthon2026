@@ -590,6 +590,32 @@ def get_messages(mentorId: str, juniorId: str = "", authorization: str = Header(
     return storage.list_messages(room)
 
 
+@app.get("/api/admin/matches")
+def get_admin_matches():
+    """시연용 관리자 화면: 전체 대화방 목록(최근순). 메시지 내용은 넣지 않는다."""
+    mentor_names = {mentor.mentor_id: mentor.display_name for mentor in store.list()}
+    rooms = storage.list_rooms("")
+    junior_ids = [room["room"].partition(":")[2] for room in rooms]
+    junior_names = storage.junior_names(junior_ids)
+    matches = []
+    for room, junior_id in zip(rooms, junior_ids):
+        mentor_id = room["room"].partition(":")[0]
+        first = storage.list_messages(room["room"])[0]  # 첫 메시지 시각만 사용
+        matches.append(
+            {
+                "mentorName": mentor_names.get(mentor_id, ""),
+                "mentorId": mentor_id,
+                "juniorName": junior_names.get(junior_id, ""),
+                "createdAt": first["createdAt"],
+                "lastAt": room["lastAt"],
+                "messageCount": room["messageCount"],
+                "status": room["status"],
+            }
+        )
+    matches.sort(key=lambda item: datetime.fromisoformat(item["lastAt"]), reverse=True)
+    return matches
+
+
 @app.get("/api/rooms")
 def get_rooms(mentorId: str, authorization: str = Header(default="")):
     _require_mentor(mentorId)

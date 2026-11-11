@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>뻔뻔하게 관리자 화면</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#f6f7fd;color:#1b2451;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+  header{max-width:880px;margin:auto;padding:24px 16px 8px;display:flex;align-items:center;gap:14px}
+  header img{height:44px}
+  header h1{margin:0;font-size:22px}
+  main{max-width:880px;margin:auto;padding:8px 16px 40px}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:12px 0 20px}
+  .stat{background:#fff;border:1px solid #e1e5f5;border-radius:18px;padding:18px}
+  .stat span{display:block;font-size:13px;color:#647092}
+  .stat strong{display:block;font-size:30px;margin-top:6px}
+  .stat.active strong{color:#345fe0}
+  .list-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:10px}
+  .list-head h2{margin:0;font-size:17px}
+  .updated{font-size:12px;color:#8a93ad}
+  ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+  li{background:#fff;border:1px solid #e1e5f5;border-radius:16px;padding:14px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;transition:background .6s,border-color .6s}
+  li.new{background:#fff8e1;border-color:#f3c64d;box-shadow:0 6px 20px #f3c64d33}
+  .pair{flex:1 1 260px;font-weight:700;font-size:16px;word-break:keep-all;overflow-wrap:anywhere}
+  .pair .arrow{color:#8a93ad;margin:0 6px}
+  .meta{font-size:13px;color:#647092;display:flex;gap:12px;flex-wrap:wrap}
+  .badge{display:inline-block;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700}
+  .badge.new{background:#f3c64d;color:#3d2c00}
+  .badge.on{background:#e3ebff;color:#2b4fc2}
+  .badge.off{background:#eceef4;color:#69728c}
+  .empty,.error{text-align:center;color:#647092;padding:28px 0}
+  .error{color:#c03a3a}
+  @media(max-width:480px){header h1{font-size:18px}header img{height:36px}.stat strong{font-size:24px}}
+</style>
+</head>
+<body>
+<header>
+  <img src="./assets/brand-logo.png" alt="뻔뻔하게" />
+  <h1>뻔뻔하게 관리자 화면</h1>
+</header>
+<main>
+  <section class="stats" aria-label="요약">
+    <div class="stat"><span>총 매칭 수</span><strong id="total">-</strong></div>
+    <div class="stat active"><span>진행 중 대화</span><strong id="active">-</strong></div>
+  </section>
+  <div class="list-head">
+    <h2>매칭 목록</h2>
+    <span class="updated" id="updated" aria-live="polite"></span>
+  </div>
+  <ul id="list"></ul>
+  <p class="empty" id="empty" hidden>아직 매칭된 대화가 없어요.</p>
+  <p class="error" id="error" role="alert" hidden>목록을 불러오지 못했어요. 서버 연결을 확인해 주세요.</p>
+</main>
+<script>
+// 시연용 관리자 화면. 메시지 내용은 받지도 보여주지도 않음
+const POLL_MS = 2000;
+const NEW_BADGE_MS = 30000; // "새 매칭" 표시 유지 시간
+const API_BASE = location.protocol === 'file:' ? 'http://127.0.0.1:8000' : '';
+const seen = new Set();
+const newSince = new Map(); // key → 처음 본 시각
+let firstLoad = true;
+let loading = false;
+
+const keyOf = (m) => `${m.mentorId}|${m.juniorName}|${m.createdAt}`;
+
+function formatTime(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const time = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return d.toDateString() === new Date().toDateString() ? time : `${d.getMonth() + 1}/${d.getDate()} ${time}`;
+}
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function render(matches) {
+  const now = Date.now();
+  matches.forEach((m) => {
+    const key = keyOf(m);
+    if (!seen.has(key)) {
+      seen.add(key);
+      if (!firstLoad) newSince.set(key, now); // 처음 열었을 때 있던 매칭은 새 매칭으로 보지 않음
+    }
+  });
+  firstLoad = false;
+  const isNew = (m) => newSince.has(keyOf(m)) && now - newSince.get(keyOf(m)) < NEW_BADGE_MS;
+  // 새 매칭을 맨 위로, 나머지는 서버가 준 최근순 유지
+  const ordered = [...matches.filter(isNew), ...matches.filter((m) => !isNew(m))];
+
+  const items = ordered.map((m) => {
+    const li = el('li', isNew(m) ? 'new' : '');
+    const pair = el('div', 'pair');
+    if (isNew(m)) { pair.append(el('span', 'badge new', '새 매칭'), ' '); }
+    pair.append(m.juniorName || '이름 없는 후배', el('span', 'arrow', '→'), m.mentorName || m.mentorId);
+    const meta = el('div', 'meta');
+    meta.append(el('span', '', `연결 ${formatTime(m.createdAt)}`), el('span', '', `메시지 ${m.messageCount}개`));
+    const ended = m.status === 'ended';
+    li.append(pair, meta, el('span', `badge ${ended ? 'off' : 'on'}`, ended ? '종료' : '진행중'));
+    return li;
+  });
+  document.getElementById('list').replaceChildren(...items);
+  document.getElementById('empty').hidden = matches.length > 0;
+  document.getElementById('total').textContent = matches.length;
+  document.getElementById('active').textContent = matches.filter((m) => m.status !== 'ended').length;
+}
+
+async function refresh() {
+  if (loading) return;
+  loading = true;
+  try {
+    const res = await fetch(`${API_BASE}/api/admin/matches`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(res.status);
+    render(await res.json());
+    document.getElementById('error').hidden = true;
+    document.getElementById('updated').textContent = `마지막 갱신 ${formatTime(new Date())}`;
+  } catch {
+    document.getElementById('error').hidden = false;
+  } finally {
+    loading = false;
+  }
+}
+
+refresh();
+setInterval(refresh, POLL_MS);
+</script>
+</body>
+</html>
