@@ -49,6 +49,18 @@ def init() -> None:
                 mentor_id TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS juniors (
+                junior_id TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL UNIQUE,
+                pin_salt TEXT NOT NULL,
+                pin_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS junior_tokens (
+                token_hash TEXT PRIMARY KEY,
+                junior_id TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS messages (
                 id TEXT PRIMARY KEY,
                 room TEXT NOT NULL,
@@ -57,6 +69,15 @@ def init() -> None:
                 created_at TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS messages_room ON messages (room);
+            CREATE TABLE IF NOT EXISTS reports (
+                report_id TEXT PRIMARY KEY,
+                mentor_id TEXT NOT NULL,
+                junior_id TEXT NOT NULL,
+                reporter_role TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                details TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS end_states (
                 room TEXT PRIMARY KEY,
                 status TEXT NOT NULL,
@@ -106,48 +127,118 @@ def add_mentor(mentor_id: str, display_name: str, major: str, status: str, bio: 
         )
 
 
-def check_pin(display_name: str, pin: str) -> str | None:
-    """닉네임과 PIN이 맞으면 mentor_id, 아니면 None."""
+# 선배·후배 계정이 쓰는 테이블 이름 (코드 안의 고정값만 SQL에 넣음)
+_ACCOUNTS = {
+    "senior": ("mentors", "mentor_id", "tokens"),
+    "junior": ("juniors", "junior_id", "junior_tokens"),
+}
+
+
+def _check_pin(kind: str, display_name: str, pin: str) -> str | None:
+    table, id_col, _ = _ACCOUNTS[kind]
     with _db() as conn:
         row = conn.execute(
-            "SELECT mentor_id, pin_salt, pin_hash FROM mentors WHERE display_name = ?",
+            f"SELECT {id_col} AS id, pin_salt, pin_hash FROM {table} WHERE display_name = ?",
             (display_name,),
         ).fetchone()
     if row is None:
         return None
     if not hmac.compare_digest(_hash_pin(pin, row["pin_salt"]), row["pin_hash"]):
         return None
-    return row["mentor_id"]
+    return row["id"]
+
+
+def check_pin(display_name: str, pin: str) -> str | None:
+    """선배 닉네임과 PIN이 맞으면 mentor_id, 아니면 None."""
+    return _check_pin("senior", display_name, pin)
 
 
 # ---- 로그인 토큰 (DB에는 토큰 해시만 저장) ----
-def create_token(mentor_id: str) -> str:
+def _create_token(kind: str, owner_id: str) -> str:
+    _, _, table = _ACCOUNTS[kind]
     token = secrets.token_urlsafe(32)
     with _db() as conn:
-        conn.execute(
-            "INSERT INTO tokens VALUES (?, ?, ?)", (_hash_token(token), mentor_id, _now())
-        )
+        conn.execute(f"INSERT INTO {table} VALUES (?, ?, ?)", (_hash_token(token), owner_id, _now()))
     return token
 
 
-def token_mentor(token: str) -> str | None:
+def _token_owner(kind: str, token: str) -> str | None:
     if not token:
         return None
+    _, id_col, table = _ACCOUNTS[kind]
     with _db() as conn:
         row = conn.execute(
-            "SELECT mentor_id, created_at FROM tokens WHERE token_hash = ?", (_hash_token(token),)
+            f"SELECT {id_col} AS id, created_at FROM {table} WHERE token_hash = ?", (_hash_token(token),)
         ).fetchone()
     if row is None:
         return None
     if datetime.fromisoformat(row["created_at"]) < datetime.now(timezone.utc) - timedelta(days=TOKEN_DAYS):
-        delete_token(token)
+        _delete_token(kind, token)
         return None
-    return row["mentor_id"]
+    return row["id"]
+
+
+def _delete_token(kind: str, token: str) -> None:
+    _, _, table = _ACCOUNTS[kind]
+    with _db() as conn:
+        conn.execute(f"DELETE FROM {table} WHERE token_hash = ?", (_hash_token(token),))
+
+
+def create_token(mentor_id: str) -> str:
+    return _create_token("senior", mentor_id)
+
+
+def token_mentor(token: str) -> str | None:
+    return _token_owner("senior", token)
 
 
 def delete_token(token: str) -> None:
+    _delete_token("senior", token)
+
+
+# ---- 후배 계정 ----
+def add_junior(display_name: str, pin: str) -> str:
+    """후배를 저장하고 새 juniorId(J-영문숫자 8자)를 돌려준다. 닉네임이 겹치면 sqlite3.IntegrityError."""
+    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    salt = secrets.token_hex(16)
+    pin_hash = _hash_pin(pin, salt)
     with _db() as conn:
-        conn.execute("DELETE FROM tokens WHERE token_hash = ?", (_hash_token(token),))
+        while True:
+            junior_id = "J-" + "".join(secrets.choice(chars) for _ in range(8))
+            if conn.execute("SELECT 1 FROM juniors WHERE junior_id = ?", (junior_id,)).fetchone() is None:
+                break
+        conn.execute(
+            "INSERT INTO juniors VALUES (?, ?, ?, ?, ?)",
+            (junior_id, display_name, salt, pin_hash, _now()),
+        )
+    return junior_id
+
+
+def check_junior_pin(display_name: str, pin: str) -> str | None:
+    return _check_pin("junior", display_name, pin)
+
+
+def junior_names(junior_ids: list[str]) -> dict[str, str]:
+    if not junior_ids:
+        return {}
+    marks = ",".join("?" * len(junior_ids))
+    with _db() as conn:
+        rows = conn.execute(
+            f"SELECT junior_id, display_name FROM juniors WHERE junior_id IN ({marks})", junior_ids
+        ).fetchall()
+    return {row["junior_id"]: row["display_name"] for row in rows}
+
+
+def create_junior_token(junior_id: str) -> str:
+    return _create_token("junior", junior_id)
+
+
+def token_junior(token: str) -> str | None:
+    return _token_owner("junior", token)
+
+
+def delete_junior_token(token: str) -> None:
+    _delete_token("junior", token)
 
 
 # ---- 채팅 메시지 ----
@@ -196,6 +287,48 @@ def list_rooms(prefix: str) -> list[dict]:
         }
         for row in rows
     ]
+
+
+# ---- 신고 ----
+def _report_dict(row: sqlite3.Row) -> dict:
+    return {
+        "reportId": row["report_id"],
+        "mentorId": row["mentor_id"],
+        "juniorId": row["junior_id"],
+        "reporterRole": row["reporter_role"],
+        "reason": row["reason"],
+        "details": row["details"],
+        "createdAt": row["created_at"],
+    }
+
+
+def add_report(report: dict) -> None:
+    with _db() as conn:
+        conn.execute(
+            "INSERT INTO reports VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                report["reportId"],
+                report["mentorId"],
+                report["juniorId"],
+                report["reporterRole"],
+                report["reason"],
+                report["details"],
+                report["createdAt"],
+            ),
+        )
+
+
+def list_reports() -> list[dict]:
+    """신고 전체(최근순)."""
+    with _db() as conn:
+        rows = conn.execute("SELECT * FROM reports ORDER BY created_at DESC").fetchall()
+    return [_report_dict(row) for row in rows]
+
+
+def get_report(report_id: str) -> dict | None:
+    with _db() as conn:
+        row = conn.execute("SELECT * FROM reports WHERE report_id = ?", (report_id,)).fetchone()
+    return _report_dict(row) if row else None
 
 
 # ---- 대화 종료 상태 ----

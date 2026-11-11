@@ -4,7 +4,6 @@
   const definitions = [
     ['introduction', '🌱', '반가운 선배', '선배 소개를 처음 임시 저장하기', 'senior'],
     ['storyteller', '📖', '경험 나누미', '200자 이상의 경험 소개를 임시 저장하기', 'senior'],
-    ['profile-ready', '📎', '준비된 선배', '소개를 테스트용 JSON으로 내려받기', 'senior'],
     ['concern', '✍️', '용기 있는 한마디', '직접 쓴 고민으로 추천 요청에 성공하기', 'junior'],
     ['recommendation', '✨', '새로운 인연', '첫 선배 추천 결과 받기', 'junior'],
     ['first-step', '👣', '첫걸음', '추천 선배를 선택해 채팅으로 이동하기', 'junior'],
