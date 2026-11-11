@@ -95,7 +95,14 @@ def _restore_registered() -> None:
         if row["mentor_id"] in known:
             continue
         # MentorStore에는 ID를 지정해 넣는 함수가 없어 목록에 직접 추가한다
-        store._mentors.append(Mentor(experiences=[], help_topics=[], **row))
+        profile_text = row.get("bio", "")
+        store._mentors.append(
+            Mentor(
+                experiences=[profile_text] if profile_text else [],
+                help_topics=[profile_text] if profile_text else [],
+                **row,
+            )
+        )
 
 
 storage.init()
@@ -290,8 +297,6 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
     text = _concern_text(payload.concern_text, payload.choice)
 
     if payload.use_llm:
-        if not os.getenv("OPENAI_API_KEY", "").strip():
-            raise HTTPException(status_code=503, detail="LLM 설정이 없습니다.")
         if payload.extraction is None and not text:
             raise HTTPException(
                 status_code=400,
@@ -314,7 +319,14 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
             top_k=payload.top_k,
         )
         if not analysis or not analysis.get("recommendations"):
-            raise HTTPException(status_code=503, detail="LLM 고민 분석에 실패했습니다.")
+            ranked = shortlist[:payload.top_k]
+            return MatchResponse(
+                extraction=seed,
+                matches=[MentorMatch(**row) for row in ranked],
+                extraction_source="client" if payload.extraction is not None else "stub",
+                recommendation_source="rules-fallback",
+                mentor_source=mentor_source,
+            )
         extraction = payload.extraction or _from_llm(analysis)
         ranked = _apply_llm_ranking(shortlist, analysis, payload.top_k)
         return MatchResponse(
