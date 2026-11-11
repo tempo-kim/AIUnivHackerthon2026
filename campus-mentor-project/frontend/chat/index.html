@@ -22,7 +22,41 @@
       <p>주소를 <code>index.html?role=junior&amp;mentor=1</code> 또는 <code>index.html?role=senior&amp;mentor=1</code> 형식으로 열어 주세요.</p>
     </section>
 
+    <!-- 다른 선배의 대화함에 들어왔을 때 -->
+    <section class="invalid-view" id="other-senior-view" hidden>
+      <img class="invalid-logo" src="assets/logo.png" alt="뻔뻔하게" />
+      <h1>다른 선배의 대화함이에요</h1>
+      <p>지금 로그인한 계정으로는 이 대화함을 볼 수 없어요.</p>
+      <a class="primary-btn" id="my-inbox-link">내 대화함으로 가기</a>
+    </section>
+
+    <!-- 선배의 받은 대화 목록 -->
+    <section class="inbox-view" id="inbox-view" hidden>
+      <div class="top-bar">
+        <img class="brand-logo" src="assets/logo.png" alt="" />
+        <div class="brand-text">
+          <strong class="brand-name">뻔뻔하게</strong>
+          <span class="role-badge senior">선배로 접속 중</span>
+        </div>
+        <nav class="top-menu" aria-label="선배 메뉴">
+          <button type="button" class="menu-btn" id="logout-btn">로그아웃</button>
+        </nav>
+      </div>
+      <header class="inbox-header">
+        <h1>받은 대화</h1>
+        <p id="inbox-mentor"></p>
+      </header>
+      <main class="inbox-body">
+        <ul class="inbox-list" id="inbox-list"></ul>
+        <p class="empty-state" id="inbox-empty" hidden>후배의 질문을 기다리고 있어요.<br />내 ID: <strong id="inbox-my-id"></strong></p>
+      </main>
+      <p class="error-banner" id="inbox-error" role="alert" hidden></p>
+    </section>
+
     <section class="chat-view" id="chat-view" hidden>
+      <nav class="back-bar" id="back-bar" hidden>
+        <a class="back-link" id="back-link">← 받은 대화</a>
+      </nav>
       <div class="top-bar">
         <img class="brand-logo" src="assets/logo.png" alt="" />
         <div class="brand-text">

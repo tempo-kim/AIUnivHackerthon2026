@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -11,6 +12,7 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 CLEANED_PATH = DATA_DIR / "mentors.cleaned.csv"
 MENTORS_PATH = DATA_DIR / "Mentors.csv"
 MENTORS_ADD_PATH = DATA_DIR / "Mentors.add.csv"
+_add_lock = threading.Lock()  # 동시에 등록해도 같은 ID가 나오지 않게
 
 
 @dataclass
@@ -93,6 +95,26 @@ class MentorStore:
         self._mentors = mentors
         self.source_path = source
         return len(mentors)
+
+    def add(self, display_name: str, major: str, status: str, bio: str) -> Mentor:
+        """선배 1명을 메모리에만 추가한다. CSV에는 저장하지 않는다."""
+        with _add_lock:
+            numbers = [
+                int(mentor.mentor_id[1:])
+                for mentor in self._mentors
+                if mentor.mentor_id[:1] == "M" and mentor.mentor_id[1:].isdecimal()
+            ]
+            mentor = Mentor(
+                mentor_id=f"M{max(numbers, default=0) + 1:03d}",
+                display_name=display_name,
+                major=major,
+                experiences=[],
+                help_topics=[],
+                status=status,
+                bio=bio,
+            )
+            self._mentors.append(mentor)
+        return mentor
 
     def replace_from_csv_text(self, text: str, save: bool = True) -> int:
         reader = csv.DictReader(io.StringIO(text))
