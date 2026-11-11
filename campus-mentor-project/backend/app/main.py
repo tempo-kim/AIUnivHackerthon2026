@@ -303,7 +303,7 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
                 detail="concern_text 또는 extraction이 필요합니다.",
             )
         seed = payload.extraction or Extraction(**stub_extract(text))
-        shortlist_size = max(payload.top_k, min(8, len(mentors)))
+        shortlist_size = len(mentors)
         shortlist = _rank_mentors(payload, seed, mentors, shortlist_size)
         if not shortlist:
             return MatchResponse(
