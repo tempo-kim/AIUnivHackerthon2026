@@ -1,4 +1,4 @@
-/* Browser-only achievements. No chat completion or server reputation is inferred. */
+﻿/* Browser-only achievements. No chat completion or server reputation is inferred. */
 (() => {
   const key = 'ppunppun-achievements-v1';
   const definitions = [

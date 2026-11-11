@@ -56,17 +56,29 @@ def _request_llm(
     timeout: float = 10.0, # 기본 타임아웃 10초로 증가
     max_tokens: int = 500,
 ):
-    return _client().chat.completions.create(
-        model=model_name,
-        response_format={"type": "json_object"},
-        messages=[
+    request = {
+        "model": model_name,
+        "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_text},
         ],
-        temperature=0.1,
-        max_tokens=max_tokens,
-        timeout=timeout,
-    )
+        "temperature": 0.1,
+        "max_tokens": max_tokens,
+        "timeout": timeout,
+    }
+    try:
+        return _client().chat.completions.create(
+            **request,
+            response_format={"type": "json_object"},
+        )
+    except Exception as exc:
+        message = str(exc).lower()
+        if not any(
+            phrase in message
+            for phrase in ("response_format", "json_object", "unsupported", "not support")
+        ):
+            raise
+        return _client().chat.completions.create(**request)
 
 def _string_list(value: object) -> list[str]:
     if value is None:

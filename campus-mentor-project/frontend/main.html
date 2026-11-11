@@ -313,7 +313,7 @@ function render(){
     const notice=app.querySelector('#login-message'),prev=app.querySelector('#prev');
     next.disabled=true;prev.disabled=true;next.textContent='추천 요청 중...';notice.textContent='';
      const controller=new AbortController();
-      const timeout=setTimeout(()=>controller.abort(),30000);
+      const timeout=setTimeout(()=>controller.abort(),5000);
     try{
       sessionStorage.setItem('ppunppun-choice',JSON.stringify(choice));
       sessionStorage.setItem('ppunppun-concern',text);
