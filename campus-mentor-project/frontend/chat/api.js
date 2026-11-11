@@ -159,9 +159,9 @@ const ChatApi = (() => {
     authToken = token || "";
   }
 
-  // GET /api/mentors/me → { mentor_id, display_name }. 토큰이 틀리면 status 401 오류
-  async function getMe() {
-    return request("/api/mentors/me");
+  // GET /api/mentors/me 또는 /api/juniors/me → 내 ID와 닉네임. 토큰이 틀리면 status 401 오류
+  async function getMe(role = "senior") {
+    return request(role === "junior" ? "/api/juniors/me" : "/api/mentors/me");
   }
 
   // POST /api/mentors/logout → 서버에서 토큰 삭제

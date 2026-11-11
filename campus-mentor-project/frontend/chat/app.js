@@ -39,7 +39,14 @@ const INBOX_POLL_MS = 3000; // 선배의 받은 대화 목록 갱신 간격
 const SENIOR_SESSION_KEY = "ppunppun-senior-session"; // { mentor_id, token } (main.html과 같은 키)
 const SENIOR_LOGIN_URL = "../main.html?senior-login=1";
 // 후배는 브라우저에 저장된 자기 ID, 선배는 주소의 junior 값으로 대화방을 정함
-const juniorId = myRole === "junior" ? getOrCreateJuniorId() : params.get("junior") || "";
+const JUNIOR_SESSION_KEY = "ppunppun-junior-session"; // { junior_id, token, display_name } (main.html과 같은 키)
+// 후배는 로그인한 계정의 ID(목 모드는 브라우저에 저장된 임시 ID), 선배는 주소의 junior 값으로 대화방을 정함
+const juniorId =
+  myRole === "junior"
+    ? USE_MOCK
+      ? getOrCreateJuniorId()
+      : readJuniorSession()?.junior_id || ""
+    : params.get("junior") || "";
 let mentor = null;
 
 function getOrCreateJuniorId() {
@@ -144,7 +151,7 @@ function renderHeader() {
     avatar.textContent = "후";
     avatar.style.background = "var(--navy)";
     const number = readJuniorNumbers()[juniorId];
-    name.textContent = number ? `후배 ${number}` : "후배";
+    name.textContent = readJuniorNames()[juniorId] || (number ? `후배 ${number}` : "후배");
     meta.textContent = `${mentor.name} 선배에게 상담을 요청한 후배`;
     intro.textContent = "후배의 질문에 경험을 바탕으로 답해 주세요.";
     input.placeholder = "후배에게 답변을 보내 주세요";
@@ -524,7 +531,7 @@ function createInboxItem(room, number) {
   const top = document.createElement("div");
   top.className = "inbox-item-top";
   const name = document.createElement("strong");
-  name.textContent = `후배 ${number}`;
+  name.textContent = room.juniorName || `후배 ${number}`;
   top.append(name);
   if (room.status === "ended") {
     const ended = document.createElement("span");
@@ -559,6 +566,7 @@ async function refreshInbox() {
     if (key === lastInboxKey) return; // 바뀐 게 없으면 다시 그리지 않음
     lastInboxKey = key;
     const numbers = assignJuniorNumbers(rooms);
+    saveJuniorNames(rooms);
     inboxList.replaceChildren(...rooms.map((room) => createInboxItem(room, numbers[room.juniorId])));
     inboxEmpty.hidden = rooms.length > 0;
   } catch (err) {
@@ -654,7 +662,87 @@ async function checkSeniorLogin() {
   return false;
 }
 
+// ---- 후배 로그인 확인 ----
+function readJuniorSession() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(JUNIOR_SESSION_KEY) || "null");
+    return saved && saved.junior_id && saved.token ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function goToJuniorLogin() {
+  try {
+    localStorage.removeItem(JUNIOR_SESSION_KEY);
+  } catch {
+    // 저장소를 못 써도 로그인 화면으로는 이동
+  }
+  // 로그인 후 이 대화로 돌아오도록 현재 주소를 넘김
+  location.replace(`../main.html?junior-login=1&next=${encodeURIComponent(`chat/index.html${location.search}`)}`);
+}
+
+// 후배 토큰이 유효한지 서버에서 확인. 만료·무효면 지우고 로그인 화면으로
+async function checkJuniorLogin() {
+  if (USE_MOCK) return true;
+  const session = readJuniorSession();
+  if (!session) {
+    goToJuniorLogin();
+    return false;
+  }
+  ChatApi.setToken(session.token);
+  try {
+    const me = await ChatApi.getMe("junior");
+    if (me?.junior_id === session.junior_id) return true;
+  } catch (err) {
+    if (err.status !== 401) return true; // 네트워크 오류면 화면에서 다시 시도
+  }
+  goToJuniorLogin();
+  return false;
+}
+
+// 선배 화면에서 후배 닉네임을 보여 주기 위해 대화함에서 받은 이름을 저장
+function juniorNamesKey() {
+  return `ppunppun-junior-names:${mentorId}`;
+}
+
+function readJuniorNames() {
+  try {
+    return JSON.parse(localStorage.getItem(juniorNamesKey()) || "{}") || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveJuniorNames(rooms) {
+  const names = readJuniorNames();
+  rooms.forEach((room) => {
+    if (room.juniorName) names[room.juniorId] = room.juniorName;
+  });
+  try {
+    localStorage.setItem(juniorNamesKey(), JSON.stringify(names));
+  } catch {
+    // 저장 못 해도 목록에는 이름이 보임
+  }
+}
+
+// 선배 채팅방: 대화함을 거치지 않고 들어와도 후배 닉네임을 서버에서 받아 표시
+async function loadJuniorName() {
+  try {
+    const rooms = await ChatApi.listRooms(mentorId);
+    saveJuniorNames(rooms);
+    const name = rooms.find((room) => room.juniorId === juniorId)?.juniorName;
+    if (name) {
+      $("partner-name").textContent = name;
+      document.title = `뻔뻔하게 · ${name}와 대화`;
+    }
+  } catch {
+    // 이름을 못 받아도 "후배"로 대화는 계속
+  }
+}
+
 async function init() {
+  if (myRole === "junior" && !(await checkJuniorLogin())) return;
   const isInbox = myRole === "senior" && !juniorId;
   if (!ROLE_LABELS[myRole] || !mentorId || (!isInbox && !JUNIOR_ID_PATTERN.test(juniorId))) {
     showInvalidView();
@@ -681,6 +769,7 @@ async function init() {
   if (myRole === "senior") {
     backBar.hidden = false;
     $("back-link").href = inboxUrl();
+    loadJuniorName();
   }
 
   // 로딩을 보여주는 동안 대화와 종료 상태를 미리 불러옴

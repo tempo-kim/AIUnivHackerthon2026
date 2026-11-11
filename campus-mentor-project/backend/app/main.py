@@ -126,6 +126,55 @@ def _require_senior(mentor_id: str, authorization: str) -> None:
         raise HTTPException(status_code=401, detail="선배 로그인이 필요합니다.")
 
 
+def _require_junior(junior_id: str, authorization: str) -> None:
+    """후배로 하는 요청은 그 후배의 로그인 토큰이 있어야 한다(다른 후배의 방이면 401)."""
+    if storage.token_junior(_bearer(authorization)) != junior_id:
+        raise HTTPException(status_code=401, detail="후배 로그인이 필요합니다.")
+
+
+def _require_role(role: str, mentor_id: str, junior_id: str, authorization: str) -> None:
+    if role == "senior":
+        _require_senior(mentor_id, authorization)
+    else:
+        _require_junior(junior_id, authorization)
+
+
+def _require_room_member(mentor_id: str, junior_id: str, authorization: str) -> None:
+    """대화방을 읽는 요청은 그 방의 선배 또는 후배 토큰이 있어야 한다."""
+    token = _bearer(authorization)
+    if storage.token_mentor(token) == mentor_id or storage.token_junior(token) == junior_id:
+        return
+    raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+
+
+def _check_new_pin(pin: str, pin_confirm: str) -> None:
+    if not PIN_PATTERN.fullmatch(pin):
+        raise HTTPException(status_code=400, detail="PIN은 숫자 4~6자리로 입력해 주세요.")
+    if pin != pin_confirm:
+        raise HTTPException(status_code=400, detail="PIN이 일치하지 않아요.")
+
+
+def _login(kind: str, display_name: str, pin: str, check) -> str:
+    """닉네임·PIN 확인. 같은 닉네임으로 5번 연속 틀리면 5분 잠금."""
+    key = (kind, display_name)
+    now = time.time()
+    with _login_lock:
+        fails = _login_fails.get(key)
+        if fails and fails["until"] > now:
+            raise HTTPException(status_code=429, detail="로그인 시도가 너무 많아요. 5분 후 다시 시도해 주세요.")
+    owner_id = check(display_name, pin) if PIN_PATTERN.fullmatch(pin) else None
+    with _login_lock:
+        if owner_id is None:
+            fails = _login_fails.setdefault(key, {"count": 0, "until": 0.0})
+            fails["count"] += 1
+            if fails["count"] >= LOGIN_MAX_FAILS:
+                fails.update(count=0, until=now + LOGIN_LOCK_SECONDS)
+                raise HTTPException(status_code=429, detail="5번 틀려서 5분 동안 로그인할 수 없어요.")
+            raise HTTPException(status_code=401, detail="닉네임 또는 PIN이 맞지 않아요.")
+        _login_fails.pop(key, None)
+    return owner_id
+
+
 def _str_list(value: object) -> list[str]:
     if value is None:
         return []
@@ -324,11 +373,18 @@ class MentorRegisterRequest(BaseModel):
     status: str = ""
     introduction: str = ""
     pin: str = ""
+    pin_confirm: str = ""
 
 
 class MentorLoginRequest(BaseModel):
     display_name: str = ""
     pin: str = ""
+
+
+class JuniorRegisterRequest(BaseModel):
+    display_name: str = ""
+    pin: str = ""
+    pin_confirm: str = ""
 
 
 @app.post("/api/mentors/register")
@@ -343,8 +399,7 @@ def register_mentor(payload: MentorRegisterRequest):
         raise HTTPException(status_code=400, detail="닉네임은 30자 이내로 입력해 주세요.")
     if len(introduction) > 300:
         raise HTTPException(status_code=400, detail="소개는 300자 이내로 입력해 주세요.")
-    if not PIN_PATTERN.fullmatch(payload.pin):
-        raise HTTPException(status_code=400, detail="PIN은 숫자 4~6자리로 입력해 주세요.")
+    _check_new_pin(payload.pin, payload.pin_confirm)
     with _register_lock:
         if storage.name_taken(display_name) or any(
             mentor.display_name == display_name for mentor in store.list()
@@ -362,23 +417,47 @@ def register_mentor(payload: MentorRegisterRequest):
 
 @app.post("/api/mentors/login")
 def login_mentor(payload: MentorLoginRequest):
-    display_name = payload.display_name.strip()
-    now = time.time()
-    with _login_lock:
-        fails = _login_fails.get(display_name)
-        if fails and fails["until"] > now:
-            raise HTTPException(status_code=429, detail="로그인 시도가 너무 많아요. 5분 후 다시 시도해 주세요.")
-    mentor_id = storage.check_pin(display_name, payload.pin) if PIN_PATTERN.fullmatch(payload.pin) else None
-    with _login_lock:
-        if mentor_id is None:
-            fails = _login_fails.setdefault(display_name, {"count": 0, "until": 0.0})
-            fails["count"] += 1
-            if fails["count"] >= LOGIN_MAX_FAILS:
-                fails.update(count=0, until=now + LOGIN_LOCK_SECONDS)
-                raise HTTPException(status_code=429, detail="5번 틀려서 5분 동안 로그인할 수 없어요.")
-            raise HTTPException(status_code=401, detail="닉네임 또는 PIN이 맞지 않아요.")
-        _login_fails.pop(display_name, None)
+    mentor_id = _login("senior", payload.display_name.strip(), payload.pin, storage.check_pin)
     return {"mentor_id": mentor_id, "token": storage.create_token(mentor_id)}
+
+
+@app.post("/api/juniors/register")
+def register_junior(payload: JuniorRegisterRequest):
+    display_name = payload.display_name.strip()
+    if not display_name:
+        raise HTTPException(status_code=400, detail="닉네임을 입력해 주세요.")
+    if len(display_name) > 30:
+        raise HTTPException(status_code=400, detail="닉네임은 30자 이내로 입력해 주세요.")
+    _check_new_pin(payload.pin, payload.pin_confirm)
+    try:
+        junior_id = storage.add_junior(display_name, payload.pin)
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(status_code=400, detail="이미 사용 중인 닉네임이에요.") from exc
+    token = storage.create_junior_token(junior_id)
+    return {"junior_id": junior_id, "display_name": display_name, "token": token}
+
+
+@app.post("/api/juniors/login")
+def login_junior(payload: MentorLoginRequest):
+    display_name = payload.display_name.strip()
+    junior_id = _login("junior", display_name, payload.pin, storage.check_junior_pin)
+    return {"junior_id": junior_id, "display_name": display_name, "token": storage.create_junior_token(junior_id)}
+
+
+@app.get("/api/juniors/me")
+def current_junior(authorization: str = Header(default="")):
+    junior_id = storage.token_junior(_bearer(authorization))
+    if junior_id is None:
+        raise HTTPException(status_code=401, detail="후배 로그인이 필요합니다.")
+    return {"junior_id": junior_id, "display_name": storage.junior_names([junior_id]).get(junior_id, "")}
+
+
+@app.post("/api/juniors/logout")
+def logout_junior(authorization: str = Header(default="")):
+    token = _bearer(authorization)
+    if token:
+        storage.delete_junior_token(token)
+    return {"status": "ok"}
 
 
 @app.get("/api/mentors/me")
@@ -430,8 +509,9 @@ def match_mentor(payload: MatchRequest):
 
 
 @app.get("/api/messages")
-def get_messages(mentorId: str, juniorId: str = ""):
+def get_messages(mentorId: str, juniorId: str = "", authorization: str = Header(default="")):
     room = _chat_room(mentorId, juniorId)
+    _require_room_member(mentorId, juniorId, authorization)
     return storage.list_messages(room)
 
 
@@ -447,6 +527,9 @@ def get_rooms(mentorId: str, authorization: str = Header(default="")):
         }
         for room in storage.list_rooms(prefix)
     ]
+    names = storage.junior_names([room["juniorId"] for room in rooms])
+    for room in rooms:
+        room["juniorName"] = names.get(room["juniorId"], "")
     rooms.sort(key=lambda item: datetime.fromisoformat(item["lastAt"]), reverse=True)
     return rooms
 
@@ -456,8 +539,7 @@ def send_message(payload: RoomMessageRequest, authorization: str = Header(defaul
     room = _chat_room(payload.mentorId, payload.juniorId)
     if payload.senderRole not in {"junior", "senior"}:
         raise HTTPException(status_code=400, detail="senderRole이 올바르지 않습니다.")
-    if payload.senderRole == "senior":
-        _require_senior(payload.mentorId, authorization)
+    _require_role(payload.senderRole, payload.mentorId, payload.juniorId, authorization)
     if storage.get_end_state(room)["status"] == "ended":
         raise HTTPException(status_code=409, detail="종료된 대화입니다.")
     message = {
@@ -471,8 +553,10 @@ def send_message(payload: RoomMessageRequest, authorization: str = Header(defaul
 
 
 @app.get("/api/chat-end")
-def get_chat_end(mentorId: str, juniorId: str = ""):
-    return storage.get_end_state(_chat_room(mentorId, juniorId))
+def get_chat_end(mentorId: str, juniorId: str = "", authorization: str = Header(default="")):
+    room = _chat_room(mentorId, juniorId)
+    _require_room_member(mentorId, juniorId, authorization)
+    return storage.get_end_state(room)
 
 
 @app.post("/api/chat-end/request")
@@ -480,8 +564,7 @@ def request_chat_end(payload: RoomEndRequest, authorization: str = Header(defaul
     room = _chat_room(payload.mentorId, payload.juniorId)
     if payload.requesterRole not in {"junior", "senior"}:
         raise HTTPException(status_code=400, detail="requesterRole이 올바르지 않습니다.")
-    if payload.requesterRole == "senior":
-        _require_senior(payload.mentorId, authorization)
+    _require_role(payload.requesterRole, payload.mentorId, payload.juniorId, authorization)
     state = storage.get_end_state(room)
     if state["status"] != "active":
         return state
@@ -493,8 +576,7 @@ def request_chat_end(payload: RoomEndRequest, authorization: str = Header(defaul
 @app.post("/api/chat-end/respond")
 def respond_chat_end(payload: RoomEndResponseRequest, authorization: str = Header(default="")):
     room = _chat_room(payload.mentorId, payload.juniorId)
-    if payload.responderRole == "senior":
-        _require_senior(payload.mentorId, authorization)
+    _require_role(payload.responderRole, payload.mentorId, payload.juniorId, authorization)
     state = storage.get_end_state(room)
     if state["status"] != "pending":
         return state
@@ -511,8 +593,7 @@ def respond_chat_end(payload: RoomEndResponseRequest, authorization: str = Heade
 @app.post("/api/reports")
 def create_report(payload: RoomReportRequest, authorization: str = Header(default="")):
     _chat_room(payload.mentorId, payload.juniorId)
-    if payload.reporterRole == "senior":
-        _require_senior(payload.mentorId, authorization)
+    _require_role(payload.reporterRole, payload.mentorId, payload.juniorId, authorization)
     _reports.append({**payload.model_dump(), "createdAt": datetime.now(timezone.utc).isoformat()})
     return {"status": "received"}
 
