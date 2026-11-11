@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -60,6 +60,32 @@ _login_lock = threading.Lock()
 LOGIN_MAX_FAILS = 5
 LOGIN_LOCK_SECONDS = 300
 PIN_PATTERN = re.compile(r"[0-9]{4,6}")
+
+
+# ---------------------------------------------------------
+# [추가] 실시간 웹소켓(WebSocket) 브로드캐스트 관리자
+# ---------------------------------------------------------
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        for connection in list(self.active_connections):
+            try:
+                await connection.send_json(message)
+            except Exception:
+                self.disconnect(connection)
+
+ws_manager = ConnectionManager()
+# ---------------------------------------------------------
 
 
 def _restore_registered() -> None:
@@ -339,7 +365,7 @@ class MentorLoginRequest(BaseModel):
 
 
 @app.post("/api/mentors/register")
-def register_mentor(payload: MentorRegisterRequest):
+async def register_mentor(payload: MentorRegisterRequest):
     display_name = payload.display_name.strip()
     major = payload.major.strip()
     status = payload.status.strip()
@@ -364,7 +390,37 @@ def register_mentor(payload: MentorRegisterRequest):
             store._mentors.remove(mentor)
             raise
     token = storage.create_token(mentor.mentor_id)
+
+    # ---------------------------------------------------------
+    # [추가] 선배 등록 시 모든 접속 클라이언트에 실시간 프로필 생성 이벤트 알림
+    # ---------------------------------------------------------
+    await ws_manager.broadcast({
+        "type": "SENIOR_CREATED",
+        "data": mentor.to_dict()
+    })
+    # ---------------------------------------------------------
+
     return {"mentor_id": mentor.mentor_id, "display_name": mentor.display_name, "token": token}
+
+
+# ---------------------------------------------------------
+# [추가] 실시간 입출력 처리를 위한 웹소켓 엔드포인트
+# ---------------------------------------------------------
+@app.websocket("/ws/seniors")
+async def websocket_endpoint(websocket: WebSocket):
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            # 사용자가 입력 폼을 작성하는 동안 실시간 미리보기 전파 (선택 사항)
+            if data.get("type") == "TYPING":
+                await ws_manager.broadcast({
+                    "type": "REMOTE_TYPING",
+                    "data": data.get("payload")
+                })
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+# ---------------------------------------------------------
 
 
 @app.post("/api/mentors/login")
