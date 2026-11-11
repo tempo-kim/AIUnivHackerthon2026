@@ -39,6 +39,7 @@ class MatchResponse(BaseModel):
     extraction: Extraction
     matches: list[MentorMatch]
     extraction_source: str
+    recommendation_source: str = "rules"
     mentor_source: str = ""
 
 
