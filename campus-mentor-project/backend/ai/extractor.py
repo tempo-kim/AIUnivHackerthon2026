@@ -1,10 +1,8 @@
-﻿"""후배 고민 분석과 선배 추천을 OpenRouter 호출 한 번으로 처리한다."""
-
-from __future__ import annotations
-
+﻿from __future__ import annotations
 import atexit
 import json
 import os
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
@@ -14,10 +12,12 @@ from openai import OpenAI
 # backend/.env 파일 경로 설정 및 로드
 env_path = Path(__file__).resolve().parents[1] / ".env"
 load_dotenv(env_path)
+
 _llm_executor = ThreadPoolExecutor(max_workers=2)
 atexit.register(lambda: _llm_executor.shutdown(wait=False, cancel_futures=True))
-# 프론트 요청 제한(5초) 안에서 분석과 최종 추천을 한 응답으로 끝낸다.
-LLM_MATCH_TIMEOUT = 4.5
+
+# 프론트 요청 제한을 고려하되, LLM 응답 시간을 감안해 타임아웃을 넉넉히 늘립니다. (2.5초 -> 15초)
+LLM_MATCH_TIMEOUT = 15.0  
 ALLOWED_HELP_FIELDS = (
     "학교생활",
     "전공공부",
@@ -25,7 +25,6 @@ ALLOWED_HELP_FIELDS = (
     "인턴대외활동",
     "대학원연구",
 )
-
 
 @lru_cache(maxsize=1)
 def _client() -> OpenAI:
@@ -40,7 +39,6 @@ def _client() -> OpenAI:
 
     return OpenAI(**kwargs)
 
-
 def _model_name() -> str:
     configured = os.getenv("LLM_MODEL", "").split("#", 1)[0].strip()
     base_url = os.getenv("OPENAI_BASE_URL", "").strip()
@@ -50,13 +48,12 @@ def _model_name() -> str:
         return configured
     return "openai/gpt-4o-mini" if base_url else "gpt-4o-mini"
 
-
 def _request_llm(
     user_text: str,
     model_name: str,
     system_prompt: str,
     *,
-    timeout: float = 2.5,
+    timeout: float = 10.0, # 기본 타임아웃 10초로 증가
     max_tokens: int = 500,
 ):
     return _client().chat.completions.create(
@@ -70,7 +67,6 @@ def _request_llm(
         max_tokens=max_tokens,
         timeout=timeout,
     )
-
 
 def _string_list(value: object) -> list[str]:
     if value is None:
@@ -86,7 +82,6 @@ def _string_list(value: object) -> list[str]:
             out.append(text)
     return out
 
-
 def _fit_score(value: object) -> float:
     try:
         score = float(value)
@@ -94,53 +89,29 @@ def _fit_score(value: object) -> float:
         return 0.0
     return round(max(0.0, min(100.0, score)), 2)
 
-
 def extract_concern_info(user_text: str) -> dict:
+    # 기존 프롬프트 유지
     system_prompt = """
-당신은 후배의 고민과 선배(멘토) 프로필을 분석하여 최적의 선배를 추천하는 전문 AI 매칭 시스템입니다.
-
-[매칭 평가 기준]
-1. 좋은 매칭 (Good Match) - 반드시 지켜야 할 기준:
-   - 후배의 체크박스 선호(상황, 고민 이유, 경험 선호 등)와 줄글 고민을 종합적으로 고려합니다.
-   - 고민 키워드가 선배의 전문 분야/경험과 직접 겹치는 선배를 1순위로 추천합니다.
-   - 만약 겹치는 고민 단어가 직접적으로 없더라도, 고민 내용과 가장 비슷한 분야/연관 단어/유사 상황을 바탕으로 후배에게 '가장 실질적인 도움을 줄 수 있는 선배'를 추천합니다.
-
-2. 나쁜 매칭 (Bad Match) - 절대 금지:
-   - 후배가 근본적으로 해결하고 싶어 하는 고민 키워드와 겹치는 점이나 연관성이 전혀 없는 선배를 추천하는 경우.
-   - 프로필 상 스펙이나 이름값만 높고, 후배의 고민 주제와 상관없는 선배를 추천하는 경우.
+당신은 후배의 고민을 분석하는 전문 AI 시스템입니다.
 
 [응답 형식]
 반드시 다음 구조의 JSON만 반환하세요:
 {
   "interests": ["관심 분야 키워드1", "키워드2"],
   "situation": "후배의 핵심 고민 상황 요약",
-  "help_fields": ["도움받고 싶은 분야1", "분야2"],
-  "recommendations": [
-    {
-      "mentor_id": "선배ID",
-      "reason": "해당 선배를 추천하는 구체적 이유 (후배의 고민 키워드 및 체크박스 선호와의 연관성 명시)"
-    }
-  ],
-  "suitability": [
-    {
-      "mentor_id": "선배ID",
-      "fit": 85,
-      "reason": "적합도 평가 이유"
-    }
-  ]
+  "help_fields": ["도움받고 싶은 분야1", "분야2"]
 }
 """
-
     try:
         model_name = _model_name()
-
         future = _llm_executor.submit(
             _request_llm,
             f"후배 고민글:\n{user_text}",
             model_name,
             system_prompt,
+            timeout=10.0, # 타임아웃 증가
         )
-        res = future.result(timeout=2.5)
+        res = future.result(timeout=15.0)
 
         content = res.choices[0].message.content
         if not content:
@@ -148,22 +119,15 @@ def extract_concern_info(user_text: str) -> dict:
 
         return json.loads(content)
 
-    except json.JSONDecodeError:
-        return {
-            "interests": [],
-            "situation": "JSON 파싱 에러",
-            "help_fields": [],
-        }
-    except Exception:
-        return {
-            "interests": [],
-            "situation": "정보 추출 실패",
-            "help_fields": [],
-        }
-
+    except json.JSONDecodeError as e:
+        print(f"[LLM Error] JSON 파싱 에러: {e}")
+        return {"interests": [], "situation": "JSON 파싱 에러", "help_fields": []}
+    except Exception as e:
+        print(f"[LLM Error] extract_concern_info 에러 발생: {e}")
+        traceback.print_exc()
+        return {"interests": [], "situation": "정보 추출 실패", "help_fields": []}
 
 def _parse_match_analysis(content: str, candidates: list[dict], top_k: int) -> dict | None:
-    """한 응답에서 키워드, 상황, 후보 적합도, 상위 추천을 꺼낸다."""
     data = json.loads(content or "")
     if not isinstance(data, dict):
         return None
@@ -173,6 +137,7 @@ def _parse_match_analysis(content: str, candidates: list[dict], top_k: int) -> d
     interests = _string_list(data.get("interests"))[:6]
     situation = str(data.get("situation") or "").strip()[:200]
     help_fields: list[str] = []
+    
     for field in _string_list(data.get("help_fields")):
         if field in ALLOWED_HELP_FIELDS and field not in help_fields:
             help_fields.append(field)
@@ -231,14 +196,12 @@ def _parse_match_analysis(content: str, candidates: list[dict], top_k: int) -> d
         "recommendations": recommendations,
     }
 
-
 def analyze_and_recommend(
     *,
     concern_text: str,
     candidates: list[dict],
     top_k: int,
 ) -> dict | None:
-    """고민 키워드·상황 요약·후보 적합도·상위 추천·이유를 한 번의 LLM 호출로 받는다."""
     if not candidates:
         return {
             "interests": [],
@@ -248,17 +211,28 @@ def analyze_and_recommend(
             "recommendations": [],
         }
 
+    # 여기에 실제 매칭 로직과 평가 기준 프롬프트를 명확히 주입합니다.
     system_prompt = """
 너는 대학생 멘토링 서비스의 분석·추천 담당자야.
-후배 고민과 후보 선배 목록을 읽고 JSON 하나만 반환해.
+후배 고민(체크박스 내용 + 줄글)과 후보 선배 목록을 읽고 최적의 선배를 매칭해.
 설명, 마크다운, 코드펜스는 붙이지 마. 모든 문장과 키워드는 한국어로만 작성해.
+
+[매칭 평가 기준]
+1. 좋은 매칭 (Good Match) - 우선순위:
+  - 후배의 체크박스 선호(상황, 고민 이유, 경험 선호 등)와 줄글 고민을 종합적으로 고려해라.
+  - 고민 키워드가 선배의 전문 분야/경험과 '직접 겹치는 선배'를 1순위로 추천해라.
+  - 겹치는 단어가 직접적으로 없더라도, 고민 내용과 가장 비슷한 분야/연관 단어/유사 상황을 바탕으로 후배에게 '가장 실질적인 도움을 줄 수 있는 선배'를 추천해라.
+
+2. 나쁜 매칭 (Bad Match) - 금지:
+  - 후배가 근본적으로 해결하고 싶어 하는 고민 키워드와 겹치는 점이나 연관성이 전혀 없는 선배는 추천하지 마라.
+  - 프로필 상 스펙이나 이름값만 높고, 후배의 고민 주제와 상관없는 선배는 배제해라.
 
 [필드]
 - interests: 고민 핵심 키워드 3~6개
 - situation: 현재 상황 한 줄 요약
 - help_fields: 학교생활, 전공공부, 진로취업, 인턴대외활동, 대학원연구 중에서만 최대 2개
-- suitability: 전달된 후보 전원. mentor_id, fit(0~100 숫자), reason(후보 근거 한 문장)
-- recommendations: suitability가 높은 순서의 상위 인원. mentor_id, reason(추천 이유 한 문장)
+- suitability: 전달된 후보 전원. mentor_id, fit(0~100 숫자, 기준에 맞춰 엄격히 평가), reason(후보 근거 한 문장)
+- recommendations: suitability가 높은 순서의 상위 인원. mentor_id, reason(매칭 평가 기준을 근거로 한 추천 이유)
   배열 순서가 최종 순위다. 후보에 없는 mentor_id는 만들지 마.
 
 반환 형식:
@@ -282,6 +256,7 @@ def analyze_and_recommend(
     user_text = "아래 JSON을 분석해 지정한 형식으로만 답해.\n" + json.dumps(
         request_payload, ensure_ascii=False
     )
+    
     try:
         model_name = _model_name()
         future = _llm_executor.submit(
@@ -289,23 +264,6 @@ def analyze_and_recommend(
             user_text,
             model_name,
             system_prompt,
-            timeout=LLM_MATCH_TIMEOUT,
-            max_tokens=900,
+            timeout=LLM_MATCH_TIMEOUT, # 늘어난 타임아웃 적용
+            max_tokens=1000,
         )
-        content = future.result(timeout=LLM_MATCH_TIMEOUT).choices[0].message.content
-        return _parse_match_analysis(content or "", candidates, top_k)
-    except Exception:
-        return None
-
-
-if __name__ == "__main__":
-    test_text = """
-    안녕하세요! 저는 2학년 재학 중인 학생인데요,
-    이번 학기에 전공 수업을 들으면서 데이터 분석 쪽으로 진로를 잡아야 할지 고민이 커졌어요.
-    공부 방식도 잘 모르겠고, 방학 때 인턴십이나 대외활동을 준비해야 할지 감이 안 잡힙니다.
-    비슷한 고민을 하셨던 선배님께 진로 탐색이랑 공부 팁을 꼭 듣고 싶어요!
-    """
-
-    result = extract_concern_info(test_text)
-    print("\n=== AI 추출 결과 ===")
-    print(json.dumps(result, ensure_ascii=False, indent=2))
