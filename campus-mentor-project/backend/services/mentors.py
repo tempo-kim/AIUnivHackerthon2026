@@ -108,8 +108,8 @@ class MentorStore:
                 mentor_id=f"M{max(numbers, default=0) + 1:03d}",
                 display_name=display_name,
                 major=major,
-                experiences=[],
-                help_topics=[],
+                experiences=[bio] if bio else [],
+                help_topics=[bio] if bio else [],
                 status=status,
                 bio=bio,
             )

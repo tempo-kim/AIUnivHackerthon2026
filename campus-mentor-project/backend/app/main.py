@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -64,6 +64,32 @@ LOGIN_LOCK_SECONDS = 300
 PIN_PATTERN = re.compile(r"[0-9]{4,6}")
 
 
+# ---------------------------------------------------------
+# [추가] 실시간 웹소켓(WebSocket) 브로드캐스트 관리자
+# ---------------------------------------------------------
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        for connection in list(self.active_connections):
+            try:
+                await connection.send_json(message)
+            except Exception:
+                self.disconnect(connection)
+
+ws_manager = ConnectionManager()
+# ---------------------------------------------------------
+
+
 def _restore_registered() -> None:
     """DB에 저장된 등록 선배를 매칭 store에 다시 넣는다(이미 있는 ID는 건너뜀)."""
     known = {mentor.mentor_id for mentor in store.list()}
@@ -71,7 +97,14 @@ def _restore_registered() -> None:
         if row["mentor_id"] in known:
             continue
         # MentorStore에는 ID를 지정해 넣는 함수가 없어 목록에 직접 추가한다
-        store._mentors.append(Mentor(experiences=[], help_topics=[], **row))
+        profile_text = row.get("bio", "")
+        store._mentors.append(
+            Mentor(
+                experiences=[profile_text] if profile_text else [],
+                help_topics=[profile_text] if profile_text else [],
+                **row,
+            )
+        )
 
 
 storage.init()
@@ -230,6 +263,13 @@ def _concern_text(concern_text: str | None, choice: ChoiceContext | None) -> str
         )
         if hint and hint not in body:
             parts.append(hint)
+        preferences = " · ".join(
+            preference.strip()
+            for preference in choice.experience_preferences
+            if preference and preference.strip()
+        )
+        if preferences and preferences not in body:
+            parts.append(f"선배 경험 선호: {preferences}")
     return "\n".join(parts)
 
 
@@ -318,15 +358,13 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
     text = _concern_text(payload.concern_text, payload.choice)
 
     if payload.use_llm:
-        if not os.getenv("OPENAI_API_KEY", "").strip():
-            raise HTTPException(status_code=503, detail="LLM 설정이 없습니다.")
         if payload.extraction is None and not text:
             raise HTTPException(
                 status_code=400,
                 detail="concern_text 또는 extraction이 필요합니다.",
             )
         seed = payload.extraction or Extraction(**stub_extract(text))
-        shortlist_size = max(payload.top_k, min(8, len(mentors)))
+        shortlist_size = len(mentors)
         shortlist = _rank_mentors(payload, seed, mentors, shortlist_size)
         if not shortlist:
             return MatchResponse(
@@ -342,7 +380,14 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
             top_k=payload.top_k,
         )
         if not analysis or not analysis.get("recommendations"):
-            raise HTTPException(status_code=503, detail="LLM 고민 분석에 실패했습니다.")
+            ranked = shortlist[:payload.top_k]
+            return MatchResponse(
+                extraction=seed,
+                matches=[MentorMatch(**row) for row in ranked],
+                extraction_source="client" if payload.extraction is not None else "stub",
+                recommendation_source="rules-fallback",
+                mentor_source=mentor_source,
+            )
         extraction = payload.extraction or _from_llm(analysis)
         ranked = _apply_llm_ranking(shortlist, analysis, payload.top_k)
         return MatchResponse(
@@ -400,7 +445,7 @@ class JuniorRegisterRequest(BaseModel):
 
 
 @app.post("/api/mentors/register")
-def register_mentor(payload: MentorRegisterRequest):
+async def register_mentor(payload: MentorRegisterRequest):
     display_name = payload.display_name.strip()
     major = payload.major.strip()
     status = payload.status.strip()
@@ -425,7 +470,37 @@ def register_mentor(payload: MentorRegisterRequest):
             store._mentors.remove(mentor)
             raise
     token = storage.create_token(mentor.mentor_id)
+
+    # ---------------------------------------------------------
+    # [추가] 선배 등록 시 모든 접속 클라이언트에 실시간 프로필 생성 이벤트 알림
+    # ---------------------------------------------------------
+    await ws_manager.broadcast({
+        "type": "SENIOR_CREATED",
+        "data": mentor.to_dict()
+    })
+    # ---------------------------------------------------------
+
     return {"mentor_id": mentor.mentor_id, "display_name": mentor.display_name, "token": token}
+
+
+# ---------------------------------------------------------
+# [추가] 실시간 입출력 처리를 위한 웹소켓 엔드포인트
+# ---------------------------------------------------------
+@app.websocket("/ws/seniors")
+async def websocket_endpoint(websocket: WebSocket):
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            # 사용자가 입력 폼을 작성하는 동안 실시간 미리보기 전파 (선택 사항)
+            if data.get("type") == "TYPING":
+                await ws_manager.broadcast({
+                    "type": "REMOTE_TYPING",
+                    "data": data.get("payload")
+                })
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+# ---------------------------------------------------------
 
 
 @app.post("/api/mentors/login")
