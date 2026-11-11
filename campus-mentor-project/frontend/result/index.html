@@ -27,6 +27,7 @@
   <a href="../main.html"><span>☘</span>홈</a>
   <a href="#" id="open-chat"><span>💬</span>채팅</a>
 </nav>
+<script src="../assets/achievements.js"></script>
 <script>
 const list=document.querySelector('#mentors');
 const notice=document.querySelector('#notice');
@@ -50,6 +51,7 @@ if(!result||!Array.isArray(result.matches)){
   notice.textContent='입력한 조건에 맞는 선배를 찾지 못했어요. 고민을 다시 작성해 주세요.';retry.hidden=false;
 }else{
   notice.textContent='입력한 고민을 바탕으로 추천한 선배예요.';
+  PpunAchievements.award('recommendation');
   const analysisSource = document.querySelector('#analysis-source');
   if (analysisSource) {
     analysisSource.textContent = result.extraction_source === 'llm' && result.recommendation_source === 'llm'
@@ -66,7 +68,7 @@ if(!result||!Array.isArray(result.matches)){
     const bio=document.createElement('p');bio.className='reason';bio.textContent=mentor.bio||(Array.isArray(mentor.help_topics)?mentor.help_topics.join(' · '):'');
     card.append(avatar,name,meta,bio);
     if(Array.isArray(mentor.reasons)&&mentor.reasons.length){const title=document.createElement('strong');title.textContent='추천 이유';const reasons=document.createElement('ul');reasons.className='reason';reasons.style.cssText='padding-left:20px;flex:none;margin-top:8px';mentor.reasons.forEach(reason=>{const item=document.createElement('li');item.textContent=String(reason);reasons.appendChild(item)});card.append(title,reasons)}
-    if(mentor.mentor_id){const link=document.createElement('a');link.className='button';link.href=chatUrl(mentor.mentor_id);link.onclick=()=>{try{sessionStorage.setItem('ppunppun-selected-mentor',String(mentor.mentor_id))}catch(e){}};link.textContent='대화 시작하기 →';card.appendChild(link)}
+    if(mentor.mentor_id){const link=document.createElement('a');link.className='button';link.href=chatUrl(mentor.mentor_id);link.onclick=()=>{PpunAchievements.selectMentor(mentor.mentor_id);try{sessionStorage.setItem('ppunppun-selected-mentor',String(mentor.mentor_id))}catch(e){}};link.textContent='대화 시작하기 →';card.appendChild(link)}
     list.appendChild(card);
   });
 }

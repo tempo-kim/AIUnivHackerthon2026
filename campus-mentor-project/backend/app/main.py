@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import os
+import re
+import sqlite3
+import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from ai.extractor import analyze_and_recommend, extract_concern_info
 from ai.stub_extract import stub_extract
@@ -29,7 +34,8 @@ from app.schemas import (
     ReportRequest,
 )
 from matching.matcher import match_mentors
-from services.mentors import store
+from services import storage
+from services.mentors import Mentor, store
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
@@ -47,9 +53,27 @@ if not allowed_origins:
 
 app = FastAPI(title="뻔뻔하게 매칭")
 
-_messages: dict[str, list[dict]] = {}
-_end_states: dict[str, dict] = {}
 _reports: list[dict] = []
+_register_lock = threading.Lock()
+_login_fails: dict[str, dict] = {}  # 닉네임별 {"count": 연속 실패 수, "until": 잠금 해제 시각}
+_login_lock = threading.Lock()
+LOGIN_MAX_FAILS = 5
+LOGIN_LOCK_SECONDS = 300
+PIN_PATTERN = re.compile(r"[0-9]{4,6}")
+
+
+def _restore_registered() -> None:
+    """DB에 저장된 등록 선배를 매칭 store에 다시 넣는다(이미 있는 ID는 건너뜀)."""
+    known = {mentor.mentor_id for mentor in store.list()}
+    for row in storage.list_mentors():
+        if row["mentor_id"] in known:
+            continue
+        # MentorStore에는 ID를 지정해 넣는 함수가 없어 목록에 직접 추가한다
+        store._mentors.append(Mentor(experiences=[], help_topics=[], **row))
+
+
+storage.init()
+_restore_registered()
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,17 +83,47 @@ app.add_middleware(
 )
 
 
-def _chat_room(mentor_id: str) -> str:
+JUNIOR_ID_PATTERN = re.compile(r"J-[A-Za-z0-9]{8}")
+
+
+# juniorId가 빠져도 422가 아니라 400으로 답하도록 기본값을 빈 문자열로 둔다
+class RoomMessageRequest(MessageRequest):
+    juniorId: str = ""
+
+
+class RoomEndRequest(EndRequest):
+    juniorId: str = ""
+
+
+class RoomEndResponseRequest(EndResponseRequest):
+    juniorId: str = ""
+
+
+class RoomReportRequest(ReportRequest):
+    juniorId: str = ""
+
+
+def _require_mentor(mentor_id: str) -> None:
     if not any(mentor.mentor_id == mentor_id for mentor in store.list()):
         raise HTTPException(status_code=404, detail="선배를 찾을 수 없습니다.")
-    return mentor_id
 
 
-def _end_state(room: str) -> dict:
-    return _end_states.setdefault(
-        room,
-        {"status": "active", "requestedBy": None, "declinedBy": None},
-    )
+def _chat_room(mentor_id: str, junior_id: str) -> str:
+    _require_mentor(mentor_id)
+    if not JUNIOR_ID_PATTERN.fullmatch(junior_id):
+        raise HTTPException(status_code=400, detail="juniorId 형식이 올바르지 않습니다.")
+    return f"{mentor_id}:{junior_id}"
+
+
+def _bearer(authorization: str) -> str:
+    scheme, _, token = (authorization or "").partition(" ")
+    return token.strip() if scheme.lower() == "bearer" else ""
+
+
+def _require_senior(mentor_id: str, authorization: str) -> None:
+    """선배로 하는 요청은 그 선배의 로그인 토큰이 있어야 한다."""
+    if storage.token_mentor(_bearer(authorization)) != mentor_id:
+        raise HTTPException(status_code=401, detail="선배 로그인이 필요합니다.")
 
 
 def _str_list(value: object) -> list[str]:
@@ -264,6 +318,86 @@ def get_mentors():
     return [MentorOut(**mentor.to_dict()) for mentor in store.list()]
 
 
+class MentorRegisterRequest(BaseModel):
+    display_name: str = ""
+    major: str = ""
+    status: str = ""
+    introduction: str = ""
+    pin: str = ""
+
+
+class MentorLoginRequest(BaseModel):
+    display_name: str = ""
+    pin: str = ""
+
+
+@app.post("/api/mentors/register")
+def register_mentor(payload: MentorRegisterRequest):
+    display_name = payload.display_name.strip()
+    major = payload.major.strip()
+    status = payload.status.strip()
+    introduction = payload.introduction.strip()
+    if not all((display_name, major, status, introduction)):
+        raise HTTPException(status_code=400, detail="닉네임, 전공, 학년, 소개를 모두 입력해 주세요.")
+    if len(display_name) > 30:
+        raise HTTPException(status_code=400, detail="닉네임은 30자 이내로 입력해 주세요.")
+    if len(introduction) > 300:
+        raise HTTPException(status_code=400, detail="소개는 300자 이내로 입력해 주세요.")
+    if not PIN_PATTERN.fullmatch(payload.pin):
+        raise HTTPException(status_code=400, detail="PIN은 숫자 4~6자리로 입력해 주세요.")
+    with _register_lock:
+        if storage.name_taken(display_name) or any(
+            mentor.display_name == display_name for mentor in store.list()
+        ):
+            raise HTTPException(status_code=400, detail="이미 사용 중인 닉네임이에요.")
+        mentor = store.add(display_name, major, status, introduction)
+        try:
+            storage.add_mentor(mentor.mentor_id, display_name, major, status, introduction, payload.pin)
+        except sqlite3.Error:
+            store._mentors.remove(mentor)
+            raise
+    token = storage.create_token(mentor.mentor_id)
+    return {"mentor_id": mentor.mentor_id, "display_name": mentor.display_name, "token": token}
+
+
+@app.post("/api/mentors/login")
+def login_mentor(payload: MentorLoginRequest):
+    display_name = payload.display_name.strip()
+    now = time.time()
+    with _login_lock:
+        fails = _login_fails.get(display_name)
+        if fails and fails["until"] > now:
+            raise HTTPException(status_code=429, detail="로그인 시도가 너무 많아요. 5분 후 다시 시도해 주세요.")
+    mentor_id = storage.check_pin(display_name, payload.pin) if PIN_PATTERN.fullmatch(payload.pin) else None
+    with _login_lock:
+        if mentor_id is None:
+            fails = _login_fails.setdefault(display_name, {"count": 0, "until": 0.0})
+            fails["count"] += 1
+            if fails["count"] >= LOGIN_MAX_FAILS:
+                fails.update(count=0, until=now + LOGIN_LOCK_SECONDS)
+                raise HTTPException(status_code=429, detail="5번 틀려서 5분 동안 로그인할 수 없어요.")
+            raise HTTPException(status_code=401, detail="닉네임 또는 PIN이 맞지 않아요.")
+        _login_fails.pop(display_name, None)
+    return {"mentor_id": mentor_id, "token": storage.create_token(mentor_id)}
+
+
+@app.get("/api/mentors/me")
+def current_mentor(authorization: str = Header(default="")):
+    mentor_id = storage.token_mentor(_bearer(authorization))
+    mentor = next((m for m in store.list() if m.mentor_id == mentor_id), None) if mentor_id else None
+    if mentor is None:
+        raise HTTPException(status_code=401, detail="선배 로그인이 필요합니다.")
+    return {"mentor_id": mentor.mentor_id, "display_name": mentor.display_name}
+
+
+@app.post("/api/mentors/logout")
+def logout_mentor(authorization: str = Header(default="")):
+    token = _bearer(authorization)
+    if token:
+        storage.delete_token(token)
+    return {"status": "ok"}
+
+
 @app.post("/api/mentors/import")
 def import_mentors(payload: MentorImportRequest):
     try:
@@ -279,6 +413,8 @@ def reload_mentors():
         count = store.reload()
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="선배 CSV를 찾을 수 없습니다.") from exc
+    _restore_registered()
+    count = len(store.list())
     return {"count": count, "mentor_source": store.source_path.name if store.source_path else ""}
 
 
@@ -294,17 +430,35 @@ def match_mentor(payload: MatchRequest):
 
 
 @app.get("/api/messages")
-def get_messages(mentorId: str):
-    room = _chat_room(mentorId)
-    return _messages.get(room, [])
+def get_messages(mentorId: str, juniorId: str = ""):
+    room = _chat_room(mentorId, juniorId)
+    return storage.list_messages(room)
+
+
+@app.get("/api/rooms")
+def get_rooms(mentorId: str, authorization: str = Header(default="")):
+    _require_mentor(mentorId)
+    _require_senior(mentorId, authorization)
+    prefix = f"{mentorId}:"
+    rooms = [
+        {
+            "juniorId": room.pop("room").removeprefix(prefix),
+            **room,
+        }
+        for room in storage.list_rooms(prefix)
+    ]
+    rooms.sort(key=lambda item: datetime.fromisoformat(item["lastAt"]), reverse=True)
+    return rooms
 
 
 @app.post("/api/messages")
-def send_message(payload: MessageRequest):
-    room = _chat_room(payload.mentorId)
+def send_message(payload: RoomMessageRequest, authorization: str = Header(default="")):
+    room = _chat_room(payload.mentorId, payload.juniorId)
     if payload.senderRole not in {"junior", "senior"}:
         raise HTTPException(status_code=400, detail="senderRole이 올바르지 않습니다.")
-    if _end_state(room)["status"] == "ended":
+    if payload.senderRole == "senior":
+        _require_senior(payload.mentorId, authorization)
+    if storage.get_end_state(room)["status"] == "ended":
         raise HTTPException(status_code=409, detail="종료된 대화입니다.")
     message = {
         "id": str(uuid.uuid4()),
@@ -312,31 +466,36 @@ def send_message(payload: MessageRequest):
         "text": payload.text.strip(),
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
-    _messages.setdefault(room, []).append(message)
+    storage.add_message(room, message)
     return message
 
 
 @app.get("/api/chat-end")
-def get_chat_end(mentorId: str):
-    return _end_state(_chat_room(mentorId))
+def get_chat_end(mentorId: str, juniorId: str = ""):
+    return storage.get_end_state(_chat_room(mentorId, juniorId))
 
 
 @app.post("/api/chat-end/request")
-def request_chat_end(payload: EndRequest):
-    room = _chat_room(payload.mentorId)
+def request_chat_end(payload: RoomEndRequest, authorization: str = Header(default="")):
+    room = _chat_room(payload.mentorId, payload.juniorId)
     if payload.requesterRole not in {"junior", "senior"}:
         raise HTTPException(status_code=400, detail="requesterRole이 올바르지 않습니다.")
-    state = _end_state(room)
+    if payload.requesterRole == "senior":
+        _require_senior(payload.mentorId, authorization)
+    state = storage.get_end_state(room)
     if state["status"] != "active":
         return state
     state.update(status="pending", requestedBy=payload.requesterRole, declinedBy=None)
+    storage.save_end_state(room, state)
     return state
 
 
 @app.post("/api/chat-end/respond")
-def respond_chat_end(payload: EndResponseRequest):
-    room = _chat_room(payload.mentorId)
-    state = _end_state(room)
+def respond_chat_end(payload: RoomEndResponseRequest, authorization: str = Header(default="")):
+    room = _chat_room(payload.mentorId, payload.juniorId)
+    if payload.responderRole == "senior":
+        _require_senior(payload.mentorId, authorization)
+    state = storage.get_end_state(room)
     if state["status"] != "pending":
         return state
     if payload.responderRole == state["requestedBy"]:
@@ -345,12 +504,15 @@ def respond_chat_end(payload: EndResponseRequest):
         state.update(status="ended", requestedBy=None, declinedBy=None)
     else:
         state.update(status="active", requestedBy=None, declinedBy=payload.responderRole)
+    storage.save_end_state(room, state)
     return state
 
 
 @app.post("/api/reports")
-def create_report(payload: ReportRequest):
-    _chat_room(payload.mentorId)
+def create_report(payload: RoomReportRequest, authorization: str = Header(default="")):
+    _chat_room(payload.mentorId, payload.juniorId)
+    if payload.reporterRole == "senior":
+        _require_senior(payload.mentorId, authorization)
     _reports.append({**payload.model_dump(), "createdAt": datetime.now(timezone.utc).isoformat()})
     return {"status": "received"}
 

@@ -106,6 +106,14 @@ button {
   color: var(--navy);
 }
 
+.invalid-view a.primary-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 8px;
+  text-decoration: none;
+}
+
 .invalid-view code {
   padding: 1px 4px;
   border-radius: 4px;
@@ -113,12 +121,105 @@ button {
   word-break: break-all;
 }
 
-/* 대화 화면 */
+/* 선배의 받은 대화 */
+.inbox-view,
 .chat-view {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.inbox-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.inbox-header h1 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--navy);
+}
+
+.inbox-header p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.inbox-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--surface-alt);
+}
+
+.inbox-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inbox-item {
+  display: block;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+}
+
+.inbox-item:hover {
+  background: var(--blue-soft);
+}
+
+.inbox-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inbox-item-top strong {
+  color: var(--navy);
+}
+
+.inbox-item-top time {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.inbox-ended {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.inbox-preview {
+  margin: 4px 0 0;
+  overflow: hidden;
+  font-size: 14px;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 대화 화면 */
+.back-bar {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.back-link {
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
 }
 
 .top-bar {
@@ -471,6 +572,12 @@ button {
   border-radius: 12px;
   font: inherit;
   font-size: 16px; /* iOS 확대 방지 */
+}
+
+.composer textarea::placeholder {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .composer textarea:focus {
