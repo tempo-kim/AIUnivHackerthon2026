@@ -235,7 +235,6 @@ function renderSenior(){
     const area=document.createElement('textarea');area.className='concern-input';area.setAttribute('aria-label','선배 소개와 경험');area.placeholder='예: 자료구조를 수강했고, 학교 주변 혼밥하기 좋은 밥집을 잘 알아요. 후배의 고민을 편하게 들어줄게요.';area.maxLength=2000;area.value=seniorAnswers.introduction;area.oninput=()=>{seniorAnswers.introduction=area.value;next.disabled=!area.value.trim()};box.appendChild(area);next.disabled=!area.value.trim();
   }else{
     const summary=document.createElement('div');summary.className='prefix';summary.style.whiteSpace='pre-wrap';summary.textContent=`학교: ${selectedSchool}\n닉네임: ${seniorAnswers.display_name.trim()}\n전공: ${seniorAnswers.major.trim()}\n학년 또는 졸업 여부: ${seniorAnswers.status.trim()}\n\n소개와 경험\n${seniorAnswers.introduction.trim()}`;box.appendChild(summary);
-    const download=document.createElement('button');download.className='secondary';download.textContent='테스트용 JSON 파일 내려받기';download.onclick=()=>{const data=seniorPayload();const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='mentor-profile.json';document.body.appendChild(a);a.click();a.remove();PpunAchievements.award('profile-ready');setTimeout(()=>URL.revokeObjectURL(url),1000);notice.textContent='파일을 내려받았어요. 브라우저의 다운로드 목록을 확인해 주세요.'};box.appendChild(download);
   }
   app.querySelector('#senior-prev').onclick=()=>{if(seniorStep===0){step=-1;render()}else{seniorStep--;renderSenior()}};
   next.onclick=async()=>{
