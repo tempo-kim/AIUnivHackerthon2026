@@ -37,9 +37,12 @@ try{result=JSON.parse(sessionStorage.getItem('ppunppun-match')||'null')}catch(e)
 const matches=Array.isArray(result?.matches)?result.matches:[];
 const status=document.querySelector('#analysis-status');
 if(result){
+  const singleLlm=result.extraction_source==='llm'&&result.recommendation_source==='llm';
   const extractionLabel=({llm:'LLM이 고민 내용을 분석',stub:'규칙 기반 분석',client:'입력된 조건 사용'})[result.extraction_source]||'분석 방식 확인 불가';
   const recommendationLabel=result.recommendation_source==='llm'?'LLM이 후보 선배를 최종 비교':'규칙 기반 후보 정렬';
-  status.textContent=`분석 방식: ${extractionLabel} · 추천 방식: ${recommendationLabel}`;
+  status.textContent=singleLlm
+    ?'분석 방식: LLM 한 번이 핵심 키워드, 상황 요약, 선배 적합도, 상위 3명과 추천 이유를 함께 판단'
+    :`분석 방식: ${extractionLabel} · 추천 방식: ${recommendationLabel}`;
 }
 if(!result||!Array.isArray(result.matches)){
   notice.textContent='아직 추천 결과가 없어요. 처음부터 고민을 입력해 주세요.';retry.hidden=false;
@@ -49,7 +52,9 @@ if(!result||!Array.isArray(result.matches)){
   notice.textContent='입력한 고민을 바탕으로 추천한 선배예요.';
   const analysisSource = document.querySelector('#analysis-source');
   if (analysisSource) {
-    analysisSource.textContent = result.extraction_source === 'llm'
+    analysisSource.textContent = result.extraction_source === 'llm' && result.recommendation_source === 'llm'
+      ? '분석 방식: AI LLM 한 번의 응답으로 고민 키워드, 상황, 선배 적합도와 추천 이유를 만들었습니다.'
+      : result.extraction_source === 'llm'
       ? '분석 방식: AI LLM이 고민 문장에서 관심사와 상황을 추출했습니다.'
       : '분석 방식: 규칙 기반 분석이 사용되었습니다.';
   }
