@@ -105,6 +105,34 @@ const ChatStore = (() => {
     return saved;
   }
 
+  // 선배의 받은 대화 목록. roomPrefix로 시작하는 방 중 메시지가 있는 방을 최근순으로
+  function listRooms(roomPrefix) {
+    const keyPrefix = STORAGE_PREFIX + roomPrefix;
+    let keys = [];
+    try {
+      keys = Object.keys(localStorage).filter((key) => key.startsWith(keyPrefix));
+    } catch {
+      return [];
+    }
+    return keys
+      .map((key) => {
+        const roomId = key.slice(STORAGE_PREFIX.length);
+        const messages = loadMessages(roomId);
+        const last = messages[messages.length - 1];
+        return (
+          last && {
+            juniorId: roomId.slice(roomPrefix.length),
+            lastMessage: last.text,
+            lastAt: last.sentAt,
+            status: loadEndState(roomId).status,
+            messageCount: messages.length,
+          }
+        );
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.lastAt - a.lastAt);
+  }
+
   // 상대 탭에서 온 새 메시지/초기화/종료 상태를 받음. 구독 해제 함수를 돌려줌
   function subscribe(roomId, { onMessage, onClear, onEndState }) {
     const channel = getChannel(roomId);
@@ -127,6 +155,7 @@ const ChatStore = (() => {
     requestEnd,
     respondEnd,
     saveReport,
+    listRooms,
     subscribe,
   };
 })();
