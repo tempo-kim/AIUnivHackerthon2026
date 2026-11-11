@@ -3,8 +3,30 @@
 *{box-sizing:border-box}body{margin:0;background:#f7f8ff;color:#1b2451;font-family:Pretendard,'Malgun Gothic',sans-serif}header{max-width:1080px;margin:auto;padding:24px;display:flex;align-items:center;justify-content:space-between}.logo{font-size:22px;font-weight:900;color:#283c91}button{font:inherit;cursor:pointer}.login{border:1px solid #dce2f5;border-radius:12px;background:white;color:#647092;padding:10px 18px}main{max-width:1050px;margin:45px auto 120px;padding:0 24px}.layout{display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center}.badge{background:#edeaff;color:#6140c4;padding:9px 14px;border-radius:30px;font-weight:700;font-size:13px}h1{font-size:clamp(38px,5vw,60px);letter-spacing:-.06em;line-height:1.2;margin:28px 0 18px}h1 span{color:#6d49d4}.intro{color:#72809b;line-height:1.8}.card{background:white;border:1px solid #e1e5f5;border-radius:24px;padding:32px;box-shadow:0 18px 60px #30346b10}h2{font-size:24px;letter-spacing:-.04em;line-height:1.4;margin:0 0 10px}.hint{color:#8590a9;font-size:14px;line-height:1.6}.primary,.back{border:0;border-radius:12px;padding:15px 20px;font-weight:700}.primary{background:#345fe0;color:white;flex:1}.primary:disabled{opacity:.4;cursor:not-allowed}.back{background:#eef0fb;color:#546286}.start{width:100%;margin-top:14px}.top{display:flex;justify-content:space-between;font-size:13px;color:#7d9182}.progress{height:6px;border-radius:10px;background:#eef0fb;margin:15px 0 26px}.bar{height:100%;background:#7656e2;border-radius:10px}.choices{display:grid;gap:9px;margin-top:20px}.choice{border:1px solid #dce2f5;background:white;color:#28335e;text-align:left;border-radius:12px;padding:14px}.choice:hover,.choice.selected{border-color:#7656e2;background:#f2efff;color:#6140c4}.actions{display:flex;gap:10px;margin-top:22px}.note{font-size:12px;color:#919bb1;line-height:1.6;margin:16px 0 0}.nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e5f3;display:flex;justify-content:center;gap:8px;padding:10px 20px calc(10px + env(safe-area-inset-bottom));z-index:2}.nav a{color:#687398;text-decoration:none;text-align:center;padding:8px 45px;border-radius:12px;font-size:13px}.nav a:hover{background:#f0efff;color:#5e43c8}.nav span{display:block;font-size:20px;margin-bottom:3px}.notice{color:#72809b;font-size:13px;margin:15px 0 0}@media(max-width:760px){main{margin:25px auto 110px}.layout{grid-template-columns:1fr;gap:30px}.card{padding:24px}h1{margin:20px 0}.nav a{padding:8px 35px}}
 .concern-input{width:100%;min-height:145px;resize:vertical;border:1px solid #dce2f5;border-radius:12px;padding:14px;font:inherit;line-height:1.7;color:#28335e}.prefix{background:#f0efff;border-radius:12px;padding:14px;line-height:1.7;color:#51478f;font-size:14px}.secondary{width:100%;margin-top:10px;background:#edeaff;color:#5c43b8;border:0;border-radius:12px;padding:15px;font-weight:700}.role-note{font-size:13px;color:#72809b;line-height:1.6}
 .logo{display:inline-flex;align-items:center;line-height:0}.logo img{display:block;width:150px;height:90px;object-fit:contain;mix-blend-mode:multiply}@media(max-width:760px){.logo img{width:120px;height:72px}}
-</style></head><body><header><a class="logo" href="./main.html" style="text-decoration:none"><img src="./assets/brand-logo.png" alt="뻔뻔하게 홈"></a><button class="login" id="login" type="button">로그인</button></header><main><div class="layout"><section><span class="badge">캠퍼스 생활, 뻔뻔하게 물어봐요</span><h1>궁금한 건<br><span>뻔뻔하게!</span></h1><p class="intro">학교생활의 사소한 질문부터 진로 고민까지.<br>나와 맞는 선배에게 편하게 물어보세요.</p></section><section class="card" id="app" aria-live="polite"></section></div></main><nav class="nav" aria-label="하단 메뉴"><a href="./main.html"><span>☘</span>홈</a><a href="./result/index.html" id="junior-chat-nav"><span>💬</span>채팅창</a></nav><script src="./universities.js"></script><script>
+</style></head><body><header><a class="logo" href="./main.html" style="text-decoration:none"><img src="./assets/brand-logo.png" alt="뻔뻔하게 홈"></a><button class="login" id="login" type="button">로그인</button></header><main><div class="layout"><section><span class="badge">캠퍼스 생활, 뻔뻔하게 물어봐요</span><h1>궁금한 건<br><span>뻔뻔하게!</span></h1><p class="intro">학교생활의 사소한 질문부터 진로 고민까지.<br>나와 맞는 선배에게 편하게 물어보세요.</p></section><section class="card" id="app" aria-live="polite"></section></div></main><nav class="nav" aria-label="하단 메뉴"><a href="./main.html"><span>☘</span>홈</a><a href="./result/index.html" id="junior-chat-nav"><span>💬</span>채팅창</a></nav><script src="./universities.js"></script><script src="./assets/achievements.js"></script><script>
 const app = document.querySelector('#app');
+
+function configureChatNav(role){
+  const link=document.querySelector('#junior-chat-nav');
+  link.hidden=false;
+  link.href=role==='senior'?'#senior-chat':'./result/index.html';
+  if(role==='senior')link.setAttribute('aria-haspopup','dialog');
+  else link.removeAttribute('aria-haspopup');
+  link.onclick=role==='senior'?event=>{
+    event.preventDefault();
+    let dialog=document.querySelector('#senior-chat-dialog');
+    if(!dialog){
+      dialog=document.createElement('dialog');
+      dialog.id='senior-chat-dialog';dialog.className='achievement-dialog';
+      dialog.setAttribute('aria-labelledby','senior-chat-title');
+      dialog.innerHTML='<div class="achievement-heading"><h2 id="senior-chat-title">후배와의 채팅</h2><button type="button" class="achievement-button">닫기</button></div><div class="achievement-item" style="margin-top:20px"><strong>대화 요청 연결을 준비하고 있어요</strong><p>선배 등록과 대화 요청이 연결되면 이곳에서 후배와의 채팅을 시작할 수 있어요.</p></div>';
+      dialog.querySelector('button').onclick=()=>dialog.close();
+      document.body.append(dialog);
+    }
+    dialog.showModal();
+  }:null;
+}
+
 let selectedSchool = '';
 
 try {
@@ -20,7 +42,8 @@ try {
 }
 
 function renderSchool() {
-  document.querySelector('#junior-chat-nav').hidden=false;
+  PpunAchievements.setRole("junior");
+  configureChatNav('junior');
   app.innerHTML = `
     <span class="badge">함께할 학교 찾기</span>
     <h2 style="margin-top:20px">어느 학교에 다니시나요?</h2>
@@ -109,7 +132,8 @@ const steps = [
 const seniorAnswers={display_name:'',major:'',status:'',introduction:''};
 let seniorStep=0;
 function renderSenior(){
-  document.querySelector('#junior-chat-nav').hidden=true;
+  PpunAchievements.setRole("senior");
+  configureChatNav('senior');
   const review=seniorStep===2;
   const titles=['선배님의 기본 정보를 알려주세요','후배에게 어떤 이야기를 들려줄 수 있나요?','작성한 내용을 확인해 주세요'];
   app.innerHTML=`<div class="top"><span>선배 소개 작성</span><strong>${seniorStep+1} / 3</strong></div><div class="progress"><div class="bar" style="width:${(seniorStep+1)/3*100}%"></div></div><h2>${titles[seniorStep]}</h2><p class="hint">${review?'내용을 확인하고 임시 저장하거나 테스트 파일을 내려받을 수 있어요.':seniorStep===0?'후배에게 보여줄 닉네임과 전공, 학적을 적어주세요.':'수업, 학교생활, 진로, 밥집 등 경험과 도움을 줄 수 있는 내용을 자유롭게 적어주세요.'}</p><div class="choices"></div><div class="actions"><button class="back" id="senior-prev">이전</button><button class="primary" id="senior-next">${review?'임시 저장하기':'다음'}</button></div><p class="note">아직 실제 선배 등록은 되지 않아요. 테스트에는 가상의 정보를 사용해 주세요.</p><p class="notice" id="login-message" role="status"></p>`;
@@ -121,13 +145,14 @@ function renderSenior(){
     const area=document.createElement('textarea');area.className='concern-input';area.setAttribute('aria-label','선배 소개와 경험');area.placeholder='예: 자료구조를 수강했고, 학교 주변 혼밥하기 좋은 밥집을 잘 알아요. 후배의 고민을 편하게 들어줄게요.';area.maxLength=2000;area.value=seniorAnswers.introduction;area.oninput=()=>{seniorAnswers.introduction=area.value;next.disabled=!area.value.trim()};box.appendChild(area);next.disabled=!area.value.trim();
   }else{
     const summary=document.createElement('div');summary.className='prefix';summary.style.whiteSpace='pre-wrap';summary.textContent=`학교: ${selectedSchool}\n닉네임: ${seniorAnswers.display_name.trim()}\n전공: ${seniorAnswers.major.trim()}\n학년 또는 졸업 여부: ${seniorAnswers.status.trim()}\n\n소개와 경험\n${seniorAnswers.introduction.trim()}`;box.appendChild(summary);
-    const download=document.createElement('button');download.className='secondary';download.textContent='테스트용 JSON 파일 내려받기';download.onclick=()=>{const data=seniorPayload();const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='mentor-profile.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);notice.textContent='파일을 내려받았어요. 브라우저의 다운로드 목록을 확인해 주세요.'};box.appendChild(download);
+    const download=document.createElement('button');download.className='secondary';download.textContent='테스트용 JSON 파일 내려받기';download.onclick=()=>{const data=seniorPayload();const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='mentor-profile.json';document.body.appendChild(a);a.click();a.remove();PpunAchievements.award('profile-ready');setTimeout(()=>URL.revokeObjectURL(url),1000);notice.textContent='파일을 내려받았어요. 브라우저의 다운로드 목록을 확인해 주세요.'};box.appendChild(download);
   }
   app.querySelector('#senior-prev').onclick=()=>{if(seniorStep===0){step=-1;render()}else{seniorStep--;renderSenior()}};
-  next.onclick=()=>{if(!review){seniorStep++;renderSenior();return}try{sessionStorage.setItem('ppunppun-senior-draft',JSON.stringify(seniorPayload()));renderSeniorHome()}catch(e){notice.textContent='임시 저장을 할 수 없어요. 브라우저 저장 설정을 확인해 주세요.'}};
+  next.onclick=()=>{if(!review){seniorStep++;renderSenior();return}try{sessionStorage.setItem('ppunppun-senior-draft',JSON.stringify(seniorPayload()));PpunAchievements.award('introduction');if(seniorAnswers.introduction.trim().length>=200)PpunAchievements.award('storyteller');renderSeniorHome()}catch(e){notice.textContent='임시 저장을 할 수 없어요. 브라우저 저장 설정을 확인해 주세요.'}};
 }
 function renderSeniorHome(){
-  document.querySelector('#junior-chat-nav').hidden=true;
+  PpunAchievements.setRole("senior");
+  configureChatNav('senior');
   app.innerHTML='<span class="badge">선배 공간</span><h2 style="margin-top:20px" id="senior-greeting"></h2><p class="hint" id="senior-school"></p><div class="prefix"><strong>내 소개</strong><p id="senior-intro" style="white-space:pre-wrap;margin-bottom:0"></p></div><div class="choices"><button class="secondary" id="edit-senior">내 소개 수정하기</button><div class="prefix"><strong>후배의 대화 요청</strong><p class="role-note">아직 연결된 대화 요청이 없어요. 선배 등록과 대화 요청 기능은 준비 중입니다.</p></div></div><button class="back" id="switch-role" style="margin-top:20px">처음으로</button><p class="note">작성한 소개는 이 브라우저 탭에 임시 저장되어 있어요.</p><p class="notice" id="login-message" role="status"></p>';
   app.querySelector('#senior-greeting').textContent=seniorAnswers.display_name.trim()+'님, 반가워요!';
   app.querySelector('#senior-school').textContent=selectedSchool+' · '+seniorAnswers.major.trim()+' · '+seniorAnswers.status.trim();
@@ -141,7 +166,8 @@ function startSenior(){
 }
 function seniorPayload(){return {schema_version:1,school:selectedSchool,display_name:seniorAnswers.display_name.trim(),major:seniorAnswers.major.trim(),status:seniorAnswers.status.trim(),introduction:seniorAnswers.introduction.trim()}}
 function render(){
-  document.querySelector('#junior-chat-nav').hidden=false;
+  PpunAchievements.setRole("junior");
+  configureChatNav('junior');
   if(step<0){
     app.innerHTML='<h2>무엇이든 물어볼 준비됐나요?</h2><p class="hint" id="school-label"></p><button class="back" id="change-school" type="button">학교 변경</button><p class="hint">나의 상황과 고민을 알려주면 어울리는 선배를 찾아볼 수 있어요.</p><button class="primary start" id="start">후배로 시작하기 →</button><button class="secondary" id="senior">선배로 시작하기</button><p class="notice" id="login-message" role="status"></p>';
     app.querySelector('#school-label').textContent='선택한 학교: '+selectedSchool;
@@ -182,6 +208,7 @@ function render(){
        const response=await fetch(base+'/api/match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({concern_text:text,choice:choice,top_k:3,use_llm:true}),signal:controller.signal});
       if(!response.ok)throw new Error('요청 실패');
       const result=await response.json();sessionStorage.setItem('ppunppun-match',JSON.stringify(result));
+      if(answers.concern.trim())PpunAchievements.award('concern');
       location.href='./result/index.html';
     }catch(e){notice.textContent='추천 요청에 실패했어요. 서버 연결을 확인한 뒤 다시 시도해 주세요.';next.disabled=false;prev.disabled=false;next.textContent='다시 시도'}
   };
