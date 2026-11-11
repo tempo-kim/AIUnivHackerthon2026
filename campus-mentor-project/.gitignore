@@ -11,3 +11,5 @@ build/
 .DS_Store
 .vs/
 .venv312/
+backend/data/app.db
+backend/data/app.db-*
