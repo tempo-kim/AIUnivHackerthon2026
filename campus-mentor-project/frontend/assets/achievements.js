@@ -1,4 +1,4 @@
-/* Browser-only achievements. No chat completion or server reputation is inferred. */
+﻿/* Browser-only achievements. No chat completion or server reputation is inferred. */
 (() => {
   const key = 'ppunppun-achievements-v1';
   const definitions = [
@@ -25,7 +25,8 @@
   const actions = document.createElement('div'); actions.className = 'achievement-actions';
   const temperature = document.createElement('button'); temperature.type = 'button'; temperature.className = 'achievement-button'; temperature.innerHTML = '학점온도 <strong>0.000 / 4.500</strong>'; temperature.hidden = true;
   const badges = document.createElement('button'); badges.type = 'button'; badges.className = 'achievement-nav'; badges.setAttribute('aria-haspopup', 'dialog'); badges.innerHTML = '<span aria-hidden="true">🏅</span>업적';
-  actions.append(temperature); const header = document.querySelector('header'); const login = header.querySelector('#login'); if (login) actions.append(login); header.append(actions); actions.style.marginLeft = 'auto'; document.querySelector('.nav').append(badges);
+  const admin = document.createElement('a'); admin.className = 'achievement-nav'; admin.href = 'https://aiunivhackerthon2026.onrender.com/frontend/admin.html'; admin.innerHTML = '<span aria-hidden="true">🛠️</span>관리자';
+  actions.append(temperature); const header = document.querySelector('header'); const login = header.querySelector('#login'); if (login) actions.append(login); header.append(actions); actions.style.marginLeft = 'auto'; document.querySelector('.nav').append(badges, admin);
   const dialog = document.createElement('dialog'); dialog.className = 'achievement-dialog'; dialog.setAttribute('aria-labelledby', 'achievement-title'); document.body.append(dialog);
   const toast = document.createElement('div'); toast.className = 'achievement-toast'; toast.setAttribute('role', 'status'); toast.hidden = true; document.body.append(toast);
   let timeout;
