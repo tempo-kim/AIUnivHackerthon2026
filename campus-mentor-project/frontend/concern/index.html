@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8">
@@ -61,7 +61,7 @@
         return;
       }
       btn.disabled = true;
-      status.textContent = 'AI가 키워드를 분석하고 선배를 매칭하는 중...';
+      status.textContent = 'AI가 고민을 분석하고 선배를 매칭하는 중...';
       try {
         const result = await MentorApi.match({
           concern_text: concern || null,

@@ -726,6 +726,21 @@ function saveJuniorNames(rooms) {
   }
 }
 
+// 선배 채팅방: 대화함을 거치지 않고 들어와도 후배 닉네임을 서버에서 받아 표시
+async function loadJuniorName() {
+  try {
+    const rooms = await ChatApi.listRooms(mentorId);
+    saveJuniorNames(rooms);
+    const name = rooms.find((room) => room.juniorId === juniorId)?.juniorName;
+    if (name) {
+      $("partner-name").textContent = name;
+      document.title = `뻔뻔하게 · ${name}와 대화`;
+    }
+  } catch {
+    // 이름을 못 받아도 "후배"로 대화는 계속
+  }
+}
+
 async function init() {
   if (myRole === "junior" && !(await checkJuniorLogin())) return;
   const isInbox = myRole === "senior" && !juniorId;
@@ -754,6 +769,7 @@ async function init() {
   if (myRole === "senior") {
     backBar.hidden = false;
     $("back-link").href = inboxUrl();
+    loadJuniorName();
   }
 
   // 로딩을 보여주는 동안 대화와 종료 상태를 미리 불러옴

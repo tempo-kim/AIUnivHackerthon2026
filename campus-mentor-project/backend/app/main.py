@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from ai.extractor import extract_concern_info
+from ai.extractor import analyze_and_recommend, extract_concern_info
 from ai.stub_extract import stub_extract
 from app.schemas import (
     ChoiceContext,
@@ -232,31 +232,122 @@ def _extract(payload: MatchRequest) -> tuple[Extraction, str]:
             detail="concern_text 또는 extraction이 필요합니다.",
         )
 
-    if payload.use_llm and os.getenv("OPENAI_API_KEY", "").strip():
+    if payload.use_llm:
+        if not os.getenv("OPENAI_API_KEY", "").strip():
+            raise HTTPException(status_code=503, detail="LLM 설정이 없습니다.")
         raw = extract_concern_info(text)
-        if not _llm_failed(raw):
-            return _from_llm(raw), "llm"
+        if _llm_failed(raw):
+            raise HTTPException(status_code=503, detail="LLM 고민 분석에 실패했습니다.")
+        return _from_llm(raw), "llm"
 
     return Extraction(**stub_extract(text)), "stub"
 
 
-def _match_response(payload: MatchRequest) -> MatchResponse:
-    extraction, source = _extract(payload)
-    ranked = match_mentors(
+def _rank_mentors(payload: MatchRequest, extraction: Extraction, mentors: list[dict], top_k: int) -> list[dict]:
+    return match_mentors(
         interests=extraction.interests,
         help_fields=extraction.help_fields,
         situation=extraction.situation,
         choice_reason=payload.choice.reason if payload.choice else "",
         experience_preferences=payload.choice.experience_preferences if payload.choice else [],
         choice_status=payload.choice.status if payload.choice else "",
-        mentors=store.as_matching_rows(),
-        top_k=payload.top_k,
+        mentors=mentors,
+        top_k=top_k,
     )
+
+
+def _apply_llm_ranking(ranked: list[dict], analysis: dict, top_k: int) -> list[dict]:
+    suitability = {
+        item["mentor_id"]: item
+        for item in analysis.get("suitability", [])
+        if isinstance(item, dict) and item.get("mentor_id")
+    }
+    ranked_by_id = {str(row["mentor_id"]): row for row in ranked}
+    reordered: list[dict] = []
+    selected_ids: set[str] = set()
+
+    def take(mentor_id: str, reason: str) -> None:
+        row = ranked_by_id.get(mentor_id)
+        if row is None or mentor_id in selected_ids:
+            return
+        copied = row.copy()
+        fit = suitability.get(mentor_id, {}).get("fit")
+        if isinstance(fit, (int, float)):
+            copied["score"] = fit
+        copied["reasons"] = [reason]
+        reordered.append(copied)
+        selected_ids.add(mentor_id)
+
+    for item in analysis.get("recommendations", []):
+        if len(reordered) >= top_k:
+            break
+        take(str(item.get("mentor_id") or ""), str(item.get("reason") or "").strip())
+
+    leftovers: list[dict] = []
+    for row in ranked:
+        mentor_id = str(row["mentor_id"])
+        if mentor_id in selected_ids:
+            continue
+        copied = row.copy()
+        extra = suitability.get(mentor_id)
+        if extra:
+            copied["score"] = extra.get("fit", copied["score"])
+            if extra.get("reason"):
+                copied["reasons"] = [str(extra["reason"])]
+        leftovers.append(copied)
+    leftovers.sort(key=lambda item: item["score"], reverse=True)
+    reordered.extend(leftovers)
+    return reordered[:top_k]
+
+
+def _match_response(payload: MatchRequest) -> MatchResponse:
+    mentors = store.as_matching_rows()
     mentor_source = store.source_path.name if store.source_path else ""
+    text = _concern_text(payload.concern_text, payload.choice)
+
+    if payload.use_llm:
+        if not os.getenv("OPENAI_API_KEY", "").strip():
+            raise HTTPException(status_code=503, detail="LLM 설정이 없습니다.")
+        if payload.extraction is None and not text:
+            raise HTTPException(
+                status_code=400,
+                detail="concern_text 또는 extraction이 필요합니다.",
+            )
+        seed = payload.extraction or Extraction(**stub_extract(text))
+        shortlist_size = max(payload.top_k, min(8, len(mentors)))
+        shortlist = _rank_mentors(payload, seed, mentors, shortlist_size)
+        if not shortlist:
+            return MatchResponse(
+                extraction=seed,
+                matches=[],
+                extraction_source="client" if payload.extraction is not None else "stub",
+                recommendation_source="rules",
+                mentor_source=mentor_source,
+            )
+        analysis = analyze_and_recommend(
+            concern_text=text or seed.situation,
+            candidates=shortlist,
+            top_k=payload.top_k,
+        )
+        if not analysis or not analysis.get("recommendations"):
+            raise HTTPException(status_code=503, detail="LLM 고민 분석에 실패했습니다.")
+        extraction = payload.extraction or _from_llm(analysis)
+        ranked = _apply_llm_ranking(shortlist, analysis, payload.top_k)
+        return MatchResponse(
+            extraction=extraction,
+            matches=[MentorMatch(**row) for row in ranked],
+            extraction_source="client" if payload.extraction is not None else "llm",
+            recommendation_source="llm",
+            mentor_source=mentor_source,
+        )
+
+    extraction, source = _extract(payload)
+    ranked = _rank_mentors(payload, extraction, mentors, payload.top_k)
     return MatchResponse(
         extraction=extraction,
         matches=[MentorMatch(**row) for row in ranked],
         extraction_source=source,
+        recommendation_source="rules",
         mentor_source=mentor_source,
     )
 

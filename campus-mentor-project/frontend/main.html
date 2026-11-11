@@ -277,11 +277,12 @@ function render(){
   PpunAchievements.setRole("junior");
   configureChatNav('junior');
   if(step<0){
-    app.innerHTML='<h2>무엇이든 물어볼 준비됐나요?</h2><p class="hint" id="school-label"></p><button class="back" id="change-school" type="button">학교 변경</button><p class="hint">나의 상황과 고민을 알려주면 어울리는 선배를 찾아볼 수 있어요.</p><button class="primary start" id="start">후배로 시작하기 →</button><button class="secondary" id="senior">선배로 시작하기</button><button class="outline-btn" id="senior-login" type="button">이미 등록했어요(로그인)</button><p class="notice" id="login-message" role="status"></p>';
+    app.innerHTML='<h2>무엇이든 물어볼 준비됐나요?</h2><p class="hint" id="school-label"></p><button class="back" id="change-school" type="button">학교 변경</button><p class="hint">나의 상황과 고민을 알려주면 어울리는 선배를 찾아볼 수 있어요.</p><button class="primary start" id="start">후배로 시작하기 →</button><button class="secondary" id="senior">선배로 시작하기</button><button class="outline-btn" id="junior-login" type="button">후배 로그인</button><button class="outline-btn" id="senior-login" type="button">선배 로그인</button><p class="notice" id="login-message" role="status"></p>';
     app.querySelector('#school-label').textContent='선택한 학교: '+selectedSchool;
     app.querySelector('#change-school').onclick=renderSchool;
     app.querySelector('#start').onclick=startJunior;
     app.querySelector('#senior').onclick=startSenior;
+    app.querySelector('#junior-login').onclick=()=>renderJuniorAuth('login');
     app.querySelector('#senior-login').onclick=renderSeniorLogin;
     return;
   }
