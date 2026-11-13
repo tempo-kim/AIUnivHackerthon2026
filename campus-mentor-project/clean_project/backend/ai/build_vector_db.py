@@ -9,6 +9,8 @@ from typing import Any
 import chromadb
 from dotenv import load_dotenv
 
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
 from ai.extractor import _client
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -167,19 +169,33 @@ def build_vector_db() -> None:
 	VECTOR_DIR.mkdir(parents=True, exist_ok=True)
 	client = chromadb.PersistentClient(path=str(VECTOR_DIR))
 
-	try:
-		client.delete_collection(COLLECTION_NAME)
-	except Exception:
-		pass
-
-	collection = client.create_collection(name=COLLECTION_NAME)
-
 	texts = [c.text for c in chunks]
 	metadatas = [c.metadata for c in chunks]
 	ids = [c.doc_id for c in chunks]
 
 	embeddings = _embed_texts(texts, model=model)
-	collection.add(documents=texts, metadatas=metadatas, ids=ids, embeddings=embeddings)
+
+	# API 임베딩이 모두 성공한 뒤 새 컬렉션에 적재하고 기존 컬렉션을 교체한다.
+	staging_name = f"{COLLECTION_NAME}_staging"
+	try:
+		client.delete_collection(staging_name)
+	except Exception:
+		pass
+	staging = client.create_collection(name=staging_name)
+	staging.add(documents=texts, metadatas=metadatas, ids=ids, embeddings=embeddings)
+	try:
+		client.delete_collection(COLLECTION_NAME)
+	except Exception:
+		pass
+	collection = client.create_collection(name=COLLECTION_NAME)
+	stored = staging.get(include=["documents", "metadatas", "embeddings"])
+	collection.add(
+		documents=stored["documents"],
+		metadatas=stored["metadatas"],
+		ids=stored["ids"],
+		embeddings=stored["embeddings"],
+	)
+	client.delete_collection(staging_name)
 
 	print(
 		f"[build_vector_db] 완료: chunks={len(chunks)} "

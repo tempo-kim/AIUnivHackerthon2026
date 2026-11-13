@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import os
@@ -8,6 +8,8 @@ from typing import Any
 
 import chromadb
 from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from ai.extractor import _client, _model_name
 
@@ -44,8 +46,11 @@ def _embed_query(query: str) -> list[float]:
 
 
 def retrieve_contexts(question: str, k: int = 5) -> list[dict[str, Any]]:
+	if not question.strip():
+		return []
 	query_vector = _embed_query(question)
-	result = _collection().query(query_embeddings=[query_vector], n_results=k)
+	collection = _collection()
+	result = collection.query(query_embeddings=[query_vector], n_results=min(k, collection.count()))
 
 	documents = result.get("documents") or [[]]
 	metadatas = result.get("metadatas") or [[]]
@@ -189,3 +194,4 @@ def _cli() -> None:
 
 if __name__ == "__main__":
 	_cli()
+
