@@ -13,11 +13,12 @@ from openai import OpenAI
 env_path = Path(__file__).resolve().parents[1] / ".env"
 load_dotenv(env_path)
 
-_llm_executor = ThreadPoolExecutor(max_workers=2)
+# 매칭 추출/추천과 학교봇이 같은 키를 쓰되, 동시 요청 시 서로 대기열에서 굶지 않도록 여유를 둔다.
+_llm_executor = ThreadPoolExecutor(max_workers=4)
 atexit.register(lambda: _llm_executor.shutdown(wait=False, cancel_futures=True))
 
-# 프론트 요청 제한을 고려하되, LLM 응답 시간을 감안해 타임아웃을 넉넉히 늘립니다. (2.5초 -> 15초)
-LLM_MATCH_TIMEOUT = 15.0  
+# 프론트 MATCH_TIMEOUT_MS(25s)보다 짧게 — 서버가 먼저 규칙 fallback 가능하게
+LLM_MATCH_TIMEOUT = 15.0
 ALLOWED_HELP_FIELDS = (
     "학교생활",
     "전공공부",

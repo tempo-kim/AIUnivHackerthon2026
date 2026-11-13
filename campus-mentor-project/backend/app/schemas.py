@@ -80,3 +80,19 @@ class ReportRequest(BaseModel):
     reporterRole: str
     reason: str
     details: str = Field(min_length=1, max_length=4000)
+
+
+class SchoolBotRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    school: str = ""
+    history_limit: int = Field(default=80, ge=0, le=200)
+
+
+class SchoolBotResponse(BaseModel):
+    answer: str
+    used_message_count: int = 0
+    seed_message_count: int = 0
+    used_conversation_count: int = 0
+    seed_conversation_count: int = 0
+    school: str = ""
+    source: str = "llm"

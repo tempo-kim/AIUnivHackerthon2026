@@ -41,3 +41,11 @@ Render의 `sync: false` 환경변수는 실제 값이 저장소에 기록되지 
 
 `.env`에 `OPENAI_API_KEY` (+ OpenRouter면 `OPENAI_BASE_URL`)가 있으면 추출에 LLM을 씁니다.  
 없으면 키워드 stub으로 데모 가능합니다.
+
+## 학교 챗봇 (추가)
+
+- `POST /api/school-bot` — 학교 관련 질문에 답함 (요청에 `school` 포함 시 해당 학교 시드만 조회)
+- 지식 원천: `data/school_bot_seed_chats.json` — 서울대·고려대·연세대·이화여대·서울과기대·서강대 각 200채팅 × ≥30메시지 + 실제 DB 채팅
+- 질문과 관련 높은 채팅 2개를 골라 LLM 근거로 사용
+- 매칭과 **같은** `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `LLM_MODEL` 사용
+- 화면: `/frontend/school-bot/` (대기 중 `데이터베이스 조회중입니다` 표시)
