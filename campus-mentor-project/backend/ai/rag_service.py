@@ -30,7 +30,6 @@ def _embedding_model_name() -> str:
 	)
 
 
-@lru_cache(maxsize=1)
 def _collection():
 	if not VECTOR_DIR.exists():
 		raise RuntimeError("vector DB가 없습니다. 먼저 build_vector_db.py를 실행하세요.")
