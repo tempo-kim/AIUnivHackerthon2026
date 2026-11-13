@@ -41,3 +41,9 @@ Render의 `sync: false` 환경변수는 실제 값이 저장소에 기록되지 
 
 `.env`에 `OPENAI_API_KEY` (+ OpenRouter면 `OPENAI_BASE_URL`)가 있으면 추출에 LLM을 씁니다.  
 없으면 키워드 stub으로 데모 가능합니다.
+
+## 학교 챗봇
+
+- `POST /api/school-bot` — 선배·후배 채팅을 익명으로 모아 학교 관련 질문에 답함
+- 매칭과 같은 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `LLM_MODEL` 사용
+- 화면: `/frontend/school-bot/`

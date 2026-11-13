@@ -1,4 +1,4 @@
-const API_BASE = location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
+﻿const API_BASE = location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
 
 async function apiRequest(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -34,6 +34,12 @@ const MentorApi = {
 
   match: (body) =>
     apiRequest("/api/match", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  schoolBot: (body) =>
+    apiRequest("/api/school-bot", {
       method: "POST",
       body: JSON.stringify(body),
     }),

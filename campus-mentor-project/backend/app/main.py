@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from ai.extractor import analyze_and_recommend, extract_concern_info
+from ai.school_bot import answer_school_question
 from ai.stub_extract import stub_extract
 from app.schemas import (
     ChoiceContext,
@@ -34,6 +35,8 @@ from app.schemas import (
     EndResponseRequest,
     MessageRequest,
     ReportRequest,
+    SchoolBotRequest,
+    SchoolBotResponse,
 )
 from matching.matcher import match_mentors
 from services import storage
@@ -788,6 +791,21 @@ def respond_chat_end(payload: RoomEndResponseRequest, authorization: str = Heade
         state.update(status="active", requestedBy=None, declinedBy=payload.responderRole)
     storage.save_end_state(room, state)
     return state
+
+
+@app.post("/api/school-bot", response_model=SchoolBotResponse)
+def school_bot(payload: SchoolBotRequest):
+    """선배·후배 채팅을 익명으로 모아 학교 관련 질문에 답한다."""
+    question = (payload.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="질문을 입력해 주세요.")
+    recent = storage.list_recent_messages(payload.history_limit)
+    result = answer_school_question(
+        question,
+        school=payload.school or "",
+        messages=recent,
+    )
+    return SchoolBotResponse.model_validate(result)
 
 
 @app.post("/api/reports")
