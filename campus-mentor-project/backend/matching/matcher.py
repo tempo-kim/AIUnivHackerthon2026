@@ -30,6 +30,41 @@ def _target_majors(text: str) -> set[str]:
     }
 
 
+TRANSFER_KEYWORDS = ("전과", "복수전공", "전공변경", "학과변경", "전공전환")
+
+
+def _major_like(value: str) -> str:
+    return _normalize(value).replace("학과", "과")
+
+
+def _major_matches(target: str, major: str) -> bool:
+    target_like = _major_like(target)
+    major_like = _major_like(major)
+    if not target_like or not major_like:
+        return False
+    return (
+        target_like == major_like
+        or target_like in major_like
+        or major_like in target_like
+    )
+
+
+def _extract_transfer_route(text: str) -> tuple[str, str]:
+    normalized = _normalize(text)
+    match = re.search(
+        r"([가-힣a-z0-9]+(?:학과|전공))에서([가-힣a-z0-9]+(?:학과|전공))(?:로|으로)?(?:전과|전공변경|전공전환)",
+        normalized,
+    )
+    if not match:
+        return "", ""
+    return match.group(1), match.group(2)
+
+
+def _has_transfer_intent(text: str) -> bool:
+    normalized = _normalize(text)
+    return any(_normalize(keyword) in normalized for keyword in TRANSFER_KEYWORDS)
+
+
 CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
     "학교생활": ("학교생활", "학교적응", "동아리", "친구", "밥집", "통학", "기숙사", "학생회"),
     "전공공부": ("전공", "전공지식", "공부", "수강", "시간표", "학점", "복수전공", "과목"),
@@ -87,7 +122,10 @@ def match_mentors(
     choice_categories = _categories(choice_reason)
     preferences = experience_preferences or []
     situation_norm = _normalize(situation)
-    target_majors = _target_majors(" ".join([situation, choice_reason, *interests]))
+    context_text = " ".join([situation, choice_reason, *interests])
+    target_majors = _target_majors(context_text)
+    source_major, destination_major = _extract_transfer_route(context_text)
+    has_transfer_intent = _has_transfer_intent(context_text)
     ranked: list[dict] = []
 
     for mentor in mentors:
@@ -99,20 +137,35 @@ def match_mentors(
         bio = str(mentor.get("bio") or "")
         mentor_status = str(mentor.get("status") or "")
         mentor_text = " ".join([major, mentor_status, *help_topics, *experiences, bio])
+        mentor_text_norm = _normalize(mentor_text)
         mentor_categories = _categories(help_topics + experiences + [major, bio])
         major_norm = _normalize(major)
-        target_hits = {
-            target
-            for target in target_majors
-            if target == major_norm
-            or target.replace("학과", "과") == major_norm
-            or major_norm.replace("학과", "과") == target.replace("학과", "과")
-            or target in major_norm
-            or major_norm in target
-        }
-        if target_hits:
-            score += 30.0
-            reasons.append("줄글에서 요청한 전공 일치: " + ", ".join(sorted(target_hits)))
+        if has_transfer_intent and destination_major:
+            if _major_matches(destination_major, major_norm):
+                score += 42.0
+                reasons.append("전과 목표 전공 일치")
+            elif source_major and _major_matches(source_major, major_norm):
+                score += 8.0
+                reasons.append("전과 출발 전공 관련")
+        else:
+            target_hits = {
+                target
+                for target in target_majors
+                if _major_matches(target, major_norm)
+            }
+            if target_hits:
+                score += 30.0
+                reasons.append("줄글에서 요청한 전공 일치: " + ", ".join(sorted(target_hits)))
+
+        if has_transfer_intent:
+            transfer_hits = [kw for kw in TRANSFER_KEYWORDS if _normalize(kw) in mentor_text_norm]
+            if transfer_hits:
+                score += 18.0
+                reasons.append("전과/전공변경 경험 관련")
+            if source_major and destination_major:
+                if source_major in mentor_text_norm and destination_major in mentor_text_norm:
+                    score += 12.0
+                    reasons.append("출발·목표 전공 전환 경험 유사")
 
         preference_hits: list[str] = []
         for preference in preferences:

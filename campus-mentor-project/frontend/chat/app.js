@@ -14,6 +14,23 @@ const TOPIC_QUESTIONS = {
   "대학원 준비": { keyword: "대학원", question: "선배님은 대학원 준비를 어떻게 시작하셨어요?" },
   학생회: { keyword: "학생회", question: "학생회 활동이 학교생활에 어떤 도움이 되었는지 궁금해요." },
 };
+const TOPIC_ALIASES = [
+  ["전과", "전과"],
+  ["복수전공", "복수전공"],
+  ["수강", "수강신청"],
+  ["시간표", "수강신청"],
+  ["학점", "학점 관리"],
+  ["취업", "취업 준비"],
+  ["면접", "취업 준비"],
+  ["인턴", "인턴"],
+  ["공모전", "공모전"],
+  ["동아리", "동아리"],
+  ["대학원", "대학원 준비"],
+  ["연구", "연구실"],
+  ["랩실", "연구실"],
+  ["학교생활", "학교생활"],
+  ["진로", "진로와 취업"],
+];
 const REASON_QUESTIONS = {
   학교적응: "학교에 적응할 때 제일 도움이 됐던 건 뭐였어요?",
   "밥집 추천": "선배님이 자주 가시는 학교 근처 밥집을 추천해 주실 수 있어요?",
@@ -214,11 +231,28 @@ function readConcern() {
 
 // CSV의 "공모전 (교내, 교외)"가 쉼표로 잘려 들어오므로 앞부분만 쓰고 조각은 버림
 function cleanTopics(topics) {
-  const names = topics
-    .filter((topic) => !topic.includes(")"))
-    .map((topic) => topic.split("(")[0].trim())
-    .filter((topic) => topic && topic !== "others" && topic !== "없음");
-  return [...new Set(names)];
+  const names = [];
+  for (const raw of topics ?? []) {
+    const text = String(raw || "").trim();
+    if (!text) continue;
+    const normalized = text.replace(/\s+/g, " ");
+    if (normalized === "others" || normalized === "없음") continue;
+
+    let matchedAlias = false;
+    for (const [keyword, label] of TOPIC_ALIASES) {
+      if (normalized.includes(keyword)) {
+        if (!names.includes(label)) names.push(label);
+        matchedAlias = true;
+      }
+    }
+    if (matchedAlias) continue;
+
+    const shortTopic = normalized.split("(")[0].trim();
+    if (!shortTopic) continue;
+    if (shortTopic.length > 18) continue; // 긴 소개문은 추천 주제로 쓰지 않음
+    if (!names.includes(shortTopic)) names.push(shortTopic);
+  }
+  return names;
 }
 
 function buildSuggestions() {
