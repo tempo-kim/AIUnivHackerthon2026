@@ -262,6 +262,31 @@ def list_messages(room: str) -> list[dict]:
     ]
 
 
+def list_recent_messages(limit: int = 80) -> list[dict]:
+    """학교 챗봇용: 최근 메시지를 역할·내용만 가져와 ID는 빼 둔다."""
+    limit = max(1, min(int(limit), 200))
+    with _db() as conn:
+        rows = conn.execute(
+            """
+            SELECT sender_role, text, created_at
+            FROM messages
+            ORDER BY rowid DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    # 시간순(오래된 것 → 최신)으로 뒤집어서 문맥이 자연스럽게
+    rows = list(reversed(rows))
+    return [
+        {
+            "senderRole": row["sender_role"],
+            "text": row["text"],
+            "createdAt": row["created_at"],
+        }
+        for row in rows
+    ]
+
+
 def list_rooms(prefix: str) -> list[dict]:
     """prefix로 시작하는 대화방마다 마지막 메시지·개수·종료 상태."""
     with _db() as conn:

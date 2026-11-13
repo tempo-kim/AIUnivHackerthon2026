@@ -37,4 +37,11 @@ const MentorApi = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  /** 학교 생활 챗봇 — 매칭과 같은 LLM 키를 서버에서 사용 */
+  schoolBot: (body) =>
+    apiRequest("/api/school-bot", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };

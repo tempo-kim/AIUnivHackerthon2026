@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>학교 챗봇 · 뻔뻔하게</title>
+  <link rel="stylesheet" href="../shared/styles.css" />
+  <style>
+    body { background: #f7f8ff; color: #1b2451; }
+    .bot-shell { max-width: 720px; margin: 24px auto 110px; padding: 0 20px; }
+    .bot-card { background: #fff; border: 1px solid #e1e5f5; border-radius: 20px; padding: 20px; box-shadow: 0 12px 40px #30346b12; }
+    .bot-log { display: grid; gap: 10px; max-height: 55vh; overflow: auto; padding: 4px; margin-bottom: 14px; }
+    .bubble { border-radius: 14px; padding: 12px 14px; line-height: 1.6; font-size: 14px; white-space: pre-wrap; }
+    .bubble.user { background: #edeaff; color: #3d2f86; justify-self: end; max-width: 85%; }
+    .bubble.bot { background: #f3f5fb; color: #243056; justify-self: start; max-width: 90%; }
+    .meta { font-size: 12px; color: #8590a9; margin-top: 8px; }
+    .composer { display: flex; gap: 8px; }
+    .composer textarea { flex: 1; min-height: 54px; border: 1px solid #dce2f5; border-radius: 12px; padding: 12px; font: inherit; resize: vertical; }
+    .composer button { border: 0; border-radius: 12px; background: #345fe0; color: #fff; font-weight: 700; padding: 0 18px; cursor: pointer; }
+    .composer button:disabled { opacity: .45; cursor: not-allowed; }
+    .error { color: #b42318; font-size: 13px; margin-top: 10px; }
+    header { max-width: 720px; margin: auto; padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+    .logo a { color: #283c91; font-weight: 900; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo"><a href="../main.html">🌱 뻔뻔하게</a></div>
+    <a href="../main.html" style="color:#687398;text-decoration:none;font-size:14px">홈으로</a>
+  </header>
+
+  <main class="bot-shell">
+    <section class="bot-card">
+      <h1 style="margin:0 0 6px;font-size:22px;letter-spacing:-.03em">학교 생활 챗봇</h1>
+      <p class="meta" id="school-label">선배·후배 채팅을 익명으로 모아, 매칭과 같은 AI로 학교 얘기를 답해 줍니다.</p>
+      <div class="bot-log" id="log" aria-live="polite"></div>
+      <form class="composer" id="form">
+        <textarea id="question" placeholder="예: 우리 학교 수강신청할 때 사람들이 뭐라고 해요?" maxlength="1000" required></textarea>
+        <button type="submit" id="send">묻기</button>
+      </form>
+      <p class="error" id="error" hidden></p>
+      <p class="meta" id="status"></p>
+    </section>
+  </main>
+
+  <nav class="nav" aria-label="하단 메뉴">
+    <a href="../main.html"><span>☘</span>홈</a>
+    <a class="active" href="./"><span>🤖</span>학교봇</a>
+    <a href="../result/index.html"><span>💬</span>채팅창</a>
+  </nav>
+
+  <script src="../shared/api.js"></script>
+  <script>
+    const log = document.querySelector('#log');
+    const form = document.querySelector('#form');
+    const input = document.querySelector('#question');
+    const send = document.querySelector('#send');
+    const error = document.querySelector('#error');
+    const status = document.querySelector('#status');
+    const school = localStorage.getItem('ppunppun-school') || sessionStorage.getItem('ppunppun-school') || '';
+    document.querySelector('#school-label').textContent =
+      (school ? `선택한 학교: ${school}. ` : '') +
+      '선배·후배 채팅을 익명으로 모아, 매칭과 같은 AI로 학교 얘기를 답해 줍니다.';
+
+    function addBubble(role, text) {
+      const el = document.createElement('div');
+      el.className = 'bubble ' + role;
+      el.textContent = text;
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    addBubble('bot', '안녕하세요! 학교 생활·수강·밥집·진로 관련해서 물어보세요. 저장된 대화가 많을수록 더 구체적으로 답할 수 있어요.');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const question = input.value.trim();
+      if (!question) return;
+      error.hidden = true;
+      addBubble('user', question);
+      input.value = '';
+      send.disabled = true;
+      status.textContent = '답변 작성 중…';
+      try {
+        const data = await MentorApi.schoolBot({ question, school, history_limit: 80 });
+        addBubble('bot', data.answer || '(빈 응답)');
+        status.textContent = `참고 메시지 ${data.used_message_count || 0}개 · source=${data.source || '-'}`;
+      } catch (err) {
+        error.hidden = false;
+        error.textContent = err.message || String(err);
+        status.textContent = '';
+        addBubble('bot', '지금은 답변을 가져오지 못했어요. 서버가 켜져 있는지 확인해 주세요.');
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    });
+  </script>
+</body>
+</html>
