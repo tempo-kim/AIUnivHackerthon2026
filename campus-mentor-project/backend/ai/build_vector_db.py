@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import csv
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,6 +29,7 @@ README_FILES = (
 	PROJECT_DIR / "README.md",
 	DATA_DIR / "README.md",
 )
+SEED_CHAT_PATH = DATA_DIR / "school_bot_seed_chats.json"
 
 
 @dataclass
@@ -138,6 +140,46 @@ def _load_readme_chunks() -> list[DocChunk]:
 	return chunks
 
 
+def _load_seed_chat_chunks() -> list[DocChunk]:
+	"""Index seed conversations in bounded message chunks (v2 and v3 JSON)."""
+	if not SEED_CHAT_PATH.exists():
+		return []
+	raw = json.loads(SEED_CHAT_PATH.read_text(encoding="utf-8"))
+	by_school = raw.get("conversations_by_school") if isinstance(raw, dict) else None
+	if isinstance(by_school, dict):
+		conversations = [conv for rows in by_school.values() if isinstance(rows, list) for conv in rows]
+	else:
+		conversations = raw.get("conversations", []) if isinstance(raw, dict) else []
+	chunks: list[DocChunk] = []
+	for conv_index, conv in enumerate(conversations, start=1):
+		if not isinstance(conv, dict):
+			continue
+		head = f"학교: {conv.get('school', '')}\n주제: {conv.get('topic', '')}\n제목: {conv.get('title', '')}"
+		lines = [head]
+		part = 1
+		for msg in conv.get("messages", []):
+			if not isinstance(msg, dict):
+				continue
+			role = "후배" if str(msg.get("senderRole", "")).lower() == "junior" else "선배"
+			line = f"[{role}] {str(msg.get('text') or '').strip()}"
+			if len("\n".join(lines)) + len(line) > 2200 and len(lines) > 1:
+				chunks.append(DocChunk(
+					doc_id=f"seed::{conv.get('id', conv_index)}::{part}",
+					text="\n".join(lines),
+					metadata={"source": "school_bot_seed_chats.json", "doc_type": "seed_chat", "school": str(conv.get("school", "")), "topic": str(conv.get("topic", ""))},
+				))
+				part += 1
+				lines = [head]
+			lines.append(line)
+		if len(lines) > 1:
+			chunks.append(DocChunk(
+				doc_id=f"seed::{conv.get('id', conv_index)}::{part}",
+				text="\n".join(lines),
+				metadata={"source": "school_bot_seed_chats.json", "doc_type": "seed_chat", "school": str(conv.get("school", "")), "topic": str(conv.get("topic", ""))},
+			))
+	return chunks
+
+
 def _embed_texts(texts: list[str], model: str, batch_size: int = 32) -> list[list[float]]:
 	all_vectors: list[list[float]] = []
 	client = _client()
@@ -160,6 +202,7 @@ def build_vector_db() -> None:
 	for csv_path in CSV_FILES:
 		chunks.extend(_load_csv_chunks(csv_path))
 	chunks.extend(_load_readme_chunks())
+	chunks.extend(_load_seed_chat_chunks())
 
 	if not chunks:
 		raise RuntimeError("인덱싱할 문서가 없습니다.")
@@ -167,24 +210,30 @@ def build_vector_db() -> None:
 	VECTOR_DIR.mkdir(parents=True, exist_ok=True)
 	client = chromadb.PersistentClient(path=str(VECTOR_DIR))
 
-	try:
-		client.delete_collection(COLLECTION_NAME)
-	except Exception:
-		pass
-
-	collection = client.create_collection(name=COLLECTION_NAME)
-
 	texts = [c.text for c in chunks]
 	metadatas = [c.metadata for c in chunks]
 	ids = [c.doc_id for c in chunks]
 
 	embeddings = _embed_texts(texts, model=model)
-	collection.add(documents=texts, metadatas=metadatas, ids=ids, embeddings=embeddings)
+	try:
+		client.delete_collection(COLLECTION_NAME)
+	except Exception:
+		pass
+	collection = client.create_collection(name=COLLECTION_NAME)
+	for start in range(0, len(chunks), 500):
+		end = start + 500
+		collection.add(
+			documents=texts[start:end],
+			metadatas=metadatas[start:end],
+			ids=ids[start:end],
+			embeddings=embeddings[start:end],
+		)
 
 	print(
 		f"[build_vector_db] 완료: chunks={len(chunks)} "
 		f"(csv={sum(1 for c in chunks if c.metadata.get('doc_type') == 'mentor_profile')}, "
-		f"readme={sum(1 for c in chunks if c.metadata.get('doc_type') == 'readme')})"
+		f"readme={sum(1 for c in chunks if c.metadata.get('doc_type') == 'readme')}, "
+		f"seed_chat={sum(1 for c in chunks if c.metadata.get('doc_type') == 'seed_chat')})"
 	)
 
 

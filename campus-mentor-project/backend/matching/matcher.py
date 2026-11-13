@@ -150,7 +150,7 @@ def match_mentors(
     choice_categories = _categories(choice_reason)
     preferences = experience_preferences or []
     situation_norm = _normalize(situation)
-    context_text = " ".join([situation, choice_reason, *interests])
+    context_text = " ".join([situation, choice_reason, *interests, *help_fields])
     target_majors = _target_majors(context_text)
     source_major, destination_major = _extract_transfer_route(context_text)
     has_transfer_intent = _has_transfer_intent(context_text)
@@ -197,10 +197,11 @@ def match_mentors(
                     reasons.append("출발·목표 전공 전환 경험 유사")
 
         if has_food_intent:
+            food_source_text = _normalize(" ".join(help_topics + experiences + [bio]))
             food_hits = [
                 keyword
                 for keyword in FOOD_PROFILE_HINTS
-                if _normalize(keyword) in mentor_text_norm
+                if _normalize(keyword) in food_source_text
             ]
             if food_hits:
                 score += 22.0
@@ -237,12 +238,12 @@ def match_mentors(
             score += 2.5 * len(category_hits)
             reasons.append("고민 분야 관련: " + ", ".join(sorted(category_hits)))
 
-        topic_hits = _overlap(query_help, _tokens(help_topics))
+        topic_hits = set() if has_food_intent else _overlap(query_help, _tokens(help_topics))
         if topic_hits:
             score += 2.0 * len(topic_hits)
             reasons.append("도움 분야 일치: " + ", ".join(sorted(topic_hits)))
 
-        exp_hits = _overlap(query_help, _tokens(experiences))
+        exp_hits = set() if has_food_intent else _overlap(query_help, _tokens(experiences))
         if exp_hits:
             score += 1.5 * len(exp_hits)
             reasons.append("경험 관련: " + ", ".join(sorted(exp_hits)))
@@ -288,4 +289,12 @@ def match_mentors(
         )
 
     ranked.sort(key=lambda item: item["score"], reverse=True)
+    # 음식점 추천은 프로필의 실제 생활 경험이 있는 선배에게만 연결한다.
+    # 적합한 사람이 적으면 결과도 적게 반환해 무관한 전공 선배로 자리를 채우지 않는다.
+    if has_food_intent:
+        relevant = [
+            item for item in ranked
+            if any(reason == "밥집/맛집 생활 경험 일치" for reason in item["reasons"])
+        ]
+        ranked = relevant
     return ranked[:top_k]

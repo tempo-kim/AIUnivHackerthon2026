@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import traceback
 from functools import lru_cache
 from pathlib import Path
 
@@ -279,21 +278,32 @@ def answer_school_question(
     context = format_conversations(picked) + live_note
     used_msgs = sum(len(c.get("messages") or []) for c in picked)
 
-    if not os.getenv("OPENAI_API_KEY", "").strip():
-        return {
-            "answer": (
-                "아직 API 키가 없어 임시 안내만 할 수 있어요. "
-                "backend/.env 에 매칭과 같은 OPENAI_API_KEY 를 넣으면, "
-                f"{canon or '선택 학교'} 시연 채팅 {stats['conversation_count']}개"
-                f"(메시지 {stats['message_count']}개)를 조회해 답합니다."
-            ),
-            "used_message_count": used_msgs,
-            "seed_message_count": stats["message_count"],
-            "used_conversation_count": len(picked),
-            "seed_conversation_count": stats["conversation_count"],
-            "school": canon or "",
-            "source": "no_key",
-        }
+    # RAG는 학교 시드 채팅, 멘토 CSV, README를 검색한다. 검색 DB를 아직
+    # 만들지 않았거나 임베딩 요청에 실패한 경우 기존 seed 문맥 LLM으로 이어간다.
+    try:
+        from ai.rag_service import answer_with_rag
+
+        rag_question = f"{canon}\n{question}" if canon else question
+        rag = answer_with_rag(rag_question, k=5)
+        answer = str(rag.get("answer") or "").strip()
+        if answer:
+            rag_contexts = rag.get("contexts") or []
+            return {
+                "answer": answer,
+                "used_message_count": sum(
+                    sum(1 for line in str(row.get("text") or "").splitlines()
+                        if line.startswith("[후배]") or line.startswith("[선배]"))
+                    for row in rag_contexts
+                    if (row.get("metadata") or {}).get("doc_type") == "seed_chat"
+                ),
+                "seed_message_count": stats["message_count"],
+                "used_conversation_count": len(rag_contexts),
+                "seed_conversation_count": stats["conversation_count"],
+                "school": canon or "",
+                "source": "rag",
+            }
+    except Exception as exc:
+        print(f"[school_bot] RAG unavailable; using seed context fallback ({type(exc).__name__})")
 
     school_line = f"대상 학교: {canon}" if canon else "대상 학교: (미지정)"
     system_prompt = f"""
@@ -348,8 +358,8 @@ def answer_school_question(
             "source": source,
         }
     except Exception as e:
-        print(f"[school_bot] {e}")
-        traceback.print_exc()
+        # SDK 예외 문자열에는 요청 URL이나 민감한 설정값이 섞일 수 있어 기록하지 않는다.
+        print(f"[school_bot] LLM request failed ({type(e).__name__})")
         return {
             "answer": _fallback_answer_from_seed(question, picked, canon),
             "used_message_count": used_msgs,
