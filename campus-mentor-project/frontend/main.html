@@ -314,7 +314,7 @@ function render(){
     const notice=app.querySelector('#login-message'),prev=app.querySelector('#prev');
     next.disabled=true;prev.disabled=true;next.textContent='추천 요청 중...';notice.textContent='';
      const controller=new AbortController();
-      const timeout=setTimeout(()=>controller.abort(),5000);
+      const timeout=setTimeout(()=>controller.abort(),40000);
     try{
        sessionStorage.setItem('ppunppun-choice',JSON.stringify(choice));
       sessionStorage.setItem('ppunppun-concern',text);
@@ -325,7 +325,10 @@ function render(){
       const result=await response.json();sessionStorage.setItem('ppunppun-match',JSON.stringify(result));
       if(answers.concern.trim())PpunAchievements.award('concern');
       location.href='./result/index.html';
-    }catch(e){notice.textContent='추천 요청에 실패했어요. 서버 연결을 확인한 뒤 다시 시도해 주세요.';next.disabled=false;prev.disabled=false;next.textContent='다시 시도'}
+    }catch(e){
+      notice.textContent=e&&e.name==='AbortError'?'추천 요청이 지연되고 있어요. 잠시 후 다시 시도해 주세요.':'추천 요청에 실패했어요. 서버 연결을 확인한 뒤 다시 시도해 주세요.';
+      next.disabled=false;prev.disabled=false;next.textContent='다시 시도'
+    }finally{clearTimeout(timeout)}
   };
 }
 if(new URLSearchParams(location.search).has('senior-login')){renderSeniorLogin()}else if(new URLSearchParams(location.search).has('junior-login')){renderJuniorAuth('login')}else if(selectedSchool){render()}else{renderSchool()}
