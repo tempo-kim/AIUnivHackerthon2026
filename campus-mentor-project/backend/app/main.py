@@ -360,7 +360,10 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
                 detail="concern_text 또는 extraction이 필요합니다.",
             )
         seed = payload.extraction or Extraction(**stub_extract(text))
-        shortlist_size = len(mentors)
+        shortlist_size = min(
+            len(mentors),
+            max(20, int(os.getenv("LLM_SHORTLIST_SIZE", "80"))),
+        )
         shortlist = _rank_mentors(payload, seed, mentors, shortlist_size)
         if not shortlist:
             return MatchResponse(
@@ -373,7 +376,7 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
         analysis = analyze_and_recommend(
             concern_text=text or seed.situation,
             candidates=shortlist,
-            top_k=len(shortlist),
+            top_k=payload.top_k,
         )
         if not analysis or not (
             analysis.get("recommendations") or analysis.get("suitability")

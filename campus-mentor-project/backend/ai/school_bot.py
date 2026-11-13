@@ -5,18 +5,10 @@
 
 from __future__ import annotations
 
-import atexit
 import os
-import time
 import traceback
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 from ai.extractor import _client, _model_name
-
-_chat_executor = ThreadPoolExecutor(
-	max_workers=max(1, int(os.getenv("LLM_CHAT_WORKERS", "2")))
-)
-atexit.register(lambda: _chat_executor.shutdown(wait=False, cancel_futures=True))
 
 
 def _role_label(role: str) -> str:
@@ -106,35 +98,16 @@ def answer_school_question(
 """
 
 	try:
-		def _request(timeout: float, max_tokens: int):
-			return _client().chat.completions.create(
-				model=_model_name(),
-				messages=[
-					{"role": "system", "content": system_prompt.strip()},
-					{"role": "user", "content": user_prompt.strip()},
-				],
-				temperature=0.3,
-				max_tokens=max_tokens,
-				timeout=timeout,
-			)
-
-		attempts = [(20.0, 700), (30.0, 500)]
-		res = None
-		for idx, (timeout, max_tokens) in enumerate(attempts, 1):
-			started = time.perf_counter()
-			future = _chat_executor.submit(_request, timeout, max_tokens)
-			try:
-				res = future.result(timeout=timeout + 1.0)
-				print(f"[LLM] school_bot success attempt={idx} elapsed={time.perf_counter()-started:.2f}s")
-				break
-			except TimeoutError:
-				print(f"[LLM] school_bot timeout attempt={idx} timeout={timeout}")
-				if idx == len(attempts):
-					raise
-
-		if res is None:
-			raise RuntimeError("school_bot 응답을 받지 못했습니다.")
-
+		res = _client().chat.completions.create(
+			model=_model_name(),
+			messages=[
+				{"role": "system", "content": system_prompt.strip()},
+				{"role": "user", "content": user_prompt.strip()},
+			],
+			temperature=0.3,
+			max_tokens=700,
+			timeout=20.0,
+		)
 		answer = (res.choices[0].message.content or "").strip()
 		if not answer:
 			answer = "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요."

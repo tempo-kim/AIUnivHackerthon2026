@@ -14,14 +14,8 @@ from openai import OpenAI
 env_path = Path(__file__).resolve().parents[1] / ".env"
 load_dotenv(env_path)
 
-_extract_executor = ThreadPoolExecutor(
-    max_workers=max(1, int(os.getenv("LLM_EXTRACT_WORKERS", "2")))
-)
-_match_executor = ThreadPoolExecutor(
-    max_workers=max(1, int(os.getenv("LLM_MATCH_WORKERS", "2")))
-)
-atexit.register(lambda: _extract_executor.shutdown(wait=False, cancel_futures=True))
-atexit.register(lambda: _match_executor.shutdown(wait=False, cancel_futures=True))
+_llm_executor = ThreadPoolExecutor(max_workers=2)
+atexit.register(lambda: _llm_executor.shutdown(wait=False, cancel_futures=True))
 
 # 프론트 요청 제한을 고려하되, LLM 응답 시간을 감안해 타임아웃을 넉넉히 늘립니다. (2.5초 -> 15초)
 LLM_MATCH_TIMEOUT = float(os.getenv("LLM_MATCH_TIMEOUT", "25"))
@@ -123,8 +117,7 @@ def extract_concern_info(user_text: str) -> dict:
 """
     try:
         model_name = _model_name()
-        started = time.perf_counter()
-        future = _extract_executor.submit(
+        future = _llm_executor.submit(
             _request_llm,
             f"후배 고민글:\n{user_text}",
             model_name,
@@ -132,7 +125,6 @@ def extract_concern_info(user_text: str) -> dict:
             timeout=10.0, # 타임아웃 증가
         )
         res = future.result(timeout=15.0)
-        print(f"[LLM] extract_concern_info elapsed={time.perf_counter() - started:.2f}s")
 
         content = res.choices[0].message.content
         if not content:
@@ -472,7 +464,7 @@ JSON 외의 어떠한 문장도 출력하지 않는다.
                 payload, ensure_ascii=False
             )
             started = time.perf_counter()
-            future = _match_executor.submit(
+            future = _llm_executor.submit(
                 _request_llm,
                 prompt_text,
                 model_name,
