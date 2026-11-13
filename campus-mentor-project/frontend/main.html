@@ -320,13 +320,16 @@ function render(){
       sessionStorage.setItem('ppunppun-concern',text);
        sessionStorage.setItem('ppunppun-match-offset','0');
       const base=location.protocol==='file:'?'http://127.0.0.1:8000':'';
-       const response=await fetch(base+'/api/match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({concern_text:text,choice:choice,top_k:3,use_llm:true}),signal:controller.signal});
-      if(!response.ok)throw new Error('요청 실패');
+      const response=await fetch(base+'/api/match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({concern_text:text,choice:choice,top_k:3,use_llm:true}),signal:controller.signal});
+      if(!response.ok){
+        const body=await response.json().catch(()=>({}));
+        throw new Error(typeof body.detail==='string'?body.detail:`요청 실패 (${response.status})`)
+      }
       const result=await response.json();sessionStorage.setItem('ppunppun-match',JSON.stringify(result));
       if(answers.concern.trim())PpunAchievements.award('concern');
       location.href='./result/index.html';
     }catch(e){
-      notice.textContent=e&&e.name==='AbortError'?'추천 요청이 지연되고 있어요. 잠시 후 다시 시도해 주세요.':'추천 요청에 실패했어요. 서버 연결을 확인한 뒤 다시 시도해 주세요.';
+      notice.textContent=e&&e.name==='AbortError'?'추천 요청이 지연되고 있어요. 잠시 후 다시 시도해 주세요.':(e&&e.message?e.message:'추천 요청에 실패했어요. 서버 연결을 확인한 뒤 다시 시도해 주세요.');
       next.disabled=false;prev.disabled=false;next.textContent='다시 시도'
     }finally{clearTimeout(timeout)}
   };
