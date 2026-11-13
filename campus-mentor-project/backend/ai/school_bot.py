@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -40,6 +41,9 @@ FOOD_HINTS = (
     "저녁",
     "배달",
     "카페",
+    "카공",
+    "콘센트",
+    "와이파이",
 )
 
 MAJOR_HINTS = (
@@ -123,25 +127,41 @@ def seed_stats(school: str = "") -> dict:
 
 
 def _score_conversation(question: str, school: str, conv: dict) -> int:
-    q = f"{school} {question}".lower()
+    # 학교 이름은 모든 해당 학교 대화에 들어 있으므로 검색어로 점수화하지 않는다.
+    q = (question or "").lower()
+    for alias in sorted(SCHOOL_ALIASES, key=len, reverse=True):
+        q = q.replace(alias.lower(), " ")
+    canonical_school = normalize_school(school).lower()
+    if canonical_school:
+        q = q.replace(canonical_school, " ")
+    stop_words = {
+        "학교", "우리", "근처", "기준", "추천", "좀", "알려", "주세요", "해줘",
+        "궁금", "찾아", "좋은", "어디", "뭐가", "있나요", "있어요", "하고",
+        "싶어요", "싶어", "부탁", "가능", "관련", "대해", "수", "때", "팁", "꿀팁",
+    }
+    query_terms = {
+        term for term in re.findall(r"[가-힣A-Za-z0-9]+", q)
+        if len(term) >= 2
+        and term not in stop_words
+        and not re.fullmatch(r"\d+학년|\d+학기", term)
+    }
+    if "카공" in q or "공부하기 좋은" in q:
+        query_terms.update(("카페", "콘센트", "와이파이", "공부"))
     msgs = conv.get("messages") or []
-    blob = f"{conv.get('topic','')} {conv.get('title','')} " + " ".join(
+    topic_title = f"{conv.get('topic','')} {conv.get('title','')}".lower()
+    blob = topic_title + " " + " ".join(
         str(m.get("text") or "") for m in msgs[:24]
     )
     blob = blob.lower()
-    score = 0
-    for token in FOOD_HINTS + MAJOR_HINTS + ("김밥", "치킨", "파스타", "인공", "머신", "연구"):
-        if token in q and token in blob:
-            score += 4
-    for word in [w for w in q.replace("?", " ").split() if len(w) >= 2][:20]:
-        if word in blob:
-            score += 1
-    topic = str(conv.get("topic") or "")
-    if "맛집" in topic and any(k in q for k in FOOD_HINTS + ("먹",)):
-        score += 10
-    if "인공" in topic or "전공" in topic:
-        if any(k in q for k in MAJOR_HINTS + ("인공", "모델", "연구")):
-            score += 10
+    score = sum(5 if term in topic_title else 1 for term in query_terms if term in blob)
+    if any(token in q for token in FOOD_HINTS) and any(
+        token in topic_title for token in ("맛집", "식당", "캠퍼스_주변")
+    ):
+        score += 8
+    if any(token in q for token in MAJOR_HINTS) and any(
+        token in topic_title for token in ("인공지능", "전공", "학업")
+    ):
+        score += 5
     return score
 
 
@@ -149,7 +169,8 @@ def retrieve_conversations(question: str, *, school: str = "", top_k: int = 3) -
     convs = load_seed_conversations(school)
     if not convs:
         convs = load_seed_conversations("")
-    ranked = sorted(convs, key=lambda c: _score_conversation(question, school, c), reverse=True)
+    scored = [(_score_conversation(question, school, conv), conv) for conv in convs]
+    ranked = [conv for score, conv in sorted(scored, key=lambda row: row[0], reverse=True) if score > 0]
     selected: list[dict] = []
     seen: set[str] = set()
     target = max(2, top_k)
@@ -181,6 +202,11 @@ def _intent(question: str) -> str:
 
 def _fallback_answer_from_seed(question: str, convs: list[dict], school: str) -> str:
     school_name = school or "해당 학교"
+    if not convs:
+        return (
+            f"{school_name} 시드 대화에서 질문과 직접 관련된 내용을 찾지 못했어요. "
+            "과목명이나 위치, 원하는 정보(가격·분위기·공부 팁 등)를 더 알려주시면 다시 찾아볼게요."
+        )
     if len((question or "").strip()) <= 2:
         return (
             f"{school_name} 기준으로 도와줄 수 있어요. "
@@ -279,9 +305,14 @@ def answer_school_question(
 
     # RAG는 학교 시드 채팅, 멘토 CSV, README를 검색한다. 검색 DB를 아직
     # 만들지 않았거나 임베딩 요청에 실패한 경우 기존 seed 문맥 LLM으로 이어간다.
+    fallback_source = "seed-fallback:rag-unavailable"
     try:
-        from ai.rag_service import answer_with_rag
+        from ai.rag_service import VECTOR_DIR, answer_with_rag
 
+        if not VECTOR_DIR.exists():
+            fallback_source = "seed-fallback:index-missing"
+        else:
+            fallback_source = "seed-fallback:rag-error"
         rag_question = f"{canon}\n{question}" if canon else question
         rag = answer_with_rag(rag_question, k=5)
         answer = str(rag.get("answer") or "").strip()
@@ -343,10 +374,10 @@ def answer_school_question(
         future = _llm_executor.submit(_call)
         res = future.result(timeout=30.0)
         answer = (res.choices[0].message.content or "").strip()
-        source = "llm"
+        source = "llm-seed-context"
         if not answer:
             answer = _fallback_answer_from_seed(question, picked, canon)
-            source = "seed-fallback"
+            source = fallback_source
         return {
             "answer": answer,
             "used_message_count": used_msgs,
@@ -366,5 +397,5 @@ def answer_school_question(
             "used_conversation_count": len(picked),
             "seed_conversation_count": stats["conversation_count"],
             "school": canon or "",
-            "source": "seed-fallback",
+            "source": fallback_source,
         }
