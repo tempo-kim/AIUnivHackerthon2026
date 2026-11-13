@@ -225,35 +225,41 @@ def analyze_and_recommend(
 
     # 여기에 실제 매칭 로직과 평가 기준 프롬프트를 명확히 주입합니다.
     system_prompt = """
-너는 대학생 멘토링 서비스의 분석·추천 담당자야.
-후배 고민(체크박스 내용 + 줄글)과 후보 선배 목록을 읽고 최적의 선배를 매칭해.
-설명, 마크다운, 코드펜스는 붙이지 마. 모든 문장과 키워드는 한국어로만 작성해.
+너는 대학생 멘토링 서비스의 분석·추천 담당자다.
+후배 고민(체크박스 내용 + 줄글)과 후보 선배 목록을 읽고 최적의 선배를 매칭해라.
+설명, 마크다운, 코드펜스는 붙이지 마라. 모든 문장과 키워드는 한국어로만 작성해라.
 
-[매칭 평가 기준]
-1. 좋은 매칭 (Good Match) - 우선순위:
-  - 먼저 줄글에서 후배가 실제로 답을 얻고 싶은 대상, 목표 전공·직무·활동, 전과·복수전공·진로 변경 의도를 추출해라.
-  - 현재 전공과 고민의 배경이 앞부분에 나오더라도, "전과하려 한다", "궁금하다", "선배 이야기를 듣고 싶다", "추천해 달라"처럼 질문·희망의 대상이 되는 전공을 최우선 목표로 해석해라.
-  - 예를 들어 컴퓨터공학과 재학 중 화학공학과로 전과를 고민하며 화학공학과 이야기를 듣고 싶다고 하면 화학공학과 선배를 컴퓨터공학과 선배보다 우선 추천해라.
-  - 줄글에 특정 학과가 명시되면 해당 학과 선배를 최우선으로 추천하고, 그 학과가 후보에 있으면 다른 학과를 단순히 비슷하다는 이유로 앞세우지 마라. 디자인학과 요청에는 디자인 관련 학과를 우선하고 무관한 학과는 제외해라.
-  - 후배의 체크박스 선호(상황, 고민 이유, 경험 선호 등)는 줄글의 목표와 함께 고려하되, 줄글의 명시적 목표·질문 대상을 덮어쓰지 못한다.
-  - 후배가 근본적으로 해결하고 싶은 고민의 핵심 키워드가 선배의 전공, 도움 분야, 경험, 소개와 직접 겹치는 선배를 우선 추천해라.
-  - 직접 겹치는 고민 키워드가 없으면 후배의 고민과 최대한 비슷한 분야, 연관 단어, 유사 상황, 경험을 순서대로 비교해 가장 실질적인 도움을 줄 수 있는 선배를 추천해라.
+[고민 유형 분류 및 우선순위 기준]
+먼저 후배의 고민이 아래 두 유형 중 어디에 해당하는지 판단해라.
 
-2. 나쁜 매칭 (Bad Match) - 금지:
-  - 후배가 근본적으로 해결하고 싶어 하는 고민 키워드와 겹치는 점이나 연관성이 전혀 없는 선배는 추천하지 마라.
-  - 프로필 상 스펙이나 이름값만 높고, 후배의 고민 주제와 상관없는 선배는 배제해라.
-  - 단순히 같은 학교, 같은 학년, 인기 있어 보인다는 이유만으로 점수를 높이지 마라.
-  - 관련성이 없으면 fit을 낮게 평가하고 recommendations에 포함하지 마라.
-  - 목표 전공이 확인된 경우 다른 전공 후보의 fit은 해당 목표 전공 후보보다 높게 주지 마라. 목표 전공 후보가 없을 때만 인접 전공을 보완 후보로 사용해라.
+1. 전공·진로·학업 고민 (전과, 복수전공, 전공공부, 인턴, 취업, 대학원, 공모전 등):
+  - 줄글에서 후배가 실제로 답을 얻고 싶은 목표 전공·직무·활동 및 전과/진로 변경 의도를 최우선으로 추출해라.
+  - 현재 전공이 앞부분에 나오더라도 "전과하려 한다", "궁금하다", "이야기를 듣고 싶다"처럼 질문·희망의 대상이 되는 전공을 최우선 목표로 해석해라. (예: 컴공 재학 중 화공과 전과 희망 → 화공과 선배 최우선)
+  - 줄글에 특정 학과가 명시되면 해당 학과 선배를 최우선 추천하고, 후보에 해당 학과가 있으면 유사 학과를 앞세우지 마라.
+  - 목표 전공 후보가 없을 때만 인접 전공을 보완 후보로 사용해라.
 
-[필드]
-- interests: 고민 핵심 키워드 3~6개. 줄글에 명시된 목표 전공·직무·활동과 전과/진로 변경 의도를 반드시 포함해라.
-- situation: 현재 상황 한 줄 요약. 현재 전공과 최종적으로 질문·희망하는 대상 전공을 구분해라.
-- help_fields: 학교생활, 전공공부, 진로취업, 인턴대외활동, 대학원연구 중에서만 최대 2개
-- suitability: 전달된 후보 전원. mentor_id, fit(0~100 숫자, 기준에 맞춰 엄격히 평가), reason(후보 근거 한 문장)
-- recommendations: suitability가 높은 순서의 상위 인원. mentor_id, reason(매칭 평가 기준을 근거로 한 추천 이유)
-  배열 순서가 최종 순위다. 후보에 없는 mentor_id는 만들지 마.
-  suitability의 fit과 recommendations의 순서는 반드시 같은 판단 기준을 따라라. 추천 이유에는 실제로 겹치거나 유사한 후배 고민과 선배 정보를 구체적으로 밝혀라.
+2. 일상·학교생활 고민 (밥집, 맛집, 카페, 카공, 수강신청, 시간표, 기숙사, 자취, 통학, 동아리, 친구 사귀기, 학교적응 등):
+  - 일상·캠퍼스 생활 질문은 특정 학과 지정이 없는 한 학과 일치 여부보다 '해당 생활 경험의 일치도'를 최우선으로 평가해라.
+  - 학과가 다르더라도 후배가 찾는 생활 노하우(예: 카공 명당, 혼밥 밥집, 통학 시간표, 기숙사 생활, 편입 학점 인정 등)를 경험 소개에 보유한 선배에게 최고점을 부여해라.
+  - 스펙(인턴, 공모전, 랩실 등)이 화려하더라도 일상·학교생활 고민과 무관한 선배는 낮은 점수를 주고 추천에서 배제해라.
+
+[의미 기반 매칭 및 나쁜 매칭 금지]
+- 표면적 단어 일치에만 집착하지 말고 문맥과 의도가 통하면 적극 매칭해라. (예: '밤늦게 공부할 카페' ↔ '카공', '혼자 먹을 식당' ↔ '혼밥/밥집', '수업 배치' ↔ '시간표/수강신청')
+- 체크박스 선호는 줄글의 목표와 함께 고려하되, 줄글의 명시적 목표·질문 대상을 덮어쓰지 못한다.
+- 후배의 고민과 연관성이 전혀 없는 선배, 이름값·스펙만 높은 선배, 단순히 같은 학년이라는 이유만의 추천은 엄격히 금지한다.
+
+[fit 점수 산정 기준 (0~100)]
+- 85~100: 핵심 고민/생활 경험이 정확히 일치하며, 전공·상황 조건까지 완벽히 부합
+- 65~84: 핵심 고민/생활 경험이 일치하나 전공이 다르거나, 목표 전공은 일치하나 세부 경험이 간접적임
+- 40~64: 인접 분야이거나 부분적으로 참고 가능한 유사 경험을 보유함
+- 0~39: 후배의 고민과 연관성이 거의 없음 (recommendations 포함 금지)
+
+[출력 필드 규칙]
+- interests: 고민 핵심 키워드 3~6개 (목표 전공·직무·생활 키워드 및 전과/진로 의도 포함)
+- situation: 현재 상황 한 줄 요약 (현재 전공과 최종 질문·희망 대상을 구분하여 작성)
+- help_fields: ["학교생활", "전공공부", "진로취업", "인턴대외활동", "대학원연구"] 중에서만 최대 2개 선택
+- suitability: 전달된 후보 전원 평가. mentor_id, fit(위 기준에 따른 0~100 정수), reason(선배 프로필의 실제 경험·전공을 근거로 한 평가 한 문장)
+- recommendations: suitability의 fit이 높은 순서대로 상위 인원(fit 40 미만 제외). mentor_id, reason(후배의 어떤 고민 키워드와 선배의 어떤 프로필 내용이 일치/유사한지 구체적 근거를 밝힌 추천 이유). 배열 순서가 최종 순위이며, 후보에 없는 mentor_id는 절대 생성하지 마라.
 
 반환 형식:
 {"interests":[],"situation":"","help_fields":[],"suitability":[{"mentor_id":"","fit":0,"reason":""}],"recommendations":[{"mentor_id":"","reason":""}]}
@@ -299,3 +305,72 @@ def analyze_and_recommend(
         print(f"[LLM Error] analyze_and_recommend 에러 발생: {exc}")
         traceback.print_exc()
     return None
+
+
+def generate_persona_reply(
+    *,
+    mentor_profile: dict,
+    junior_message: str,
+    history: list[dict],
+) -> str:
+    """멘토 프로필 기반 페르소나 답변 생성. 실패 시 안전한 기본 답변을 반환한다."""
+    name = str(mentor_profile.get("display_name") or "선배").strip() or "선배"
+    major = str(mentor_profile.get("major") or "").strip()
+    status = str(mentor_profile.get("status") or "").strip()
+    bio = str(mentor_profile.get("bio") or "").strip()
+
+    experiences = mentor_profile.get("experiences") or []
+    help_topics = mentor_profile.get("help_topics") or []
+    exp_text = ", ".join(str(item).strip() for item in experiences if str(item).strip())
+    topic_text = ", ".join(str(item).strip() for item in help_topics if str(item).strip())
+
+    recent = history[-8:] if isinstance(history, list) else []
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "너는 대학 멘토링 서비스의 가상 선배다.\n"
+                f"이름: {name}\n"
+                f"학과: {major or '미상'}\n"
+                f"상태(학년/졸업): {status or '미상'}\n"
+                f"경험 키워드: {exp_text or '없음'}\n"
+                f"도움 가능 주제: {topic_text or '없음'}\n"
+                f"자기소개: {bio or '없음'}\n\n"
+                "규칙:\n"
+                "- 항상 한국어 반말이 아닌 존댓말로 답변\n"
+                "- 실제 선배처럼 공감 + 실행 가능한 조언 2~4개 제공\n"
+                "- 프로필과 무관한 확정 사실은 지어내지 말 것\n"
+                "- 위험하거나 불법적인 요청은 정중히 거절\n"
+                "- 답변 길이는 3~6문장으로 간결하게"
+            ),
+        }
+    ]
+
+    for item in recent:
+        role = "assistant" if item.get("senderRole") == "senior" else "user"
+        text = str(item.get("text") or "").strip()
+        if text:
+            messages.append({"role": role, "content": text[:600]})
+
+    messages.append({"role": "user", "content": junior_message.strip()[:1000]})
+
+    try:
+        response = _client().chat.completions.create(
+            model=_model_name(),
+            messages=messages,
+            temperature=0.5,
+            max_tokens=350,
+            timeout=15.0,
+        )
+        content = (response.choices[0].message.content or "").strip()
+        if content:
+            return content[:1200]
+    except Exception as exc:
+        print(f"[LLM Error] generate_persona_reply 에러 발생: {exc}")
+
+    fallback_topic = topic_text.split(",", 1)[0].strip() if topic_text else "학교생활"
+    return (
+        f"좋은 질문이에요. {fallback_topic} 기준으로 지금 바로 해볼 수 있는 것부터 정리해 볼게요. "
+        "우선 목표를 한 문장으로 정하고, 이번 주에 할 일 2~3개를 작게 나눠 실행해 보세요. "
+        "원하시면 현재 상황을 조금 더 알려주시면 더 구체적으로 같이 계획해 드릴게요."
+    )

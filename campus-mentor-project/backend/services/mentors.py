@@ -11,7 +11,7 @@ from pathlib import Path
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 CLEANED_PATH = DATA_DIR / "mentors.cleaned.csv"
 MENTORS_PATH = DATA_DIR / "Mentors.csv"
-MENTORS_ADD_PATH = DATA_DIR / "Mentors.add.csv"
+NEW_MENTORS_PATH = DATA_DIR / "220.new.mentors.csv"
 _add_lock = threading.Lock()  # 동시에 등록해도 같은 ID가 나오지 않게
 
 
@@ -70,7 +70,7 @@ class MentorStore:
         self.reload()
 
     def reload(self, path: Path | None = None) -> int:
-        targets = [path] if path is not None else [MENTORS_PATH, MENTORS_ADD_PATH]
+        targets = [path] if path is not None else [MENTORS_PATH, NEW_MENTORS_PATH]
         merged: dict[str, Mentor] = {}
         next_id = 1
         source = None
