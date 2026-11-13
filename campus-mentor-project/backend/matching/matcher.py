@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 
 def _normalize(text: str) -> str:
     return (text or "").strip().lower().replace(" ", "")
@@ -18,6 +20,14 @@ def _overlap(a: set[str], b: set[str]) -> set[str]:
             if left == right or left in right or right in left:
                 hits.add(right)
     return hits
+
+
+def _target_majors(text: str) -> set[str]:
+    normalized = _normalize(text)
+    return {
+        match.group(1)
+        for match in re.finditer(r"([가-힣A-Za-z0-9]+(?:학과|전공))", normalized)
+    }
 
 
 CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
@@ -77,6 +87,7 @@ def match_mentors(
     choice_categories = _categories(choice_reason)
     preferences = experience_preferences or []
     situation_norm = _normalize(situation)
+    target_majors = _target_majors(" ".join([situation, choice_reason, *interests]))
     ranked: list[dict] = []
 
     for mentor in mentors:
@@ -89,6 +100,19 @@ def match_mentors(
         mentor_status = str(mentor.get("status") or "")
         mentor_text = " ".join([major, mentor_status, *help_topics, *experiences, bio])
         mentor_categories = _categories(help_topics + experiences + [major, bio])
+        major_norm = _normalize(major)
+        target_hits = {
+            target
+            for target in target_majors
+            if target == major_norm
+            or target.replace("학과", "과") == major_norm
+            or major_norm.replace("학과", "과") == target.replace("학과", "과")
+            or target in major_norm
+            or major_norm in target
+        }
+        if target_hits:
+            score += 30.0
+            reasons.append("줄글에서 요청한 전공 일치: " + ", ".join(sorted(target_hits)))
 
         preference_hits: list[str] = []
         for preference in preferences:
@@ -128,7 +152,6 @@ def match_mentors(
             score += 1.5 * len(exp_hits)
             reasons.append("경험 관련: " + ", ".join(sorted(exp_hits)))
 
-        major_norm = _normalize(major)
         if major_norm and (
             major_norm in query_help
             or any(major_norm in t or t in major_norm for t in query_help)
