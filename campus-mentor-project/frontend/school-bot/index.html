@@ -70,7 +70,7 @@
       log.scrollTop = log.scrollHeight;
     }
 
-    addBubble('bot', '안녕하세요! 시연용으로 서울대 주변 맛집·인공지능학과 관련 선후배 대화 약 220개가 들어 있어요. 예: \"녹두에서 혼밥 어디?\", \"머신러닝 과제 시드 어떻게 해요?\"');
+    addBubble('bot', '안녕하세요! 시연용으로 선후배 긴 채팅 200개(각 30말 이상)가 들어 있어요. 주제는 서울대 주변 맛집 / 인공지능학과 전공입니다.');
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -84,7 +84,7 @@
       try {
         const data = await MentorApi.schoolBot({ question, school, history_limit: 80 });
         addBubble('bot', data.answer || '(빈 응답)');
-        status.textContent = `참고 메시지 ${data.used_message_count || 0}개 · source=${data.source || '-'}`;
+        status.textContent = `참고 채팅 ${data.used_conversation_count || 0}개 / 메시지 ${data.used_message_count || 0}개 · 시드 채팅 ${data.seed_conversation_count || 0}개 · source=${data.source || '-'}`;
       } catch (err) {
         error.hidden = false;
         error.textContent = err.message || String(err);

@@ -45,6 +45,7 @@ Render의 `sync: false` 환경변수는 실제 값이 저장소에 기록되지 
 ## 학교 챗봇 (추가)
 
 - `POST /api/school-bot` — 학교 관련 질문에 답함
-- 지식 원천: `data/school_bot_seed_chats.json`(시연용 가상 선후배 대화 ~220개) + 실제 DB 채팅
+- 지식 원천: `data/school_bot_seed_chats.json`(긴 채팅 200개, 각 ≥30메시지) + 실제 DB 채팅
+- 질문과 관련 높은 채팅 2개를 골라 LLM 근거로 사용
 - 매칭과 **같은** `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `LLM_MODEL` 사용
 - 화면: `/frontend/school-bot/`
