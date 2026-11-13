@@ -91,4 +91,5 @@ class SchoolBotRequest(BaseModel):
 class SchoolBotResponse(BaseModel):
     answer: str
     used_message_count: int = 0
+    seed_message_count: int = 0
     source: str = "llm"
