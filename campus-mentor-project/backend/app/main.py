@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from ai.extractor import analyze_and_recommend, extract_concern_info
+from ai.school_bot import answer_school_question
 from ai.stub_extract import stub_extract
 from app.schemas import (
     ChoiceContext,
@@ -34,6 +35,8 @@ from app.schemas import (
     EndResponseRequest,
     MessageRequest,
     ReportRequest,
+    SchoolBotRequest,
+    SchoolBotResponse,
 )
 from matching.matcher import match_mentors
 from services import storage
@@ -362,7 +365,7 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
         seed = payload.extraction or Extraction(**stub_extract(text))
         shortlist_size = min(
             len(mentors),
-            max(20, int(os.getenv("LLM_SHORTLIST_SIZE", "80"))),
+            max(20, int(os.getenv("LLM_SHORTLIST_SIZE", "40"))),
         )
         shortlist = _rank_mentors(payload, seed, mentors, shortlist_size)
         if not shortlist:
@@ -420,6 +423,11 @@ def health_check():
 @app.get("/", include_in_schema=False)
 def home():
     return RedirectResponse(url="/frontend/main.html")
+
+
+@app.head("/", include_in_schema=False)
+def home_head():
+    return {"status": "ok"}
 
 
 @app.get("/api/mentors", response_model=list[MentorOut])
@@ -773,6 +781,21 @@ def request_chat_end(payload: RoomEndRequest, authorization: str = Header(defaul
     state.update(status="pending", requestedBy=payload.requesterRole, declinedBy=None)
     storage.save_end_state(room, state)
     return state
+
+
+@app.post("/api/school-bot", response_model=SchoolBotResponse)
+def school_bot(payload: SchoolBotRequest):
+    question = (payload.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="질문을 입력해 주세요.")
+
+    recent = storage.list_recent_messages(payload.history_limit)
+    result = answer_school_question(
+        question,
+        school=payload.school or "",
+        messages=recent,
+    )
+    return SchoolBotResponse.model_validate(result)
 
 
 @app.post("/api/chat-end/respond")
