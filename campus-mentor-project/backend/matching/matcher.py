@@ -31,6 +31,29 @@ def _target_majors(text: str) -> set[str]:
 
 
 TRANSFER_KEYWORDS = ("전과", "복수전공", "전공변경", "학과변경", "전공전환")
+FOOD_QUERY_KEYWORDS = (
+    "밥",
+    "밥집",
+    "맛집",
+    "식당",
+    "혼밥",
+    "점심",
+    "저녁",
+    "배달",
+    "카페",
+)
+FOOD_PROFILE_HINTS = (
+    "밥",
+    "맛집",
+    "식당",
+    "혼밥",
+    "카페",
+    "배달",
+    "웨이팅",
+    "가성비",
+    "점심",
+    "저녁",
+)
 
 
 def _major_like(value: str) -> str:
@@ -63,6 +86,11 @@ def _extract_transfer_route(text: str) -> tuple[str, str]:
 def _has_transfer_intent(text: str) -> bool:
     normalized = _normalize(text)
     return any(_normalize(keyword) in normalized for keyword in TRANSFER_KEYWORDS)
+
+
+def _has_food_intent(text: str) -> bool:
+    normalized = _normalize(text)
+    return any(_normalize(keyword) in normalized for keyword in FOOD_QUERY_KEYWORDS)
 
 
 CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
@@ -126,6 +154,7 @@ def match_mentors(
     target_majors = _target_majors(context_text)
     source_major, destination_major = _extract_transfer_route(context_text)
     has_transfer_intent = _has_transfer_intent(context_text)
+    has_food_intent = _has_food_intent(context_text)
     ranked: list[dict] = []
 
     for mentor in mentors:
@@ -166,6 +195,19 @@ def match_mentors(
                 if source_major in mentor_text_norm and destination_major in mentor_text_norm:
                     score += 12.0
                     reasons.append("출발·목표 전공 전환 경험 유사")
+
+        if has_food_intent:
+            food_hits = [
+                keyword
+                for keyword in FOOD_PROFILE_HINTS
+                if _normalize(keyword) in mentor_text_norm
+            ]
+            if food_hits:
+                score += 22.0
+                reasons.append("밥집/맛집 생활 경험 일치")
+            else:
+                score -= 12.0
+                reasons.append("밥집/맛집 관련 근거 부족")
 
         preference_hits: list[str] = []
         for preference in preferences:
@@ -210,7 +252,7 @@ def match_mentors(
             or any(major_norm in t or t in major_norm for t in query_help)
             or (situation_norm and major_norm in situation_norm)
         ):
-            score += 1.0
+            score += 0.3 if has_food_intent else 1.0
             reasons.append(f"전공 관련: {major}")
 
         if situation_norm:

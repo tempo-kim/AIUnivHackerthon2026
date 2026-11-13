@@ -1,4 +1,4 @@
-"""학교 생활 Q&A 챗봇.
+﻿"""학교 생활 Q&A 챗봇.
 
 매칭과 같은 OPENAI_API_KEY / OPENAI_BASE_URL / LLM_MODEL 사용.
 선택한 학교의 긴 채팅(각 ≥30메시지)을 조회해 근거로 답한다.
@@ -31,6 +31,30 @@ SCHOOL_ALIASES = {
     "서강대": "서강대학교",
     "서강대학교": "서강대학교",
 }
+
+FOOD_HINTS = (
+    "밥",
+    "밥집",
+    "맛집",
+    "식당",
+    "혼밥",
+    "점심",
+    "저녁",
+    "배달",
+    "카페",
+)
+
+MAJOR_HINTS = (
+    "전공",
+    "과제",
+    "머신러닝",
+    "딥러닝",
+    "학점",
+    "수강",
+    "팀플",
+    "gpu",
+    "논문",
+)
 
 
 def normalize_school(school: str) -> str:
@@ -104,49 +128,105 @@ def _score_conversation(question: str, school: str, conv: dict) -> int:
     q = f"{school} {question}".lower()
     msgs = conv.get("messages") or []
     blob = f"{conv.get('topic','')} {conv.get('title','')} " + " ".join(
-        str(m.get("text") or "") for m in msgs[:10]
+        str(m.get("text") or "") for m in msgs[:24]
     )
     blob = blob.lower()
     score = 0
-    for token in [
-        "맛집",
-        "밥",
-        "카페",
-        "김밥",
-        "치킨",
-        "파스타",
-        "인공",
-        "머신",
-        "딥러닝",
-        "과제",
-        "연구",
-        "논문",
-        "gpu",
-        "전공",
-        "학점",
-        "팀플",
-        "수강",
-    ]:
+    for token in FOOD_HINTS + MAJOR_HINTS + ("김밥", "치킨", "파스타", "인공", "머신", "연구"):
         if token in q and token in blob:
-            score += 3
-    for word in [w for w in q.replace("?", " ").split() if len(w) >= 2][:12]:
+            score += 4
+    for word in [w for w in q.replace("?", " ").split() if len(w) >= 2][:20]:
         if word in blob:
             score += 1
     topic = str(conv.get("topic") or "")
-    if "맛집" in topic and any(k in q for k in ("밥", "맛집", "카페", "먹", "식당")):
-        score += 6
+    if "맛집" in topic and any(k in q for k in FOOD_HINTS + ("먹",)):
+        score += 10
     if "인공" in topic or "전공" in topic:
-        if any(k in q for k in ("인공", "전공", "과제", "머신", "모델", "연구", "학점")):
-            score += 6
+        if any(k in q for k in MAJOR_HINTS + ("인공", "모델", "연구")):
+            score += 10
     return score
 
 
-def retrieve_conversations(question: str, *, school: str = "", top_k: int = 2) -> list[dict]:
+def retrieve_conversations(question: str, *, school: str = "", top_k: int = 3) -> list[dict]:
     convs = load_seed_conversations(school)
     if not convs:
         convs = load_seed_conversations("")
     ranked = sorted(convs, key=lambda c: _score_conversation(question, school, c), reverse=True)
-    return ranked[: max(1, top_k)]
+    selected: list[dict] = []
+    seen: set[str] = set()
+    target = max(2, top_k)
+    for conv in ranked:
+        signature = "|".join(
+            [
+                str(conv.get("topic") or ""),
+                str(conv.get("title") or ""),
+                str(conv.get("id") or ""),
+            ]
+        )
+        if signature in seen:
+            continue
+        seen.add(signature)
+        selected.append(conv)
+        if len(selected) >= target:
+            break
+    return selected
+
+
+def _intent(question: str) -> str:
+    q = (question or "").strip().lower()
+    if any(token in q for token in FOOD_HINTS):
+        return "food"
+    if any(token in q for token in MAJOR_HINTS):
+        return "major"
+    return "general"
+
+
+def _fallback_answer_from_seed(question: str, convs: list[dict], school: str) -> str:
+    school_name = school or "해당 학교"
+    if len((question or "").strip()) <= 2:
+        return (
+            f"{school_name} 기준으로 도와줄 수 있어요. "
+            "밥집/카페 추천, 수강/과제, 전공 고민 중 어떤 걸 물어볼지 한 문장으로 알려줘요."
+        )
+
+    intent = _intent(question)
+    lines: list[str] = [f"{school_name} 기준으로 참고 가능한 선후배 대화 요약이에요."]
+    shown = 0
+    seen_points: set[str] = set()
+    for conv in convs:
+        title = str(conv.get("title") or "").strip()
+        msgs = conv.get("messages") or []
+        senior_msg = next(
+            (
+                str(m.get("text") or "").strip()
+                for m in msgs
+                if str(m.get("senderRole") or "").strip().lower() in ("senior", "mentor")
+                and str(m.get("text") or "").strip()
+            ),
+            "",
+        )
+        if not senior_msg:
+            continue
+        point = senior_msg[:80]
+        if point in seen_points:
+            continue
+        seen_points.add(point)
+        if title:
+            lines.append(f"- {title}: {senior_msg[:140]}")
+        else:
+            lines.append(f"- {senior_msg[:140]}")
+        shown += 1
+        if shown >= 3:
+            break
+    if shown == 0:
+        return "관련 시드 대화를 찾지 못했어요. 예산·위치·시간대를 함께 알려주면 더 정확히 찾아볼게요."
+    if intent == "food":
+        lines.append("예산·위치·시간대를 알려주면 더 좁혀서 추천해줄게요.")
+    elif intent == "major":
+        lines.append("학년·현재 수강 과목·막힌 지점을 알려주면 주간 공부 루틴으로 구체화해줄게요.")
+    else:
+        lines.append("상황을 조금만 더 구체적으로 알려주면 근거 대화를 더 정확히 골라 답할게요.")
+    return "\n".join(lines)
 
 
 def format_conversations(convs: list[dict], *, max_chars: int = 14000) -> str:
@@ -184,7 +264,7 @@ def answer_school_question(
             "source": "empty",
         }
 
-    picked = retrieve_conversations(question, school=canon, top_k=2)
+    picked = retrieve_conversations(question, school=canon, top_k=3)
     live = messages or []
     live_note = ""
     if live:
@@ -218,13 +298,16 @@ def answer_school_question(
     school_line = f"대상 학교: {canon}" if canon else "대상 학교: (미지정)"
     system_prompt = f"""
 너는 대학 캠퍼스 멘토링 서비스 '뻔뻔하게'의 학교 생활 안내 챗봇이다.
-아래는 해당 학교 선배·후배가 한 주제 안에서 길게 나눈 채팅이다.
-반드시 이 채팅의 구체 정보(장소·가격·웨이팅·과제 팁)를 근거로 답하고,
-일반 상식으로 대충 답하지 마라. 근거가 없으면 모른다고 말해라.
+반드시 아래 [참고용 선후배 긴 채팅]에서 근거를 찾아 답한다.
 
 규칙:
-- 한국어로 친절하고 구체적으로.
+- 한국어로 답한다.
 - {school_line} 맥락을 유지.
+- 답변 형식:
+  1) 핵심 답변 2~4문장
+  2) 근거 bullet 2~4개 (채팅 내용 기반: 장소/가격/웨이팅/팁)
+  3) 근거가 부족하면 모른다고 말하고 추가 질문 1개를 제시
+- 참고 데이터에 없는 사실을 단정하지 않는다.
 - 개인정보 추론 금지.
 """
     user_prompt = f"""
@@ -242,15 +325,19 @@ def answer_school_question(
                     {"role": "system", "content": system_prompt.strip()},
                     {"role": "user", "content": user_prompt.strip()},
                 ],
-                temperature=0.2,
-                max_tokens=900,
-                timeout=40.0,
+                temperature=0.1,
+                max_tokens=650,
+                timeout=28.0,
             )
 
         # 매칭과 같은 스레드풀 — 워커 4개라 매칭·학교봇 동시에도 한쪽만 굶지 않음
         future = _llm_executor.submit(_call)
-        res = future.result(timeout=42.0)
-        answer = (res.choices[0].message.content or "").strip() or "답변을 만들지 못했어요."
+        res = future.result(timeout=30.0)
+        answer = (res.choices[0].message.content or "").strip()
+        source = "llm"
+        if not answer:
+            answer = _fallback_answer_from_seed(question, picked, canon)
+            source = "seed-fallback"
         return {
             "answer": answer,
             "used_message_count": used_msgs,
@@ -258,17 +345,17 @@ def answer_school_question(
             "used_conversation_count": len(picked),
             "seed_conversation_count": stats["conversation_count"],
             "school": canon or "",
-            "source": "llm",
+            "source": source,
         }
     except Exception as e:
         print(f"[school_bot] {e}")
         traceback.print_exc()
         return {
-            "answer": "지금은 답변 서버에 연결하지 못했어요. API 키·네트워크를 확인해 주세요.",
+            "answer": _fallback_answer_from_seed(question, picked, canon),
             "used_message_count": used_msgs,
             "seed_message_count": stats["message_count"],
             "used_conversation_count": len(picked),
             "seed_conversation_count": stats["conversation_count"],
             "school": canon or "",
-            "source": "error",
+            "source": "seed-fallback",
         }
