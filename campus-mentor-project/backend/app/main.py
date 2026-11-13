@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from ai.extractor import analyze_and_recommend, extract_concern_info, generate_persona_reply
+from ai.extractor import analyze_and_recommend, extract_concern_info
 from ai.stub_extract import stub_extract
 from app.schemas import (
     ChoiceContext,
@@ -748,23 +748,6 @@ def send_message(payload: RoomMessageRequest, authorization: str = Header(defaul
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
     storage.add_message(room, message)
-
-    if payload.senderRole == "junior":
-        mentor = next((m for m in store.list() if m.mentor_id == payload.mentorId), None)
-        if mentor is not None:
-            history = storage.list_messages(room)
-            ai_text = generate_persona_reply(
-                mentor_profile=mentor.to_dict(),
-                junior_message=message["text"],
-                history=history,
-            )
-            ai_message = {
-                "id": str(uuid.uuid4()),
-                "senderRole": "senior",
-                "text": ai_text,
-                "createdAt": datetime.now(timezone.utc).isoformat(),
-            }
-            storage.add_message(room, ai_message)
 
     return message
 
