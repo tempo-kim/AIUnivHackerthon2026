@@ -142,7 +142,7 @@ window.addEventListener('storage',()=>renderMatches());
 async function refineRecommendations(){
   if(!llmPending)return;
   const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),30000);
+  const timeout=setTimeout(()=>controller.abort(),70000);
   try{
     const concernText=sessionStorage.getItem('ppunppun-concern')||'';
     let choice=null;try{choice=JSON.parse(sessionStorage.getItem('ppunppun-choice')||'null')}catch(e){}

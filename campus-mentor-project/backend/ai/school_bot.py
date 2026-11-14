@@ -380,13 +380,13 @@ def answer_school_question(
                 ],
                 temperature=0.15,
                 max_tokens=1000,
-                timeout=40.0,
+                timeout=65.0,
             )
 
         # Keep recommendation traffic from occupying every worker and forcing
         # school-bot requests to fall back before they reach the provider.
         future = _school_bot_executor.submit(_call)
-        res = future.result(timeout=42.0)
+        res = future.result(timeout=67.0)
         answer = (res.choices[0].message.content or "").strip() or "답변을 만들지 못했어요."
         return {**base_meta, "answer": answer, "source": "llm+facts"}
     except Exception as e:

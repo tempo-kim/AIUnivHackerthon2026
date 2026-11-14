@@ -17,9 +17,8 @@ load_dotenv(env_path)
 _llm_executor = ThreadPoolExecutor(max_workers=4)
 atexit.register(lambda: _llm_executor.shutdown(wait=False, cancel_futures=True))
 
-# 추천은 프론트에서 규칙 결과를 먼저 보여 주고, LLM 요청은 14초 안에 마친다.
-# 너무 긴 응답을 기다리며 결과 반영이 늦어지지 않도록 한다.
-LLM_MATCH_TIMEOUT = min(float(os.getenv("LLM_MATCH_TIMEOUT", "14")), 14.0)
+# LLM이 후보 전체를 비교할 수 있도록 55초를 허용한다.
+LLM_MATCH_TIMEOUT = 55.0
 ALLOWED_HELP_FIELDS = (
     "학교생활",
     "전공공부",
@@ -75,9 +74,6 @@ def _request_llm(
         "max_tokens": max_tokens,
         "timeout": timeout,
     }
-    if model_name.lower().removeprefix("openai/") == "nvidia/nemotron-3.5-super-vl:free":
-        # 이 모델은 추론을 기본 활성화하므로 추천 JSON 생성 시간을 제한한다.
-        request["extra_body"] = {"reasoning": {"max_tokens": 256}}
     try:
         return _client().chat.completions.create(
             **request,
@@ -405,6 +401,7 @@ JSON 내부의 설명과 문장은 한국어로 작성한다.
   "interests": [],
   "situation": "",
   "help_fields": [],
+  "suitability": [],
   "recommendations": []
 }
 
@@ -422,15 +419,21 @@ help_fields:
 - 다음 항목에서 최대 2개 선택한다.
 - 학교생활, 전공공부, 진로취업, 인턴대외활동, 대학원연구
 
+suitability:
+- 전체 후보를 비교하고 평가하되 출력은 적합도가 높은 상위 5명까지만 포함한다.
+- mentor_id, fit, reason을 작성한다.
+- reason은 실제 프로필 경험과 고민의 연관성을 한 문장으로 간결하게 설명한다.
+- 적합도 40점 미만은 포함하지 않는다.
+
 recommendations:
 - 적합도가 높은 순서대로 최대 top_k명까지 추천한다.
-- mentor_id, fit, reason을 작성한다. fit은 0~100 정수다.
-- reason은 고민과 실제 프로필 경험의 연결을 80자 이내 한 문장으로 설명한다.
+- mentor_id와 reason을 작성한다.
+- reason에는 후배의 고민과 선배의 실제 경험이 어떻게 연결되는지 한 문장으로 설명한다.
 - 추천할 만한 후보가 부족하면 인원을 억지로 채우지 않는다.
+- suitability의 순위와 recommendations의 순위는 일치해야 한다.
 
 mentor_id는 반드시 전달된 후보의 실제 값을 그대로 사용한다.
 모든 점수는 정수로 작성한다.
-불필요한 분석 문장을 출력하지 말고, JSON의 각 필드를 간결하게 작성한다.
 JSON 외의 어떠한 문장도 출력하지 않는다.
 """
 
@@ -452,8 +455,8 @@ JSON 외의 어떠한 문장도 출력하지 않는다.
     model_name = _model_name()
     attempts = [
         {
-            "timeout": min(LLM_MATCH_TIMEOUT, 13.5),
-            "max_tokens": 850,
+            "timeout": LLM_MATCH_TIMEOUT,
+            "max_tokens": 2500,
             "candidates": request_payload["candidates"],
         },
     ]
@@ -477,7 +480,7 @@ JSON 외의 어떠한 문장도 출력하지 않는다.
                 timeout=attempt["timeout"],
                 max_tokens=attempt["max_tokens"],
             )
-            res = future.result(timeout=attempt["timeout"] + 0.5)
+            res = future.result(timeout=attempt["timeout"] + 1.0)
             elapsed = time.perf_counter() - started
             print(
                 f"[LLM] analyze_and_recommend success attempt={index} candidates={len(attempt['candidates'])} elapsed={elapsed:.2f}s"

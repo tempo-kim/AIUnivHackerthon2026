@@ -1,8 +1,8 @@
 ﻿const API_BASE = location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
 
 /** 매칭 LLM(~15s) / 학교봇 LLM(~40s) 백엔드 제한과 맞춤 — 한쪽이 먼저 끊겨 다른 쪽만 되는 착시 방지 */
-const MATCH_TIMEOUT_MS = 25000;
-const SCHOOL_BOT_TIMEOUT_MS = 45000;
+const MATCH_TIMEOUT_MS = 70000;
+const SCHOOL_BOT_TIMEOUT_MS = 70000;
 
 async function apiRequest(path, options = {}) {
   const timeoutMs = options.timeoutMs;
