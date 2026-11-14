@@ -1,0 +1,8 @@
+{
+  "extraction": {
+    "interests": ["경영학과"],
+    "situation": "수강신청 전이라 과목 선택이 어려움",
+    "help_fields": ["수강신청", "시간표"]
+  },
+  "top_k": 3
+}
