@@ -736,6 +736,28 @@ def get_rooms(mentorId: str, authorization: str = Header(default="")):
     return rooms
 
 
+@app.get("/api/juniors/rooms")
+def get_junior_rooms(authorization: str = Header(default="")):
+    """로그인한 후배의 대화방만 최근순."""
+    junior_id = storage.token_junior(_bearer(authorization))
+    if not junior_id:
+        raise HTTPException(status_code=401, detail="후배 로그인이 필요합니다.")
+    suffix = f":{junior_id}"
+    mentors = {mentor.mentor_id: mentor for mentor in store.list()}
+    rooms = []
+    for room in storage.list_rooms(suffix=suffix):
+        mentor_id = room.pop("room").removesuffix(suffix)
+        mentor = mentors.get(mentor_id)
+        rooms.append({
+            "mentorId": mentor_id,
+            "mentorName": mentor.display_name if mentor else "",
+            "mentorMajor": mentor.major if mentor else "",
+            **room,
+        })
+    rooms.sort(key=lambda item: datetime.fromisoformat(item["lastAt"]), reverse=True)
+    return rooms
+
+
 @app.post("/api/messages")
 def send_message(payload: RoomMessageRequest, authorization: str = Header(default="")):
     room = _chat_room(payload.mentorId, payload.juniorId)

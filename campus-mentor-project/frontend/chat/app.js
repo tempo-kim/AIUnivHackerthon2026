@@ -191,6 +191,7 @@ function appendMessage(message) {
   messagesEl.insertBefore(bubble, messagesEl.querySelector(".ended-card"));
   messagesEl.scrollTop = messagesEl.scrollHeight;
   updateSuggestions();
+  if (myRole === "junior") markRoomSeen(mentorId, message.sentAt);
 }
 
 function renderMessages(messages) {
@@ -607,6 +608,136 @@ function startInbox() {
   setInterval(refreshInbox, INBOX_POLL_MS);
 }
 
+// ---- 후배의 내 대화 ----
+// 방마다 마지막으로 본 메시지 시각을 저장해 그 뒤에 온 선배 답장에 "새 답장" 표시
+function seenKey() {
+  return `ppunppun-junior-seen:${juniorId}`;
+}
+
+function readSeen() {
+  try {
+    return JSON.parse(localStorage.getItem(seenKey()) || "{}") || {};
+  } catch {
+    return {};
+  }
+}
+
+function timeOf(value) {
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function markRoomSeen(roomMentorId, sentAt) {
+  if (!juniorId || !roomMentorId) return;
+  const seen = readSeen();
+  if (timeOf(sentAt) <= timeOf(seen[roomMentorId])) return;
+  seen[roomMentorId] = sentAt;
+  try {
+    localStorage.setItem(seenKey(), JSON.stringify(seen));
+  } catch {
+    // 저장하지 못하면 다음에도 "새 답장"이 보일 수 있음
+  }
+}
+
+function hasNewReply(room, seen) {
+  return room.lastSenderRole === "senior" && timeOf(room.lastAt) > timeOf(seen[room.mentorId]);
+}
+
+function createJuniorInboxItem(room, seen) {
+  const link = document.createElement("a");
+  link.className = "inbox-item";
+  link.href = `index.html?role=junior&mentor=${encodeURIComponent(room.mentorId)}`;
+
+  const top = document.createElement("div");
+  top.className = "inbox-item-top";
+  const name = document.createElement("strong");
+  name.textContent = room.mentorName ? `${room.mentorName} 선배` : "선배";
+  top.append(name);
+  if (room.mentorMajor) {
+    const major = document.createElement("span");
+    major.className = "inbox-major";
+    major.textContent = room.mentorMajor;
+    top.append(major);
+  }
+  if (hasNewReply(room, seen)) {
+    const fresh = document.createElement("span");
+    fresh.className = "inbox-new";
+    fresh.textContent = "새 답장";
+    top.append(fresh);
+  }
+  const status = document.createElement("span");
+  status.className = room.status === "ended" ? "inbox-ended" : "inbox-active";
+  status.textContent = room.status === "ended" ? "종료" : "진행중";
+  top.append(status);
+  const time = document.createElement("time");
+  time.textContent = formatRoomTime(room.lastAt);
+  top.append(time);
+
+  const preview = document.createElement("p");
+  preview.className = "inbox-preview";
+  preview.textContent = room.lastMessage;
+
+  link.append(top, preview);
+  const item = document.createElement("li");
+  item.append(link);
+  return item;
+}
+
+async function refreshJuniorInbox() {
+  if (isLoadingInbox) return;
+  isLoadingInbox = true;
+  try {
+    const rooms = await ChatApi.listJuniorRooms();
+    inboxError.hidden = true;
+    const seen = readSeen();
+    // 다른 탭에서 방을 읽어 "새 답장"이 바뀌어도 다시 그리도록 확인 시각도 비교
+    const key = JSON.stringify([rooms, seen]);
+    if (key === lastInboxKey) return;
+    lastInboxKey = key;
+    inboxList.replaceChildren(...rooms.map((room) => createJuniorInboxItem(room, seen)));
+    $("junior-inbox-empty").hidden = rooms.length > 0;
+  } catch (err) {
+    if (err.status === 401) {
+      goToJuniorLogin();
+      return;
+    }
+    inboxError.textContent = "내 대화를 불러오지 못했어요. 네트워크 연결을 확인해 주세요.";
+    inboxError.hidden = false;
+  } finally {
+    isLoadingInbox = false;
+  }
+}
+
+function startJuniorInbox() {
+  loadingView.hidden = true;
+  inboxView.hidden = false;
+  const badge = $("inbox-role-badge");
+  badge.className = "role-badge junior";
+  badge.textContent = "후배로 접속 중";
+  $("inbox-title").textContent = "내 대화";
+  const name = readJuniorSession()?.display_name;
+  $("inbox-mentor").textContent = name ? `${name}님이 선배와 나눈 대화예요` : "선배와 나눈 대화예요";
+  document.title = "뻔뻔하게 · 내 대화";
+  $("logout-btn").onclick = logoutJunior;
+  refreshJuniorInbox();
+  setInterval(refreshJuniorInbox, INBOX_POLL_MS);
+}
+
+async function logoutJunior() {
+  $("logout-btn").disabled = true;
+  try {
+    await ChatApi.logout("junior");
+  } catch {
+    // 서버에 못 알려도 이 브라우저에서는 로그아웃
+  }
+  try {
+    localStorage.removeItem(JUNIOR_SESSION_KEY);
+  } catch {
+    // 위와 같음
+  }
+  location.replace("../main.html");
+}
+
 // ---- 선배 로그인 확인 ----
 function readSeniorSession() {
   try {
@@ -758,6 +889,11 @@ async function loadJuniorName() {
 
 async function init() {
   if (myRole === "junior" && !(await checkJuniorLogin())) return;
+  if (myRole === "junior" && !mentorId) {
+    $("loading-text").textContent = "내 대화를 불러오는 중이에요";
+    startJuniorInbox();
+    return;
+  }
   const isInbox = myRole === "senior" && !juniorId;
   if (!ROLE_LABELS[myRole] || !mentorId || (!isInbox && !JUNIOR_ID_PATTERN.test(juniorId))) {
     showInvalidView();
@@ -785,6 +921,10 @@ async function init() {
     backBar.hidden = false;
     $("back-link").href = inboxUrl();
     loadJuniorName();
+  } else if (myRole === "junior" && !USE_MOCK) {
+    backBar.hidden = false;
+    $("back-link").textContent = "← 내 대화";
+    $("back-link").href = "index.html?role=junior";
   }
 
   // 로딩을 보여주는 동안 대화와 종료 상태를 미리 불러옴

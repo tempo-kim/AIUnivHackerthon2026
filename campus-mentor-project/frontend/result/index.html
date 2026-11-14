@@ -97,6 +97,7 @@ document.querySelector('#show-recommended').onclick=()=>{favoritesOnly=false;ren
 document.querySelector('#show-favorites').onclick=()=>{favoritesOnly=true;renderMatches()};
 window.addEventListener('storage',()=>renderMatches());
 // 다음 3명 추천 API 연결 후 활성화합니다.
+// 하단 "채팅": 후배 로그인이면 내 대화, 선배 로그인이면 받은 대화, 아니면 처음 화면
 const chatLink=document.querySelector('#open-chat');
-chatLink.onclick=event=>{event.preventDefault();let id='';try{id=sessionStorage.getItem('ppunppun-selected-mentor')||''}catch(e){}if(id){location.href=chatUrl(id)}else{notice.textContent='먼저 추천 선배의 대화 시작하기를 눌러 주세요.';notice.scrollIntoView({behavior:'smooth',block:'center'})}};
+chatLink.href=(()=>{try{const junior=JSON.parse(localStorage.getItem('ppunppun-junior-session')||'null');if(junior?.junior_id&&junior?.token)return '../chat/index.html?role=junior';const senior=JSON.parse(localStorage.getItem('ppunppun-senior-session')||'null');if(senior?.mentor_id&&senior?.token)return '../chat/index.html?role=senior&mentor='+encodeURIComponent(senior.mentor_id)}catch(e){}return '../main.html'})();
 </script></body></html>
