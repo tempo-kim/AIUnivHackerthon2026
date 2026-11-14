@@ -153,6 +153,15 @@ def _chat_room(mentor_id: str, junior_id: str) -> str:
     return f"{mentor_id}:{junior_id}"
 
 
+def _member_chat_room(mentor_id: str, junior_id: str) -> str:
+    """Build a room key for authenticated reads, even if a mentor profile was reloaded away."""
+    if not mentor_id or len(mentor_id) > 100 or ":" in mentor_id:
+        raise HTTPException(status_code=400, detail="mentorId 형식이 올바르지 않습니다.")
+    if not JUNIOR_ID_PATTERN.fullmatch(junior_id):
+        raise HTTPException(status_code=400, detail="juniorId 형식이 올바르지 않습니다.")
+    return f"{mentor_id}:{junior_id}"
+
+
 def _bearer(authorization: str) -> str:
     scheme, _, token = (authorization or "").partition(" ")
     return token.strip() if scheme.lower() == "bearer" else ""
@@ -626,7 +635,7 @@ def match_mentor(payload: MatchRequest):
 
 @app.get("/api/messages")
 def get_messages(mentorId: str, juniorId: str = "", authorization: str = Header(default="")):
-    room = _chat_room(mentorId, juniorId)
+    room = _member_chat_room(mentorId, juniorId)
     _require_room_member(mentorId, juniorId, authorization)
     return storage.list_messages(room)
 
@@ -838,7 +847,7 @@ def send_message(payload: RoomMessageRequest, authorization: str = Header(defaul
 
 @app.get("/api/chat-end")
 def get_chat_end(mentorId: str, juniorId: str = "", authorization: str = Header(default="")):
-    room = _chat_room(mentorId, juniorId)
+    room = _member_chat_room(mentorId, juniorId)
     _require_room_member(mentorId, juniorId, authorization)
     return storage.get_end_state(room)
 
