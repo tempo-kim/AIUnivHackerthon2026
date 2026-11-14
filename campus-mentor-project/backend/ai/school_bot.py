@@ -235,7 +235,6 @@ def format_fact_cards(cards: list[dict], *, max_chars: int = 6000) -> str:
     for card in cards:
         lines = [
             f"### 사실카드 {card.get('id')} | {card.get('school','')} | {card.get('section')} | {card.get('title')}",
-            f"(출처) {card.get('source','')}",
         ]
         for fact in card.get("facts") or []:
             lines.append(f"- {fact}")
@@ -259,47 +258,27 @@ def format_conversations(convs: list[dict], *, max_chars: int = 10000) -> str:
     return blob[:max_chars] if len(blob) > max_chars else blob
 
 
-def _citation_list(cards: list[dict], convs: list[dict]) -> list[str]:
-    out: list[str] = []
-    for c in cards:
-        title = str(c.get("title") or c.get("id") or "")
-        src = str(c.get("source") or "")
-        label = f"{c.get('school','')} · {title}" + (f" ({src})" if src else "")
-        if label not in out:
-            out.append(label)
-    for conv in convs:
-        label = f"채팅 · {conv.get('title') or conv.get('id')}"
-        if label not in out:
-            out.append(label)
-    return out[:8]
-
-
 def _extractive_answer(question: str, school: str, cards: list[dict], convs: list[dict]) -> str:
     """API 키 없을 때 사실 카드로 바로 답한다."""
     canon = normalize_school(school) or "선택 학교"
     if not cards and not convs:
         return f"{canon}에 대한 시드/사실 데이터가 아직 없어요."
 
-    lines = [f"{canon} 기준으로 저장된 사실·채팅을 조회한 결과예요. (LLM 키 없음 → 추출 답변)"]
+    lines = [f"{canon} 기준으로 찾아본 내용이에요."]
     if cards:
         lines.append("")
-        lines.append("【사실 카드】")
         for card in cards[:3]:
             lines.append(f"• {card.get('title')}")
             for fact in (card.get("facts") or [])[:3]:
                 lines.append(f"  - {fact}")
-            if card.get("source"):
-                lines.append(f"  · 출처: {card.get('source')}")
     if convs:
         lines.append("")
-        lines.append("【관련 선후배 채팅】")
         for conv in convs[:2]:
             lines.append(f"• {conv.get('title')}")
             for m in (conv.get("messages") or [])[:4]:
                 lines.append(f"  [{_role_label(str(m.get('senderRole') or ''))}] {m.get('text','')[:120]}")
     lines.append("")
-    lines.append("가격·배차·영업은 바뀔 수 있으니 방문 전 공식/네이버로 한 번 더 확인하세요.")
-    lines.append("더 자연스러운 문장 답변은 backend/.env 의 OPENAI_API_KEY(매칭과 동일)를 넣으면 됩니다.")
+    lines.append("가격·배차·영업은 바뀔 수 있으니 방문 전 한 번 더 확인하세요.")
     return "\n".join(lines)
 
 
@@ -320,7 +299,6 @@ def answer_school_question(
         "seed_conversation_count": stats["conversation_count"],
         "used_fact_count": 0,
         "fact_card_count": stats["fact_card_count"],
-        "citations": [],
         "school": canon or "",
         "source": "empty",
     }
@@ -329,7 +307,6 @@ def answer_school_question(
 
     cards = retrieve_fact_cards(question, school=canon, top_k=4)
     picked = retrieve_conversations(question, school=canon, top_k=3)
-    citations = _citation_list(cards, picked)
     used_msgs = sum(len(c.get("messages") or []) for c in picked)
 
     live = messages or []
@@ -354,7 +331,6 @@ def answer_school_question(
         "seed_conversation_count": stats["conversation_count"],
         "used_fact_count": len(cards),
         "fact_card_count": stats["fact_card_count"],
-        "citations": citations,
         "school": canon or "",
     }
 
@@ -375,7 +351,7 @@ def answer_school_question(
 - 한국어, 구체적(상호·역·출구·메뉴·과목명·배차 힌트).
 - {school_line} 맥락 유지. 다른 학교 정보를 섞지 마라.
 - 가격·웨이팅·배차는 변동 가능함을 한 줄 고지.
-- 답 끝에 '근거:' 줄로 사용한 상호/카드 제목을 짧게 나열.
+- 출처·인용·근거 목록은 쓰지 말고 자연스러운 답만 한다.
 - 개인정보 추론 금지.
 """
     user_prompt = f"""

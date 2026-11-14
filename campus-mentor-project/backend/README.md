@@ -51,4 +51,4 @@ Render의 `sync: false` 환경변수는 실제 값이 저장소에 기록되지 
   - 실제 DB 익명 채팅
 - 사실 카드 + 관련 채팅을 함께 검색(하이브리드). 키 없으면 사실 카드 추출 답변
 - 매칭과 **같은** `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `LLM_MODEL` 사용
-- 화면: `/frontend/school-bot/` (대기 중 `데이터베이스 조회중입니다`, 근거 citations 표시)
+- 화면: `/frontend/school-bot/` (대기 중 `데이터베이스 조회중입니다` 표시)

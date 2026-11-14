@@ -21,7 +21,6 @@
       border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer;
     }
     .chips button:hover { background: #ebefff; }
-    .citations { font-size: 12px; color: #687398; margin-top: 8px; line-height: 1.5; }
     .composer { display: flex; gap: 8px; }
     .composer textarea { flex: 1; min-height: 54px; border: 1px solid #dce2f5; border-radius: 12px; padding: 12px; font: inherit; resize: vertical; }
     .composer button { border: 0; border-radius: 12px; background: #345fe0; color: #fff; font-weight: 700; padding: 0 18px; cursor: pointer; }
@@ -49,7 +48,6 @@
       </form>
       <p class="error" id="error" hidden></p>
       <p class="meta" id="status"></p>
-      <p class="citations" id="citations" hidden></p>
     </section>
   </main>
 
@@ -67,7 +65,6 @@
     const send = document.querySelector('#send');
     const error = document.querySelector('#error');
     const status = document.querySelector('#status');
-    const citationsEl = document.querySelector('#citations');
     const chips = document.querySelector('#chips');
     const school = localStorage.getItem('ppunppun-school') || sessionStorage.getItem('ppunppun-school') || '';
     document.querySelector('#school-label').textContent =
@@ -112,7 +109,6 @@
       const question = input.value.trim();
       if (!question) return;
       error.hidden = true;
-      citationsEl.hidden = true;
       addBubble('user', question);
       input.value = '';
       send.disabled = true;
@@ -128,10 +124,6 @@
           ` · 채팅 ${data.used_conversation_count || 0}개 / 메시지 ${data.used_message_count || 0}개` +
           (data.school ? ` · ${data.school}` : '') +
           ` · source=${data.source || '-'}`;
-        if (Array.isArray(data.citations) && data.citations.length) {
-          citationsEl.hidden = false;
-          citationsEl.textContent = '근거: ' + data.citations.join(' · ');
-        }
       } catch (err) {
         typing.remove();
         error.hidden = false;
