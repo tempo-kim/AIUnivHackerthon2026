@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -40,6 +40,7 @@ from app.schemas import (
 )
 from matching.matcher import match_mentors
 from services import storage
+from services.badwords import contains_badword
 from services.mentors import Mentor, store
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -182,6 +183,16 @@ def _require_room_member(mentor_id: str, junior_id: str, authorization: str) -> 
     if storage.token_mentor(token) == mentor_id or storage.token_junior(token) == junior_id:
         return
     raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+
+
+CHAT_BADWORD_DETAIL = "부적절한 채팅입니다. 바른 표현을 사용해 주세요."
+PROFILE_BADWORD_DETAIL = "부적절한 표현이 포함돼 있어요"
+
+
+def _reject_badwords(detail: str, *texts: str) -> None:
+    """금지어가 있으면 400. 어떤 단어가 걸렸는지는 응답에 넣지 않는다."""
+    if any(contains_badword(text) for text in texts):
+        raise HTTPException(status_code=400, detail=detail)
 
 
 def _check_new_pin(pin: str, pin_confirm: str) -> None:
@@ -471,6 +482,7 @@ async def register_mentor(payload: MentorRegisterRequest):
     if len(introduction) > 300:
         raise HTTPException(status_code=400, detail="소개는 300자 이내로 입력해 주세요.")
     _check_new_pin(payload.pin, payload.pin_confirm)
+    _reject_badwords(PROFILE_BADWORD_DETAIL, display_name, introduction)
     with _register_lock:
         if storage.name_taken(display_name) or any(
             mentor.display_name == display_name for mentor in store.list()
@@ -530,6 +542,7 @@ def register_junior(payload: JuniorRegisterRequest):
     if len(display_name) > 30:
         raise HTTPException(status_code=400, detail="닉네임은 30자 이내로 입력해 주세요.")
     _check_new_pin(payload.pin, payload.pin_confirm)
+    _reject_badwords(PROFILE_BADWORD_DETAIL, display_name)
     try:
         junior_id = storage.add_junior(display_name, payload.pin)
     except sqlite3.IntegrityError as exc:
@@ -701,8 +714,9 @@ def get_admin_report_messages(report_id: str, authorization: str = Header(defaul
 
 
 @app.get("/api/admin/matches")
-def get_admin_matches():
+def get_admin_matches(authorization: str = Header(default="")):
     """시연용 관리자 화면: 전체 대화방 목록(최근순). 메시지 내용은 넣지 않는다."""
+    _require_admin(authorization)
     mentor_names = {mentor.mentor_id: mentor.display_name for mentor in store.list()}
     rooms = storage.list_rooms("")
     junior_ids = [room["room"].partition(":")[2] for room in rooms]
@@ -792,6 +806,7 @@ def send_message(payload: RoomMessageRequest, authorization: str = Header(defaul
     _require_role(payload.senderRole, payload.mentorId, payload.juniorId, authorization)
     if storage.get_end_state(room)["status"] == "ended":
         raise HTTPException(status_code=409, detail="종료된 대화입니다.")
+    _reject_badwords(CHAT_BADWORD_DETAIL, payload.text)
     message = {
         "id": str(uuid.uuid4()),
         "senderRole": payload.senderRole,
@@ -859,10 +874,31 @@ def respond_chat_end(payload: RoomEndResponseRequest, authorization: str = Heade
     return state
 
 
+@app.post("/api/school-bot", response_model=SchoolBotResponse)
+def school_bot(payload: SchoolBotRequest):
+    """선배·후배 채팅을 익명으로 모아 학교 관련 질문에 답한다.
+
+    매칭과 같은 OPENAI_API_KEY / OPENAI_BASE_URL / LLM_MODEL 을 사용한다.
+    """
+    question = (payload.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="질문을 입력해 주세요.")
+    _reject_badwords(CHAT_BADWORD_DETAIL, question)
+
+    recent = storage.list_recent_messages(payload.history_limit)
+    result = answer_school_question(
+        question,
+        school=payload.school or "",
+        messages=recent,
+    )
+    return SchoolBotResponse.model_validate(result)
+
+
 @app.post("/api/reports")
 def create_report(payload: RoomReportRequest, authorization: str = Header(default="")):
     _chat_room(payload.mentorId, payload.juniorId)
     _require_role(payload.reporterRole, payload.mentorId, payload.juniorId, authorization)
+    _reject_badwords(CHAT_BADWORD_DETAIL, payload.details)
     storage.add_report(
         {
             "reportId": str(uuid.uuid4()),
@@ -875,6 +911,15 @@ def create_report(payload: RoomReportRequest, authorization: str = Header(defaul
         }
     )
     return {"status": "received"}
+
+
+@app.middleware("http")
+async def no_cache_frontend_html(request: Request, call_next):
+    """/frontend의 HTML은 항상 서버에 새로 확인하게 해서 바뀐 화면(하단 메뉴 등)이 바로 보이게 한다."""
+    response = await call_next(request)
+    if request.url.path.startswith("/frontend") and response.headers.get("content-type", "").startswith("text/html"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 if FRONTEND_DIR.is_dir():

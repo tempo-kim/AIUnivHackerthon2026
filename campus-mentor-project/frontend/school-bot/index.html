@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
@@ -13,6 +13,7 @@
     .bubble { border-radius: 14px; padding: 12px 14px; line-height: 1.6; font-size: 14px; white-space: pre-wrap; }
     .bubble.user { background: #edeaff; color: #3d2f86; justify-self: end; max-width: 85%; }
     .bubble.bot { background: #f3f5fb; color: #243056; justify-self: start; max-width: 90%; }
+    .bubble.typing { color: #687398; font-style: italic; opacity: .9; }
     .meta { font-size: 12px; color: #8590a9; margin-top: 8px; }
     .composer { display: flex; gap: 8px; }
     .composer textarea { flex: 1; min-height: 54px; border: 1px solid #dce2f5; border-radius: 12px; padding: 12px; font: inherit; resize: vertical; }
@@ -41,6 +42,7 @@
       <p class="meta" id="status"></p>
     </section>
   </main>
+
   <nav class="nav" aria-label="하단 메뉴">
     <a href="../main.html"><span>☘</span>홈</a>
     <a class="active" href="./"><span>🤖</span>학교봇</a>
@@ -55,7 +57,6 @@
     const send = document.querySelector('#send');
     const error = document.querySelector('#error');
     const status = document.querySelector('#status');
-
     const school = localStorage.getItem('ppunppun-school') || sessionStorage.getItem('ppunppun-school') || '';
     document.querySelector('#school-label').textContent =
       (school ? `선택한 학교: ${school}. ` : '') +
@@ -67,26 +68,37 @@
       el.textContent = text;
       log.appendChild(el);
       log.scrollTop = log.scrollHeight;
+      return el;
     }
 
-    addBubble('bot', '안녕하세요! 학교 생활·수강·밥집·진로 관련해서 물어보세요. 저장된 대화가 많을수록 더 구체적으로 답할 수 있어요.');
+    addBubble(
+      'bot',
+      (school ? `${school} ` : '') +
+        '학교 시연 데이터가 준비돼 있어요. 서울대·고려대·연세대·이화여대·서울과기대·서강대 각 200채팅(채팅마다 선후배 대화 30말 이상)을 조회해 답합니다. 맛집·전공 질문을 해보세요.'
+    );
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const question = input.value.trim();
       if (!question) return;
-
       error.hidden = true;
       addBubble('user', question);
       input.value = '';
       send.disabled = true;
-      status.textContent = '답변 작성 중…';
-
+      status.textContent = '데이터베이스 조회중입니다';
+      const typing = addBubble('bot', '데이터베이스 조회중입니다');
+      typing.classList.add('typing');
       try {
         const data = await MentorApi.schoolBot({ question, school, history_limit: 80 });
-        addBubble('bot', data.answer || '(빈 응답)');
-        status.textContent = `참고 메시지 ${data.used_message_count || 0}개 · source=${data.source || '-'}`;
+        typing.classList.remove('typing');
+        typing.textContent = data.answer || '(빈 응답)';
+        status.textContent =
+          `참고 채팅 ${data.used_conversation_count || 0}개 / 메시지 ${data.used_message_count || 0}개` +
+          ` · 시드 채팅 ${data.seed_conversation_count || 0}개` +
+          (data.school ? ` · ${data.school}` : '') +
+          ` · source=${data.source || '-'}`;
       } catch (err) {
+        typing.remove();
         error.hidden = false;
         error.textContent = err.message || String(err);
         status.textContent = '';
