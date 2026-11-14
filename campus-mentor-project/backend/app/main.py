@@ -812,12 +812,7 @@ def get_junior_achievements(authorization: str = Header(default="")):
     unlocked = []
     if mentor_ids:
         unlocked.append("first-step")
-    ended_mentor_ids = {
-        room["room"].split(":", 1)[0]
-        for room in junior_message_rooms
-        if room["status"] == "ended"
-    }
-    if len(ended_mentor_ids) >= 3:
+    if len(rooms) >= 3:
         unlocked.append("explorer")
     return {"unlocked": unlocked}
 

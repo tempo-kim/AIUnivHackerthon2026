@@ -849,7 +849,9 @@ async function checkSeniorLogin() {
 
 // ---- 후배 로그인 확인 ----
 function readJuniorSession() {
-  for (const name of ["sessionStorage", "localStorage"]) {
+  // localStorage is the canonical cross-page session; sessionStorage is a fallback
+  // for browsers where persistent storage is unavailable. Prefer it to stale tab data.
+  for (const name of ["localStorage", "sessionStorage"]) {
     try {
       const saved = JSON.parse(window[name].getItem(JUNIOR_SESSION_KEY) || "null");
       if (saved && saved.junior_id && saved.token) return saved;
@@ -978,7 +980,7 @@ async function init() {
 
   renderMessages(messagesResult.status === "fulfilled" ? messagesResult.value : []);
   if (endStateResult.status === "fulfilled") applyEndState(endStateResult.value);
-  if (messagesResult.status === "rejected" || endStateResult.status === "rejected") {
+  if (messagesResult.status === "rejected") {
     showError(ERROR_MESSAGES.load);
   }
 

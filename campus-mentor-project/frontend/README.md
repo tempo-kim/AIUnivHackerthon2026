@@ -20,7 +20,7 @@
 - 고민 및 최근 매칭 응답: 현재 탭의 `sessionStorage` (`ppunppun-concern`, `ppunppun-choice`, `ppunppun-match`)
 - 다음 추천에서 제외할 선배 ID: 현재 탭의 `sessionStorage` (`ppunppun-seen-mentors`)
 - 관심 선배: 사용자 ID별 `localStorage` (`ppunppun-favorites-v1:<junior_id>`)
-- 업적 표시 상태: 사용자 ID별 브라우저 저장소. 첫걸음·인연 탐험가는 `/api/junior-achievements` 결과와 동기화합니다. 첫걸음은 후배가 첫 메시지를 보낸 시점, 인연 탐험가는 서로 다른 선배 3명에게 메시지를 보내고 대화를 모두 종료한 뒤 추천 화면으로 돌아온 시점에 달성됩니다.
+- 업적 표시 상태: 사용자 ID별 브라우저 저장소. 첫걸음·인연 탐험가는 `/api/junior-achievements` 결과와 동기화합니다. 첫걸음은 후배가 첫 메시지를 보낸 시점, 인연 탐험가는 후배의 채팅 기록 방이 3개 이상일 때 달성됩니다.
 
 로그인 토큰은 API 요청의 Bearer 인증에 사용합니다. 토큰, PIN, API 키를 화면에 노출하거나 코드·로그에 출력하지 마세요.
 

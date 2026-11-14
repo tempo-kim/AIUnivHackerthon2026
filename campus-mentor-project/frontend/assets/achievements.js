@@ -8,13 +8,13 @@
     ['concern', '✍️', '용기 있는 한마디', '직접 쓴 고민으로 추천 요청하기', 'junior'],
     ['recommendation', '✨', '새로운 인연', '선배 3명 추천 결과 받기', 'junior'],
     ['first-step', '👣', '첫걸음', '선배에게 첫 메시지 보내기', 'junior'],
-    ['explorer', '🧭', '인연 탐험가', '서로 다른 선배 3명에게 메시지를 보내고 대화 종료하기', 'junior']
+    ['explorer', '🧭', '인연 탐험가', '서로 다른 선배와 채팅 기록 3개 만들기', 'junior']
   ];
   const titles = ['새싹 선배', '열정적인 선배', '열혈한 선배', '든든한 선배', '믿음직한 선배', '다정한 길잡이', '캠퍼스 멘토', '빛나는 선배', '최고의 길잡이', '전설의 선배'];
   let state = { unlocked: {}, mentors: [], version: achievementVersion }, persistent = true, role = 'junior', storageKey = key, migrationPending = false;
   function browserStorages() {
     const stores = [];
-    for (const name of ['sessionStorage', 'localStorage']) {
+    for (const name of ['localStorage', 'sessionStorage']) {
       try { stores.push(window[name]); } catch (_) {}
     }
     return stores;
@@ -132,7 +132,7 @@
       titles.forEach((name, index) => { const row = document.createElement('div'); row.className = 'achievement-item' + (index === 0 ? ' achievement-current' : ''); row.textContent = (index * .5).toFixed(3) + ' 이상 · ' + name + (index === 0 ? ' (현재)' : ''); items.append(row); });
     } else {
       definitions.filter(d => d[4] === role).forEach(([id, icon, name, description]) => { const earned = Boolean(state.unlocked[id]); const row = document.createElement('div'); row.dataset.achievementId = id; row.className = 'achievement-item' + (earned ? ' achievement-earned' : ' achievement-locked'); const label = document.createElement('strong'); label.textContent = (earned ? icon : '🔒') + ' ' + name + ' · ' + (earned ? '달성' : '미달성'); const detail = document.createElement('p'); detail.textContent = description; row.append(label, detail); items.append(row); });
-      const note = document.createElement('p'); note.textContent = '첫걸음은 첫 메시지 전송 성공 시, 인연 탐험가는 서로 다른 선배 세 명과 메시지를 주고받고 모든 대화를 종료하면 달성돼요.'; dialog.append(note);
+      const note = document.createElement('p'); note.textContent = '첫걸음은 첫 메시지 전송 성공 시, 인연 탐험가는 채팅 기록이 3개 이상 쌓이면 달성돼요.'; dialog.append(note);
     }
     dialog.showModal();
   }
