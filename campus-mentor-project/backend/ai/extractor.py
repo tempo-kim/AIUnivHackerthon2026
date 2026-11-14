@@ -69,6 +69,13 @@ def _request_llm(
         "max_tokens": max_tokens,
         "timeout": timeout,
     }
+    # OpenRouter의 Nemotron 무료 라우트는 response_format=json_object를
+    # 지원하지 않으므로 처음부터 일반 호출로 요청한다. 재시도 문구 판별에
+    # 의존하면 제공자 오류 표현이 달라졌을 때 LLM 호출이 그대로 실패할 수 있다.
+    normalized_model = model_name.lower().removeprefix("openai/")
+    if normalized_model == "nvidia/nemotron-3.5-lightning:free":
+        return _client().chat.completions.create(**request)
+
     try:
         return _client().chat.completions.create(
             **request,

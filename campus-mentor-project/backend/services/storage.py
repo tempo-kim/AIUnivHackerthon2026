@@ -132,6 +132,16 @@ def add_mentor(mentor_id: str, display_name: str, major: str, status: str, bio: 
         )
 
 
+def update_mentor_bio(mentor_id: str, bio: str) -> bool:
+    """Update a registered mentor's introduction without changing account credentials."""
+    with _db() as conn:
+        cursor = conn.execute(
+            "UPDATE mentors SET bio = ? WHERE mentor_id = ?",
+            (bio, mentor_id),
+        )
+        return cursor.rowcount > 0
+
+
 # 선배·후배 계정이 쓰는 테이블 이름 (코드 안의 고정값만 SQL에 넣음)
 _ACCOUNTS = {
     "senior": ("mentors", "mentor_id", "tokens"),
