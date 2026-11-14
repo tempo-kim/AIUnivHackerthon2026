@@ -2,8 +2,8 @@
 (() => {
   const key = 'ppunppun-achievements-v1';
   const definitions = [
-    ['introduction', '🌱', '반가운 선배', '선배 소개를 처음 임시 저장하기', 'senior'],
-    ['storyteller', '📖', '경험 나누미', '200자 이상의 경험 소개를 임시 저장하기', 'senior'],
+    ['introduction', '🌱', '반가운 선배', '선배 소개를 등록하기', 'senior'],
+    ['storyteller', '📖', '경험 나누미', '200자 이상의 경험 소개를 등록하기', 'senior'],
     ['concern', '✍️', '용기 있는 한마디', '직접 쓴 고민으로 추천 요청에 성공하기', 'junior'],
     ['recommendation', '✨', '새로운 인연', '첫 선배 추천 결과 받기', 'junior'],
     ['first-step', '👣', '첫걸음', '선배에게 첫 메시지 보내기', 'junior'],
@@ -87,10 +87,30 @@
     try {
       const session = JSON.parse(localStorage.getItem('ppunppun-junior-session') || 'null');
       if (!session?.token) return;
+      const expectedKey = storageKey;
       const response = await fetch('/api/junior-achievements', { headers: { Authorization: 'Bearer ' + session.token } });
       if (!response.ok) return;
       const data = await response.json();
+      if (role !== 'junior' || storageKey !== expectedKey || accountKey() !== expectedKey) return;
       (Array.isArray(data.unlocked) ? data.unlocked : []).forEach(award);
+    } catch (_) {}
+  }
+  async function syncSeniorProgress() {
+    const expectedKey=storageKey;
+    try {
+      const session=JSON.parse(localStorage.getItem('ppunppun-senior-session')||'null');
+      if (!session?.token || !session?.mentor_id) return;
+      const meResponse=await fetch('/api/mentors/me',{headers:{Authorization:'Bearer '+session.token}});
+      if (!meResponse.ok) return;
+      const me=await meResponse.json();
+      if (role!=='senior'||storageKey!==expectedKey||accountKey()!==expectedKey||String(me.mentor_id)!==String(session.mentor_id)) return;
+      award('introduction');
+      if (state.unlocked.storyteller) return;
+      const mentorsResponse=await fetch('/api/mentors');if(!mentorsResponse.ok)return;
+      const mentors=await mentorsResponse.json();
+      if(role!=='senior'||storageKey!==expectedKey||accountKey()!==expectedKey||!Array.isArray(mentors))return;
+      const mentor=mentors.find(item=>String(item.mentor_id)===String(session.mentor_id));
+      if(typeof mentor?.bio==='string' && mentor.bio.trim().length>=200)award('storyteller');
     } catch (_) {}
   }
   function open(mode) {
@@ -113,7 +133,7 @@
   temperature.onclick = () => open('temperature'); badges.onclick = () => open('badges');
   window.PpunAchievements = {
     award,
-    setRole(value) { role = value === 'senior' ? 'senior' : 'junior'; load(); temperature.hidden = role !== 'senior'; refresh(); if (role === 'junior') syncJuniorProgress(); },
+    setRole(value) { role = value === 'senior' ? 'senior' : 'junior'; load(); temperature.hidden = role !== 'senior'; refresh(); if (role === 'junior') syncJuniorProgress(); else syncSeniorProgress(); },
     selectMentor(id) { if (id) window.ppunSelectedMentor = String(id); },
     chatWithMentor(id) { if (!id || role !== 'junior') return; const value = String(id); if (!state.mentors.includes(value)) state.mentors.push(value); save(); award('first-step'); if (state.mentors.length >= 3) award('explorer'); syncJuniorProgress(); }
   };

@@ -262,8 +262,9 @@ function renderSenior(){
       const data=await res.json().catch(()=>({}));
       if(res.ok){
         seniorPin='';seniorPinConfirm='';
-        try{PpunAchievements.award('introduction');if(introduction.length>=200)PpunAchievements.award('storyteller')}catch(e){}
-        goSeniorInbox(data);return;
+        goSeniorInbox(data);
+        try{PpunAchievements.setRole('senior');PpunAchievements.award('introduction');if(introduction.trim().length>=200)PpunAchievements.award('storyteller')}catch(e){}
+        return;
       }
       if(typeof data.detail==='string')message=data.detail;
     }catch(e){}
