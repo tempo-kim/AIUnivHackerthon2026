@@ -67,8 +67,7 @@
   actions.append(temperature); const header = document.querySelector('header'); const login = header.querySelector('#login'); if (login) actions.append(login); header.append(actions); actions.style.marginLeft = 'auto'; document.querySelector('.nav').append(badges);
   const dialog = document.createElement('dialog'); dialog.className = 'achievement-dialog'; dialog.setAttribute('aria-labelledby', 'achievement-title'); document.body.append(dialog);
   const toast = document.createElement('div'); toast.className = 'achievement-toast'; toast.setAttribute('role', 'status'); toast.hidden = true; document.body.append(toast);
-  const pendingToastKey = 'ppunppun-pending-achievement-toasts';
-  let timeout, toastShowing = false, toastStartedAt = 0;
+  let timeout, toastShowing = false;
   const toastQueue = [];
   function refresh() { badges.setAttribute('aria-label', '업적, 달성한 배지 ' + definitions.filter(([id,,,,owner]) => owner === role && state.unlocked[id]).length + '개'); }
   function save() {
@@ -96,7 +95,6 @@
   function showNextToast() {
     if (toastShowing || !toastQueue.length) return;
     toastShowing = true;
-    toastStartedAt = Date.now();
     toast.textContent = toastQueue.shift();
     toast.hidden = false;
     timeout = setTimeout(() => {
@@ -104,14 +102,6 @@
       toastShowing = false;
       showNextToast();
     }, 3500);
-  }
-  function persistPendingToasts() {
-    const currentWasBarelyShown = toastShowing && !toast.hidden && Date.now() - toastStartedAt < 1200;
-    const pending = [...(currentWasBarelyShown ? [toast.textContent] : []), ...toastQueue];
-    try {
-      if (pending.length) sessionStorage.setItem(pendingToastKey, JSON.stringify(pending));
-      else sessionStorage.removeItem(pendingToastKey);
-    } catch (_) {}
   }
   function award(id) {
     const item = definitions.find(d => d[0] === id);
@@ -157,12 +147,6 @@
     chatWithMentor(id) { if (!id || role !== 'junior') return; const value = String(id); if (!state.mentors.includes(value)) state.mentors.push(value); save(); award('first-step'); syncJuniorProgress(); }
   };
   refresh();
-  window.addEventListener('beforeunload', persistPendingToasts);
-  try {
-    const pending = JSON.parse(sessionStorage.getItem(pendingToastKey) || '[]');
-    sessionStorage.removeItem(pendingToastKey);
-    if (Array.isArray(pending)) toastQueue.push(...pending.filter(message => typeof message === 'string'));
-  } catch (_) {}
+  try { sessionStorage.removeItem('ppunppun-pending-achievement-toasts'); } catch (_) {}
   if (migrationPending) { save(); migrationPending = false; }
-  showNextToast();
 })();
