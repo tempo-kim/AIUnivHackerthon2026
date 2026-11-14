@@ -21,6 +21,7 @@ uvicorn app.main:app --reload --port 8000
 
 LLM 설정은 서버 프로세스의 환경변수로 주입합니다. 민감한 값은 소스, 프론트엔드, 문서, 커밋에 넣지 않습니다. LLM 요청이 실패하면 매칭은 규칙 기반 결과를 반환할 수 있으므로 응답의 `extraction_source`와 `recommendation_source`를 확인하세요.
 
+
 ## 코드 흐름
 
 1. `app/main.py`가 서버 시작 시 `storage.init()`을 호출하고, CSV 기본 프로필과 SQLite에 저장된 가입 선배 프로필을 매칭 저장소에 올립니다.

@@ -3,7 +3,6 @@ import atexit
 import json
 import os
 import time
-import traceback
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from functools import lru_cache
 from pathlib import Path
@@ -18,9 +17,9 @@ load_dotenv(env_path)
 _llm_executor = ThreadPoolExecutor(max_workers=4)
 atexit.register(lambda: _llm_executor.shutdown(wait=False, cancel_futures=True))
 
-# 추천은 첫 호출과 재시도를 합쳐 최대 약 24초까지만 기다린 뒤
-# 규칙 기반 결과로 이어지도록 상한을 둔다. 환경 설정이 더 짧으면 그 값은 유지한다.
-LLM_MATCH_TIMEOUT = min(float(os.getenv("LLM_MATCH_TIMEOUT", "15")), 15.0)
+# 추천은 프론트에서 규칙 결과를 먼저 보여 주고, LLM 요청은 14초 안에 마친다.
+# 너무 긴 응답을 기다리며 결과 반영이 늦어지지 않도록 한다.
+LLM_MATCH_TIMEOUT = min(float(os.getenv("LLM_MATCH_TIMEOUT", "14")), 14.0)
 ALLOWED_HELP_FIELDS = (
     "학교생활",
     "전공공부",
@@ -34,6 +33,12 @@ def _client() -> OpenAI:
     base_url = os.getenv("OPENAI_BASE_URL", "").strip()
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
 
+    # OpenRouter model IDs such as nvidia/nemotron-3.5-super-vl:free are
+    # not valid on api.openai.com. If the deployment omitted the base URL,
+    # route this configured provider model through OpenRouter.
+    if not base_url and _model_name().lower().startswith("nvidia/"):
+        base_url = "https://openrouter.ai/api/v1"
+
     kwargs = {}
     if base_url:
         kwargs["base_url"] = base_url
@@ -41,6 +46,7 @@ def _client() -> OpenAI:
         kwargs["api_key"] = api_key
 
     return OpenAI(**kwargs)
+
 
 def _model_name() -> str:
     configured = os.getenv("LLM_MODEL", "").split("#", 1)[0].strip()
@@ -69,13 +75,9 @@ def _request_llm(
         "max_tokens": max_tokens,
         "timeout": timeout,
     }
-    # OpenRouter의 Nemotron 무료 라우트는 response_format=json_object를
-    # 지원하지 않으므로 처음부터 일반 호출로 요청한다. 재시도 문구 판별에
-    # 의존하면 제공자 오류 표현이 달라졌을 때 LLM 호출이 그대로 실패할 수 있다.
-    normalized_model = model_name.lower().removeprefix("openai/")
-    if normalized_model == "nvidia/nemotron-3.5-lightning:free":
-        return _client().chat.completions.create(**request)
-
+    if model_name.lower().removeprefix("openai/") == "nvidia/nemotron-3.5-super-vl:free":
+        # 이 모델은 추론을 기본 활성화하므로 추천 JSON 생성 시간을 제한한다.
+        request["extra_body"] = {"reasoning": {"max_tokens": 256}}
     try:
         return _client().chat.completions.create(
             **request,
@@ -145,8 +147,7 @@ def extract_concern_info(user_text: str) -> dict:
         print(f"[LLM Error] JSON 파싱 에러: {e}")
         return {"interests": [], "situation": "JSON 파싱 에러", "help_fields": []}
     except Exception as e:
-        print(f"[LLM Error] extract_concern_info 에러 발생: {e}")
-        traceback.print_exc()
+        print(f"[LLM Error] extract_concern_info failed: {type(e).__name__}, status={getattr(e, 'status_code', None)}")
         return {"interests": [], "situation": "정보 추출 실패", "help_fields": []}
 
 def _parse_match_analysis(content: str, candidates: list[dict], top_k: int) -> dict | None:
@@ -195,6 +196,13 @@ def _parse_match_analysis(content: str, candidates: list[dict], top_k: int) -> d
                 continue
             recommendations.append({"mentor_id": mentor_id, "reason": reason})
             seen_rank.add(mentor_id)
+            # New compact responses put score and reason in the same item,
+            # avoiding duplicate output that can hit the provider token cap.
+            if mentor_id not in seen_fit and item.get("fit") is not None:
+                suitability.append(
+                    {"mentor_id": mentor_id, "fit": _fit_score(item.get("fit")), "reason": reason}
+                )
+                seen_fit.add(mentor_id)
             if len(recommendations) >= limit:
                 break
 
@@ -397,7 +405,6 @@ JSON 내부의 설명과 문장은 한국어로 작성한다.
   "interests": [],
   "situation": "",
   "help_fields": [],
-  "suitability": [],
   "recommendations": []
 }
 
@@ -415,21 +422,15 @@ help_fields:
 - 다음 항목에서 최대 2개 선택한다.
 - 학교생활, 전공공부, 진로취업, 인턴대외활동, 대학원연구
 
-suitability:
-- 전체 후보를 비교하고 평가하되 출력은 적합도가 높은 상위 5명까지만 포함한다.
-- mentor_id, fit, reason을 작성한다.
-- reason은 실제 프로필 경험과 고민의 연관성을 한 문장으로 간결하게 설명한다.
-- 적합도 40점 미만은 포함하지 않는다.
-
 recommendations:
 - 적합도가 높은 순서대로 최대 top_k명까지 추천한다.
-- mentor_id와 reason을 작성한다.
-- reason에는 후배의 고민과 선배의 실제 경험이 어떻게 연결되는지 한 문장으로 설명한다.
+- mentor_id, fit, reason을 작성한다. fit은 0~100 정수다.
+- reason은 고민과 실제 프로필 경험의 연결을 80자 이내 한 문장으로 설명한다.
 - 추천할 만한 후보가 부족하면 인원을 억지로 채우지 않는다.
-- suitability의 순위와 recommendations의 순위는 일치해야 한다.
 
 mentor_id는 반드시 전달된 후보의 실제 값을 그대로 사용한다.
 모든 점수는 정수로 작성한다.
+불필요한 분석 문장을 출력하지 말고, JSON의 각 필드를 간결하게 작성한다.
 JSON 외의 어떠한 문장도 출력하지 않는다.
 """
 
@@ -451,14 +452,9 @@ JSON 외의 어떠한 문장도 출력하지 않는다.
     model_name = _model_name()
     attempts = [
         {
-            "timeout": LLM_MATCH_TIMEOUT,
-            "max_tokens": 1400,
+            "timeout": min(LLM_MATCH_TIMEOUT, 13.5),
+            "max_tokens": 850,
             "candidates": request_payload["candidates"],
-        },
-        {
-            "timeout": 22.0 - LLM_MATCH_TIMEOUT,
-            "max_tokens": 900,
-            "candidates": request_payload["candidates"][: max(20, min(50, len(request_payload["candidates"])) )],
         },
     ]
 
@@ -481,7 +477,7 @@ JSON 외의 어떠한 문장도 출력하지 않는다.
                 timeout=attempt["timeout"],
                 max_tokens=attempt["max_tokens"],
             )
-            res = future.result(timeout=attempt["timeout"] + 1.0)
+            res = future.result(timeout=attempt["timeout"] + 0.5)
             elapsed = time.perf_counter() - started
             print(
                 f"[LLM] analyze_and_recommend success attempt={index} candidates={len(attempt['candidates'])} elapsed={elapsed:.2f}s"
@@ -503,8 +499,7 @@ JSON 외의 어떠한 문장도 출력하지 않는다.
             print(f"[LLM Error] 매칭 응답 JSON 파싱 에러: {exc}")
             break
         except Exception as exc:
-            print(f"[LLM Error] analyze_and_recommend 에러 발생: {exc}")
-            traceback.print_exc()
+            print(f"[LLM Error] analyze_and_recommend failed: {type(exc).__name__}, status={getattr(exc, 'status_code', None)}")
             break
 
     return None
