@@ -194,6 +194,7 @@ async function validateJuniorSession(session){
   }catch(e){return null}
 }
 function afterJuniorLogin(){
+  setActiveRole('junior');
   // 채팅 화면에서 로그인하러 왔으면 그 대화로 돌아감
   const next=new URLSearchParams(location.search).get('next')||'';
   if(/^chat\/index\.html\?role=junior&/.test(next)){location.href=next;return}
@@ -201,7 +202,6 @@ function afterJuniorLogin(){
   step=0;render();
 }
 async function startJunior(){
-  setActiveRole('junior');
   const session=savedJuniorSession();
   if(!session){renderJuniorAuth('register');return}
   if(verifiedJuniorId===session.junior_id){afterJuniorLogin();return}
@@ -211,8 +211,8 @@ async function startJunior(){
   const valid=await validateJuniorSession(session);
   if(valid===true){verifiedJuniorId=session.junior_id;afterJuniorLogin();return}
   if(valid===false){clearJuniorSession();renderJuniorAuth('login');return}
-  // 서버 연결이 잠시 불안정해도 저장된 계정의 로그인 화면을 다시 요구하지 않습니다.
-  verifiedJuniorId=session.junior_id;afterJuniorLogin();
+  if(notice)notice.textContent='로그인 상태를 확인하지 못했어요. 서버 연결을 확인한 뒤 다시 시도해 주세요.';
+  if(button){button.disabled=false;button.textContent='선배 추천받기 →'}
 }
 async function logoutJunior(){
   const s=savedJuniorSession();
@@ -338,11 +338,12 @@ function renderSeniorHome(){
   app.querySelector('#edit-senior').onclick=()=>{seniorStep=0;renderSenior()};
   app.querySelector('#switch-role').onclick=()=>{step=-1;render()};
 }
-async function startSenior(){setActiveRole('senior');
-  const session=savedSeniorSession();if(session){goSeniorInbox(session,await savedSeniorIntroduction(session.mentor_id));return}
-  try{const saved=JSON.parse(sessionStorage.getItem('ppunppun-senior-draft')||'null');if(saved&&saved.school===selectedSchool&&saved.display_name&&saved.major&&saved.status&&saved.introduction){Object.assign(seniorAnswers,{display_name:saved.display_name,major:saved.major,status:saved.status,introduction:saved.introduction});renderSeniorHome();return}}catch(e){}
-  seniorStep=0;renderSenior();
+function startSenior(){
+  Object.assign(seniorAnswers,{display_name:'',major:'',status:'',introduction:''});
+  seniorPin='';seniorPinConfirm='';seniorStep=0;
+  renderSenior();
 }
+
 function seniorPayload(){return {schema_version:1,school:selectedSchool,display_name:seniorAnswers.display_name.trim(),major:seniorAnswers.major.trim(),status:seniorAnswers.status.trim(),introduction:seniorAnswers.introduction.trim()}}
 function renderSeniorIntroductionEdit(){
   const session=savedSeniorSession();
@@ -400,8 +401,8 @@ function render(){
     app.querySelector('#change-school').onclick=renderSchool;
     if(app.querySelector('#start'))app.querySelector('#start').onclick=startJunior;
     if(app.querySelector('#senior'))app.querySelector('#senior').onclick=startSenior;
-    if(app.querySelector('#junior-login'))app.querySelector('#junior-login').onclick=()=>{setActiveRole('junior');renderJuniorAuth('login')};
-    if(app.querySelector('#senior-login'))app.querySelector('#senior-login').onclick=()=>{setActiveRole('senior');renderSeniorLogin()};
+    if(app.querySelector('#junior-login'))app.querySelector('#junior-login').onclick=()=>renderJuniorAuth('login');
+    if(app.querySelector('#senior-login'))app.querySelector('#senior-login').onclick=()=>renderSeniorLogin();
     return;
   }
   const juniorSession=savedJuniorSession();
