@@ -10,7 +10,7 @@ from typing import Any
 import chromadb
 from dotenv import load_dotenv
 
-from ai.extractor import _client
+from ai.embedding import embedding_client, embedding_extra_body, embedding_model_name
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 PROJECT_DIR = BASE_DIR.parent
@@ -40,12 +40,7 @@ class DocChunk:
 
 
 def _embedding_model_name() -> str:
-	return (
-		os.getenv("EMBEDDING_MODEL", "").strip()
-		or os.getenv("NIM_EMBEDDING_MODEL", "").strip()
-		or os.getenv("NVIDIA_EMBEDDING_MODEL", "").strip()
-		or "nvidia/nv-embedqa-e5-v5"
-	)
+	return embedding_model_name()
 
 
 def _serialize_row(row: dict[str, str]) -> str:
@@ -182,17 +177,23 @@ def _load_seed_chat_chunks() -> list[DocChunk]:
 
 def _embed_texts(texts: list[str], model: str, batch_size: int = 32) -> list[list[float]]:
 	all_vectors: list[list[float]] = []
-	client = _client()
+	client = embedding_client()
 	for i in range(0, len(texts), batch_size):
 		batch = texts[i : i + batch_size]
-		response = client.embeddings.create(model=model, input=batch)
+		response = client.embeddings.create(
+			model=model,
+			input=batch,
+			extra_body=embedding_extra_body("passage"),
+		)
 		vectors = [item.embedding for item in response.data]
 		all_vectors.extend(vectors)
 	return all_vectors
 
 
 def build_vector_db() -> None:
+	global COLLECTION_NAME
 	load_dotenv(ENV_PATH)
+	COLLECTION_NAME = os.getenv("RAG_COLLECTION_NAME", "campus_rag")
 
 	model = _embedding_model_name()
 	print(f"[build_vector_db] embedding model: {model}")

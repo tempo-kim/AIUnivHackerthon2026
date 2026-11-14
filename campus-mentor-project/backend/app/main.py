@@ -405,10 +405,11 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
         )
 
     extraction, source = _extract(payload)
-    ranked = _rank_mentors(payload, extraction, mentors, payload.top_k)
+    # Rank the full live mentor pool before applying the requested page offset.
+    ranked = _rank_mentors(payload, extraction, mentors, len(mentors))
     return MatchResponse(
         extraction=extraction,
-        matches=[MentorMatch(**row) for row in ranked],
+        matches=[MentorMatch(**row) for row in ranked[payload.rank_offset : payload.rank_offset + payload.top_k]],
         extraction_source=source,
         recommendation_source="rules",
         mentor_source=mentor_source,
@@ -744,6 +745,19 @@ def get_rooms(mentorId: str, authorization: str = Header(default="")):
     return rooms
 
 
+@app.get("/api/junior-rooms")
+def get_junior_rooms(authorization: str = Header(default="")):
+    junior_id = storage.token_junior(_bearer(authorization))
+    if not junior_id:
+        raise HTTPException(status_code=401, detail="후배 로그인이 필요합니다.")
+    rooms = [room for room in storage.list_rooms("") if room["room"].endswith(":" + junior_id)]
+    mentors = {mentor.mentor_id: mentor.display_name for mentor in store.list()}
+    for room in rooms:
+        room["mentorId"] = room["room"].split(":", 1)[0]
+        room["mentorName"] = mentors.get(room["mentorId"], room["mentorId"])
+    return sorted(rooms, key=lambda room: room["lastAt"], reverse=True)
+
+
 @app.post("/api/messages")
 def send_message(payload: RoomMessageRequest, authorization: str = Header(default="")):
     room = _chat_room(payload.mentorId, payload.juniorId)
@@ -777,6 +791,10 @@ def request_chat_end(payload: RoomEndRequest, authorization: str = Header(defaul
     _require_role(payload.requesterRole, payload.mentorId, payload.juniorId, authorization)
     state = storage.get_end_state(room)
     if state["status"] != "active":
+        return state
+    if payload.requesterRole == "junior" and not storage.has_mentor_account(payload.mentorId):
+        state.update(status="ended", requestedBy=None, declinedBy=None)
+        storage.save_end_state(room, state)
         return state
     state.update(status="pending", requestedBy=payload.requesterRole, declinedBy=None)
     storage.save_end_state(room, state)

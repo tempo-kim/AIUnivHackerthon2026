@@ -330,6 +330,7 @@ async function sendText(text) {
   updateSendState();
   try {
     appendMessage(await ChatApi.sendMessage(mentorId, juniorId, myRole, text));
+    if (myRole === "junior") window.PpunAchievements?.chatWithMentor(mentorId);
     hideError();
     return true;
   } catch {
@@ -366,6 +367,10 @@ function applyEndState(state, { live = false } = {}) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
     input.value = "";
     input.placeholder = "종료된 대화입니다";
+    if (myRole === "junior") {
+      try { sessionStorage.setItem("ppunppun-return-to-results", "1"); } catch {}
+      setTimeout(() => location.replace("../result/index.html"), 900);
+    }
   } else if (status === "pending" && requestedBy === myRole) {
     showNotice(`${ROLE_LABELS[partnerRole]}에게 대화 종료를 요청했어요. 응답을 기다리는 중이에요.`);
   } else if (status === "active" && live && declinedBy === partnerRole) {
@@ -776,6 +781,7 @@ async function loadJuniorName() {
 }
 
 async function init() {
+  window.PpunAchievements?.setRole(myRole);
   if (myRole === "junior" && !(await checkJuniorLogin())) return;
   const isInbox = myRole === "senior" && !juniorId;
   if (!ROLE_LABELS[myRole] || !mentorId || (!isInbox && !JUNIOR_ID_PATTERN.test(juniorId))) {

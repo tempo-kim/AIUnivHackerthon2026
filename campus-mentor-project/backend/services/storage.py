@@ -117,6 +117,11 @@ def name_taken(display_name: str) -> bool:
     return row is not None
 
 
+def has_mentor_account(mentor_id: str) -> bool:
+    with _db() as conn:
+        return conn.execute("SELECT 1 FROM mentors WHERE mentor_id = ?", (mentor_id,)).fetchone() is not None
+
+
 def add_mentor(mentor_id: str, display_name: str, major: str, status: str, bio: str, pin: str) -> None:
     """PIN은 솔트를 붙인 해시로만 저장한다. 닉네임이 겹치면 sqlite3.IntegrityError."""
     salt = secrets.token_hex(16)

@@ -10,6 +10,7 @@ import chromadb
 from dotenv import load_dotenv
 
 from ai.extractor import _client, _model_name
+from ai.embedding import embedding_client, embedding_extra_body, embedding_model_name
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 PROJECT_DIR = BASE_DIR.parent
@@ -22,12 +23,7 @@ SEED_CHAT_PATH = DATA_DIR / "school_bot_seed_chats.json"
 
 
 def _embedding_model_name() -> str:
-	return (
-		os.getenv("EMBEDDING_MODEL", "").strip()
-		or os.getenv("NIM_EMBEDDING_MODEL", "").strip()
-		or os.getenv("NVIDIA_EMBEDDING_MODEL", "").strip()
-		or "nvidia/nv-embedqa-e5-v5"
-	)
+	return embedding_model_name()
 
 
 def _collection():
@@ -38,7 +34,11 @@ def _collection():
 
 
 def _embed_query(query: str) -> list[float]:
-	resp = _client().embeddings.create(model=_embedding_model_name(), input=[query])
+	resp = embedding_client().embeddings.create(
+		model=_embedding_model_name(),
+		input=[query],
+		extra_body=embedding_extra_body("query"),
+	)
 	return resp.data[0].embedding
 
 
