@@ -36,6 +36,11 @@ const nextMatch=document.querySelector('#reroll');
 const chatUrl=id=>'../chat/index.html?role=junior&mentor='+encodeURIComponent(id);
 let result=null;
 try{result=JSON.parse(sessionStorage.getItem('ppunppun-match')||'null')}catch(e){}
+let seenMentorIds=[];
+try{seenMentorIds=JSON.parse(sessionStorage.getItem('ppunppun-seen-mentors')||'[]')}catch(e){}
+if(!Array.isArray(seenMentorIds))seenMentorIds=[];
+if(Array.isArray(result?.matches))seenMentorIds=[...new Set([...seenMentorIds,...result.matches.map(m=>String(m.mentor_id)).filter(Boolean)])];
+try{sessionStorage.setItem('ppunppun-seen-mentors',JSON.stringify(seenMentorIds))}catch(e){}
 let favoritesOnly=false;
 function favoriteKey(){try{const user=JSON.parse(localStorage.getItem('ppunppun-junior-session')||'null');return 'ppunppun-favorites-v1:'+encodeURIComponent(user?.junior_id||'guest')}catch(e){return 'ppunppun-favorites-v1:guest'}}
 function loadFavorites(){try{const data=JSON.parse(localStorage.getItem(favoriteKey())||'[]');return Array.isArray(data)?data.filter(m=>m&&m.mentor_id):[]}catch(e){return []}}
@@ -92,9 +97,6 @@ if(favoritesOnly&&!matches.length){notice.textContent='아직 찜한 선배가 �
   nextMatch.hidden=false;
 }
 nextMatch.onclick=async()=>{
-  let offset=0;
-  try{offset=Number(sessionStorage.getItem('ppunppun-match-offset')||'0')}catch(e){}
-  const nextOffset=offset+3;
   nextMatch.disabled=true;
   nextMatch.textContent='다음 선배를 찾는 중...';
   notice.textContent='이전 추천 다음 순위의 선배를 찾고 있어요.';
@@ -104,7 +106,7 @@ nextMatch.onclick=async()=>{
     try{choice=JSON.parse(sessionStorage.getItem('ppunppun-choice')||'null')}catch(e){}
     const base=location.protocol==='file:'?'http://127.0.0.1:8000':'';
     const extraction=(result&&result.extraction)?result.extraction:null;
-    const response=await fetch(base+'/api/match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({concern_text:concernText,choice:choice,extraction:extraction,top_k:3,rank_offset:nextOffset,use_llm:false})});
+    const response=await fetch(base+'/api/match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({concern_text:concernText,choice:choice,extraction:extraction,top_k:3,rank_offset:0,exclude_mentor_ids:seenMentorIds,use_llm:false})});
     if(!response.ok)throw new Error('요청 실패');
     const nextResult=await response.json();
     if(!Array.isArray(nextResult.matches)||nextResult.matches.length===0){
@@ -113,7 +115,8 @@ nextMatch.onclick=async()=>{
       nextMatch.textContent='다른 선배 보기';
       return;
     }
-    sessionStorage.setItem('ppunppun-match-offset',String(nextOffset));
+    seenMentorIds=[...new Set([...seenMentorIds,...nextResult.matches.map(m=>String(m.mentor_id)).filter(Boolean)])];
+    sessionStorage.setItem('ppunppun-seen-mentors',JSON.stringify(seenMentorIds));
     sessionStorage.setItem('ppunppun-match',JSON.stringify(nextResult));
     location.reload();
   }catch(e){

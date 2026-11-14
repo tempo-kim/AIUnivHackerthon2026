@@ -346,6 +346,7 @@ async function sendText(text) {
 // ---- 대화 종료 ----
 // live: 지금 막 바뀐 상태인지 (새로고침으로 불러온 상태면 거절 안내를 다시 띄우지 않음)
 function applyEndState(state, { live = false } = {}) {
+  const previousStatus = endState.status;
   endState = state;
   const { status, requestedBy, declinedBy } = state;
 
@@ -367,8 +368,7 @@ function applyEndState(state, { live = false } = {}) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
     input.value = "";
     input.placeholder = "종료된 대화입니다";
-    if (myRole === "junior") {
-      try { sessionStorage.setItem("ppunppun-return-to-results", "1"); } catch {}
+    if (myRole === "junior" && live && previousStatus !== "ended") {
       setTimeout(() => location.replace("../result/index.html"), 900);
     }
   } else if (status === "pending" && requestedBy === myRole) {

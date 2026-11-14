@@ -407,6 +407,8 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
     extraction, source = _extract(payload)
     # Rank the full live mentor pool before applying the requested page offset.
     ranked = _rank_mentors(payload, extraction, mentors, len(mentors))
+    excluded = {str(mentor_id) for mentor_id in payload.exclude_mentor_ids}
+    ranked = [row for row in ranked if str(row["mentor_id"]) not in excluded]
     return MatchResponse(
         extraction=extraction,
         matches=[MentorMatch(**row) for row in ranked[payload.rank_offset : payload.rank_offset + payload.top_k]],
@@ -756,6 +758,21 @@ def get_junior_rooms(authorization: str = Header(default="")):
         room["mentorId"] = room["room"].split(":", 1)[0]
         room["mentorName"] = mentors.get(room["mentorId"], room["mentorId"])
     return sorted(rooms, key=lambda room: room["lastAt"], reverse=True)
+
+
+@app.get("/api/junior-achievements")
+def get_junior_achievements(authorization: str = Header(default="")):
+    junior_id = storage.token_junior(_bearer(authorization))
+    if not junior_id:
+        raise HTTPException(status_code=401, detail="후배 로그인이 필요합니다.")
+    rooms = [room for room in storage.list_rooms("") if room["room"].endswith(":" + junior_id)]
+    mentor_ids = {room["room"].split(":", 1)[0] for room in rooms if room["messageCount"] > 0}
+    unlocked = []
+    if mentor_ids:
+        unlocked.append("first-step")
+    if len(mentor_ids) >= 3:
+        unlocked.append("explorer")
+    return {"unlocked": unlocked}
 
 
 @app.post("/api/messages")

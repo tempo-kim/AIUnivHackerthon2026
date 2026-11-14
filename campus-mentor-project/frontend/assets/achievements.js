@@ -48,6 +48,17 @@
     toast.textContent = item[1] + ' ‘' + item[2] + '’ 배지를 받았어요!'; toast.hidden = false;
     clearTimeout(timeout); timeout = setTimeout(() => { toast.hidden = true; }, 3500);
   }
+  async function syncJuniorProgress() {
+    if (role !== 'junior') return;
+    try {
+      const session = JSON.parse(localStorage.getItem('ppunppun-junior-session') || 'null');
+      if (!session?.token) return;
+      const response = await fetch('/api/junior-achievements', { headers: { Authorization: 'Bearer ' + session.token } });
+      if (!response.ok) return;
+      const data = await response.json();
+      (Array.isArray(data.unlocked) ? data.unlocked : []).forEach(award);
+    } catch (_) {}
+  }
   function open(mode) {
     dialog.replaceChildren();
     const head = document.createElement('div'); head.className = 'achievement-heading';
@@ -67,9 +78,9 @@
   temperature.onclick = () => open('temperature'); badges.onclick = () => open('badges');
   window.PpunAchievements = {
     award,
-    setRole(value) { role = value === 'senior' ? 'senior' : 'junior'; load(); temperature.hidden = role !== 'senior'; refresh(); },
+    setRole(value) { role = value === 'senior' ? 'senior' : 'junior'; load(); temperature.hidden = role !== 'senior'; refresh(); if (role === 'junior') syncJuniorProgress(); },
     selectMentor(id) { if (id) window.ppunSelectedMentor = String(id); },
-    chatWithMentor(id) { if (!id || role !== 'junior') return; const value = String(id); if (!state.mentors.includes(value)) state.mentors.push(value); save(); award('first-step'); if (state.mentors.length >= 3) award('explorer'); }
+    chatWithMentor(id) { if (!id || role !== 'junior') return; const value = String(id); if (!state.mentors.includes(value)) state.mentors.push(value); save(); award('first-step'); if (state.mentors.length >= 3) award('explorer'); syncJuniorProgress(); }
   };
   refresh();
 })();
