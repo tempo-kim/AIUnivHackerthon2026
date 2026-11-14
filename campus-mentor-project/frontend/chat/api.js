@@ -97,6 +97,13 @@ const ChatApi = (() => {
     return request(`/api/rooms?mentorId=${encodeURIComponent(mentorId)}`);
   }
 
+  // GET /api/juniors/rooms → 로그인한 후배의 대화방
+  // [{ mentorId, mentorName, mentorMajor, lastMessage, lastAt, lastSenderRole, status, messageCount }] 최근순
+  async function listJuniorRooms() {
+    if (USE_MOCK) return []; // 목 모드는 선배 정보가 없어 목록을 만들지 않음
+    return request("/api/juniors/rooms");
+  }
+
   // ---- 대화 종료 ----
   // 상태 형식: { status: "active" | "pending" | "ended", requestedBy, declinedBy }
   function normalizeEndState(raw) {
@@ -182,10 +189,10 @@ const ChatApi = (() => {
     return request(role === "junior" ? "/api/juniors/me" : "/api/mentors/me");
   }
 
-  // POST /api/mentors/logout → 서버에서 토큰 삭제
-  async function logout() {
+  // POST /api/mentors/logout 또는 /api/juniors/logout → 서버에서 토큰 삭제
+  async function logout(role = "senior") {
     if (USE_MOCK) return null;
-    return request("/api/mentors/logout", { method: "POST" });
+    return request(role === "junior" ? "/api/juniors/logout" : "/api/mentors/logout", { method: "POST" });
   }
 
   // 대화 초기화는 아직 서버 API가 없어 목 모드에서만 지원
@@ -199,6 +206,7 @@ const ChatApi = (() => {
     sendMessage,
     getMessages,
     listRooms,
+    listJuniorRooms,
     getEndState,
     requestEnd,
     respondEnd,
