@@ -96,5 +96,7 @@ class SchoolBotResponse(BaseModel):
     seed_message_count: int = 0
     used_conversation_count: int = 0
     seed_conversation_count: int = 0
+    used_fact_count: int = 0
+    fact_card_count: int = 0
     school: str = ""
     source: str = "llm"

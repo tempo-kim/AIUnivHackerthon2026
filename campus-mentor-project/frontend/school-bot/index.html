@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
@@ -9,12 +9,18 @@
     body { background: #f7f8ff; color: #1b2451; }
     .bot-shell { max-width: 720px; margin: 24px auto 110px; padding: 0 20px; }
     .bot-card { background: #fff; border: 1px solid #e1e5f5; border-radius: 20px; padding: 20px; box-shadow: 0 12px 40px #30346b12; }
-    .bot-log { display: grid; gap: 10px; max-height: 55vh; overflow: auto; padding: 4px; margin-bottom: 14px; }
+    .bot-log { display: grid; gap: 10px; max-height: 50vh; overflow: auto; padding: 4px; margin-bottom: 14px; }
     .bubble { border-radius: 14px; padding: 12px 14px; line-height: 1.6; font-size: 14px; white-space: pre-wrap; }
     .bubble.user { background: #edeaff; color: #3d2f86; justify-self: end; max-width: 85%; }
     .bubble.bot { background: #f3f5fb; color: #243056; justify-self: start; max-width: 90%; }
     .bubble.typing { color: #687398; font-style: italic; opacity: .9; }
     .meta { font-size: 12px; color: #8590a9; margin-top: 8px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+    .chips button {
+      border: 1px solid #d5dcf3; background: #f5f7ff; color: #31437a;
+      border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer;
+    }
+    .chips button:hover { background: #ebefff; }
     .composer { display: flex; gap: 8px; }
     .composer textarea { flex: 1; min-height: 54px; border: 1px solid #dce2f5; border-radius: 12px; padding: 12px; font: inherit; resize: vertical; }
     .composer button { border: 0; border-radius: 12px; background: #345fe0; color: #fff; font-weight: 700; padding: 0 18px; cursor: pointer; }
@@ -29,13 +35,15 @@
     <div class="logo"><a href="../main.html">🌱 뻔뻔하게</a></div>
     <a href="../main.html" style="color:#687398;text-decoration:none;font-size:14px">홈으로</a>
   </header>
+
   <main class="bot-shell">
     <section class="bot-card">
       <h1 style="margin:0 0 6px;font-size:22px;letter-spacing:-.03em">학교 생활 챗봇</h1>
-      <p class="meta" id="school-label">선택한 학교의 선배·후배 채팅을 익명으로 모아, 매칭과 같은 AI로 학교 얘기를 답해 줍니다.</p>
+      <p class="meta" id="school-label">실존 맛집·교통·전공 사실 DB + 선후배 긴 채팅을 조회해 답합니다.</p>
+      <div class="chips" id="chips" aria-label="추천 질문"></div>
       <div class="bot-log" id="log" aria-live="polite"></div>
       <form class="composer" id="form">
-        <textarea id="question" placeholder="예: 우리 학교 수강신청할 때 사람들이 뭐라고 해요?" maxlength="1000" required></textarea>
+        <textarea id="question" placeholder="예: 우리 학교 근처 실제 맛집 / 지하철 몇 번 출구 / AI 전공 뭐 들어?" maxlength="1000" required></textarea>
         <button type="submit" id="send">묻기</button>
       </form>
       <p class="error" id="error" hidden></p>
@@ -57,10 +65,29 @@
     const send = document.querySelector('#send');
     const error = document.querySelector('#error');
     const status = document.querySelector('#status');
+    const chips = document.querySelector('#chips');
     const school = localStorage.getItem('ppunppun-school') || sessionStorage.getItem('ppunppun-school') || '';
     document.querySelector('#school-label').textContent =
-      (school ? `선택한 학교: ${school}. ` : '') +
-      '선배·후배 채팅을 익명으로 모아, 매칭과 같은 AI로 학교 얘기를 답해 줍니다.';
+      (school ? `선택한 학교: ${school}. ` : '학교를 홈에서 먼저 고르면 더 정확해요. ') +
+      '공개 안내·후기 기반 사실 카드와 선후배 긴 채팅을 함께 조회합니다.';
+
+    const SUGGEST = {
+      '서울대학교': ['서울대입구역에서 셔틀 어떻게 타요?', '샤로수길 실제 맛집 추천해줘', '연합전공 인공지능 뭐 들어야 해?'],
+      '고려대학교': ['안암역이랑 고려대역 뭐가 달라요?', '고른햇살·이세돈가스 어때요?', '정보대학 AI 전공 과목 팁'],
+      '연세대학교': ['신촌 고삼이·담산 어때요?', '연세로에서 밥약 어디?', '인공지능융합대학 뭐가 달라요?'],
+      '이화여자대학교': ['유야케도쿄 웨이팅 팁', '이대역에서 ECC 어떻게 가요?', '인공지능전공 사무실 어디예요?'],
+      '서울과학기술대학교': ['공릉 기린라멘·떡볶이 추천', '공릉역에서 학교 어떻게 가요?', '인공지능응용학과 전필이 뭐예요?'],
+      '서강대학교': ['대흥역이랑 신촌역 뭐가 나아요?', '김숙성·곱분이곱창 어때요?', '서강대 인공지능학과 특징'],
+    };
+    const defaultSuggest = ['근처 실제 맛집 추천해줘', '지하철·통학 팁', 'AI 전공 수업 어떻게 버티나요?'];
+    const suggestions = SUGGEST[school] || defaultSuggest;
+    suggestions.forEach((text) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = text;
+      btn.onclick = () => { input.value = text; input.focus(); };
+      chips.appendChild(btn);
+    });
 
     function addBubble(role, text) {
       const el = document.createElement('div');
@@ -74,7 +101,7 @@
     addBubble(
       'bot',
       (school ? `${school} ` : '') +
-        '학교 시연 데이터가 준비돼 있어요. 서울대·고려대·연세대·이화여대·서울과기대·서강대 각 200채팅(채팅마다 선후배 대화 30말 이상)을 조회해 답합니다. 맛집·전공 질문을 해보세요.'
+        '사실 DB(교통·실존 맛집·공식 AI 전공) + 학교당 200개 긴 채팅을 검색해 답해요. 아래 추천 질문을 눌러보세요.'
     );
 
     form.addEventListener('submit', async (e) => {
@@ -93,8 +120,8 @@
         typing.classList.remove('typing');
         typing.textContent = data.answer || '(빈 응답)';
         status.textContent =
-          `참고 채팅 ${data.used_conversation_count || 0}개 / 메시지 ${data.used_message_count || 0}개` +
-          ` · 시드 채팅 ${data.seed_conversation_count || 0}개` +
+          `사실 ${data.used_fact_count || 0}/${data.fact_card_count || 0}` +
+          ` · 채팅 ${data.used_conversation_count || 0}개 / 메시지 ${data.used_message_count || 0}개` +
           (data.school ? ` · ${data.school}` : '') +
           ` · source=${data.source || '-'}`;
       } catch (err) {
