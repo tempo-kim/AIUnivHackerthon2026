@@ -132,7 +132,9 @@
       titles.forEach((name, index) => { const row = document.createElement('div'); row.className = 'achievement-item' + (index === 0 ? ' achievement-current' : ''); row.textContent = (index * .5).toFixed(3) + ' 이상 · ' + name + (index === 0 ? ' (현재)' : ''); items.append(row); });
     } else {
       definitions.filter(d => d[4] === role).forEach(([id, icon, name, description]) => { const earned = Boolean(state.unlocked[id]); const row = document.createElement('div'); row.dataset.achievementId = id; row.className = 'achievement-item' + (earned ? ' achievement-earned' : ' achievement-locked'); const label = document.createElement('strong'); label.textContent = (earned ? icon : '🔒') + ' ' + name + ' · ' + (earned ? '달성' : '미달성'); const detail = document.createElement('p'); detail.textContent = description; row.append(label, detail); items.append(row); });
-      const note = document.createElement('p'); note.textContent = '첫걸음은 첫 메시지 전송 성공 시, 인연 탐험가는 채팅 기록이 3개 이상 쌓이면 달성돼요.'; dialog.append(note);
+      const note = document.createElement('p'); note.textContent = role === 'senior'
+        ? '반가운 선배는 프로필 저장 시, 경험 나누미는 200자 이상의 경험 소개를 저장하면 달성돼요.'
+        : '첫걸음은 첫 메시지 전송 성공 시, 인연 탐험가는 채팅 기록이 3개 이상 쌓이면 달성돼요.'; dialog.append(note);
     }
     dialog.showModal();
   }
@@ -141,6 +143,11 @@
     award,
     setRole(value) { role = value === 'senior' ? 'senior' : 'junior'; load(); temperature.hidden = role !== 'senior'; refresh(); if (migrationPending) { save(); migrationPending = false; } if (role === 'junior') syncJuniorProgress(); },
     selectMentor(id) { if (id) window.ppunSelectedMentor = String(id); },
+    saveSeniorProfile(introduction) {
+      if (role !== 'senior') return;
+      award('introduction');
+      if (String(introduction || '').trim().length >= 200) award('storyteller');
+    },
     chatWithMentor(id) { if (!id || role !== 'junior') return; const value = String(id); if (!state.mentors.includes(value)) state.mentors.push(value); save(); award('first-step'); syncJuniorProgress(); }
   };
   refresh();
