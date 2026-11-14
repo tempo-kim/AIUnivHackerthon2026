@@ -138,7 +138,18 @@ function showError(text) {
 }
 
 function hideError() {
+  clearTimeout(briefErrorTimer);
   errorBanner.hidden = true;
+}
+
+// 잠깐만 보여 주는 빨간 안내 (부적절한 채팅 차단 등)
+let briefErrorTimer = null;
+function showBriefError(text, ms = 2000) {
+  showError(text);
+  clearTimeout(briefErrorTimer);
+  briefErrorTimer = setTimeout(() => {
+    if (errorBanner.textContent === text) errorBanner.hidden = true;
+  }, ms);
 }
 
 function showNotice(text) {
@@ -333,9 +344,13 @@ async function sendText(text) {
     if (myRole === "junior") window.PpunAchievements?.chatWithMentor(mentorId);
     hideError();
     return true;
-  } catch {
-    // 입력한 내용은 지우지 않아서 바로 다시 보낼 수 있음
-    showError(ERROR_MESSAGES.send);
+  } catch (err) {
+    // 입력한 내용은 지우지 않아서 바로 고치거나 다시 보낼 수 있음
+    if (err.status === 400) {
+      showBriefError(err.detail || BadWords.CHAT_MESSAGE); // 부적절한 채팅: 말풍선 없이 2초 안내
+    } else {
+      showError(ERROR_MESSAGES.send);
+    }
     return false;
   } finally {
     isSending = false;
@@ -423,8 +438,8 @@ async function handleReportSubmit(e) {
     reportForm.hidden = true;
     reportDone.hidden = false;
     $("report-close").focus();
-  } catch {
-    reportError.textContent = ERROR_MESSAGES.report;
+  } catch (err) {
+    reportError.textContent = err.status === 400 && err.detail ? err.detail : ERROR_MESSAGES.report;
     reportError.hidden = false;
   } finally {
     reportSubmit.disabled = false;

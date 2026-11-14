@@ -268,7 +268,7 @@ def list_messages(room: str) -> list[dict]:
 
 
 def list_recent_messages(limit: int = 80) -> list[dict]:
-    """학교 챗봇용: 최근 메시지를 역할·내용만 가져온다."""
+    """학교 챗봇용: 최근 메시지를 역할·내용만 가져와 ID는 빼 둔다."""
     limit = max(1, min(int(limit), 200))
     with _db() as conn:
         rows = conn.execute(
@@ -280,6 +280,7 @@ def list_recent_messages(limit: int = 80) -> list[dict]:
             """,
             (limit,),
         ).fetchall()
+    # 시간순(오래된 것 → 최신)으로 뒤집어서 문맥이 자연스럽게
     rows = list(reversed(rows))
     return [
         {
