@@ -18,8 +18,9 @@ load_dotenv(env_path)
 _llm_executor = ThreadPoolExecutor(max_workers=4)
 atexit.register(lambda: _llm_executor.shutdown(wait=False, cancel_futures=True))
 
-# 프론트 요청 제한을 고려하되, LLM 응답 시간을 감안해 타임아웃을 넉넉히 늘립니다. (2.5초 -> 15초)
-LLM_MATCH_TIMEOUT = float(os.getenv("LLM_MATCH_TIMEOUT", "25"))
+# 추천은 첫 호출과 재시도를 합쳐 최대 약 24초까지만 기다린 뒤
+# 규칙 기반 결과로 이어지도록 상한을 둔다. 환경 설정이 더 짧으면 그 값은 유지한다.
+LLM_MATCH_TIMEOUT = min(float(os.getenv("LLM_MATCH_TIMEOUT", "15")), 15.0)
 ALLOWED_HELP_FIELDS = (
     "학교생활",
     "전공공부",
@@ -444,12 +445,12 @@ JSON 외의 어떠한 문장도 출력하지 않는다.
     attempts = [
         {
             "timeout": LLM_MATCH_TIMEOUT,
-            "max_tokens": 2200,
+            "max_tokens": 1400,
             "candidates": request_payload["candidates"],
         },
         {
-            "timeout": LLM_MATCH_TIMEOUT + 10.0,
-            "max_tokens": 1600,
+            "timeout": 22.0 - LLM_MATCH_TIMEOUT,
+            "max_tokens": 900,
             "candidates": request_payload["candidates"][: max(20, min(50, len(request_payload["candidates"])) )],
         },
     ]

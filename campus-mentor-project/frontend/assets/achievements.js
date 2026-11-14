@@ -45,11 +45,8 @@
           definitions.forEach(([id]) => { if (typeof saved.unlocked[id] === 'string') state.unlocked[id] = saved.unlocked[id]; });
           state.mentors = [...new Set(saved.mentors.filter(id => typeof id === 'string'))];
           if (saved.version !== achievementVersion) {
-            // Previous versions unlocked these based on opening chats or any non-empty result.
-            // Rebuild them using current message and three-result criteria instead.
-            delete state.unlocked.recommendation;
-            delete state.unlocked['first-step'];
-            delete state.unlocked.explorer;
+            // Preserve earned badges across app upgrades. Criteria changes must not
+            // revoke an achievement or make its one-time toast appear again.
             migrationPending = true;
           }
           break;
@@ -74,7 +71,7 @@
     state.version = achievementVersion;
     let saved = false;
     for (const storage of browserStorages()) {
-      try { storage.setItem(storageKey, JSON.stringify(state)); saved = true; break; } catch (_) {}
+      try { storage.setItem(storageKey, JSON.stringify(state)); saved = true; } catch (_) {}
     }
     if (!saved) persistent = false;
     refresh();
