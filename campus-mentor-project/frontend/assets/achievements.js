@@ -38,15 +38,49 @@
   actions.append(temperature); const header = document.querySelector('header'); const login = header.querySelector('#login'); if (login) actions.append(login); header.append(actions); actions.style.marginLeft = 'auto'; document.querySelector('.nav').append(badges);
   const dialog = document.createElement('dialog'); dialog.className = 'achievement-dialog'; dialog.setAttribute('aria-labelledby', 'achievement-title'); document.body.append(dialog);
   const toast = document.createElement('div'); toast.className = 'achievement-toast'; toast.setAttribute('role', 'status'); toast.hidden = true; document.body.append(toast);
-  let timeout;
+  const pendingToastKey = 'ppunppun-pending-achievement-toasts';
+  let timeout, toastShowing = false;
+  const toastQueue = [];
   function refresh() { badges.setAttribute('aria-label', '업적, 달성한 배지 ' + definitions.filter(([id,,,,owner]) => owner === role && state.unlocked[id]).length + '개'); }
   function save() { try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch (_) { persistent = false; } refresh(); }
+  function refreshOpenBadges() {
+    if (!dialog.open || dialog.dataset.mode !== 'badges') return;
+    dialog.querySelectorAll('[data-achievement-id]').forEach(row => {
+      const item = definitions.find(definition => definition[0] === row.dataset.achievementId);
+      if (!item) return;
+      const [id, icon, name, description] = item;
+      const earned = Boolean(state.unlocked[id]);
+      row.classList.toggle('achievement-earned', earned);
+      row.classList.toggle('achievement-locked', !earned);
+      row.querySelector('strong').textContent = (earned ? icon : '🔒') + ' ' + name + ' · ' + (earned ? '달성' : '미달성');
+      row.querySelector('p').textContent = description;
+    });
+  }
+  function showNextToast() {
+    if (toastShowing || !toastQueue.length) return;
+    toastShowing = true;
+    toast.textContent = toastQueue.shift();
+    toast.hidden = false;
+    timeout = setTimeout(() => {
+      toast.hidden = true;
+      toastShowing = false;
+      showNextToast();
+    }, 3500);
+  }
+  function persistPendingToasts() {
+    const pending = [...(toastShowing && !toast.hidden ? [toast.textContent] : []), ...toastQueue];
+    try {
+      if (pending.length) sessionStorage.setItem(pendingToastKey, JSON.stringify(pending));
+      else sessionStorage.removeItem(pendingToastKey);
+    } catch (_) {}
+  }
   function award(id) {
     const item = definitions.find(d => d[0] === id);
     if (!item || state.unlocked[id]) return;
     state.unlocked[id] = new Date().toISOString(); save();
-    toast.textContent = item[1] + ' ‘' + item[2] + '’ 배지를 받았어요!'; toast.hidden = false;
-    clearTimeout(timeout); timeout = setTimeout(() => { toast.hidden = true; }, 3500);
+    refreshOpenBadges();
+    toastQueue.push(item[1] + ' ‘' + item[2] + '’ 배지를 받았어요!');
+    showNextToast();
   }
   async function syncJuniorProgress() {
     if (role !== 'junior') return;
@@ -60,6 +94,7 @@
     } catch (_) {}
   }
   function open(mode) {
+    dialog.dataset.mode = mode;
     dialog.replaceChildren();
     const head = document.createElement('div'); head.className = 'achievement-heading';
     const title = document.createElement('h2'); title.id = 'achievement-title'; title.textContent = mode === 'temperature' ? '나의 학점온도' : '나의 배지';
@@ -70,7 +105,7 @@
     if (mode === 'temperature') {
       titles.forEach((name, index) => { const row = document.createElement('div'); row.className = 'achievement-item' + (index === 0 ? ' achievement-current' : ''); row.textContent = (index * .5).toFixed(3) + ' 이상 · ' + name + (index === 0 ? ' (현재)' : ''); items.append(row); });
     } else {
-      definitions.filter(d => d[4] === role).forEach(([id, icon, name, description]) => { const earned = Boolean(state.unlocked[id]); const row = document.createElement('div'); row.className = 'achievement-item' + (earned ? ' achievement-earned' : ' achievement-locked'); const label = document.createElement('strong'); label.textContent = (earned ? icon : '🔒') + ' ' + name + ' · ' + (earned ? '달성' : '미달성'); const detail = document.createElement('p'); detail.textContent = description; row.append(label, detail); items.append(row); });
+      definitions.filter(d => d[4] === role).forEach(([id, icon, name, description]) => { const earned = Boolean(state.unlocked[id]); const row = document.createElement('div'); row.dataset.achievementId = id; row.className = 'achievement-item' + (earned ? ' achievement-earned' : ' achievement-locked'); const label = document.createElement('strong'); label.textContent = (earned ? icon : '🔒') + ' ' + name + ' · ' + (earned ? '달성' : '미달성'); const detail = document.createElement('p'); detail.textContent = description; row.append(label, detail); items.append(row); });
       const note = document.createElement('p'); note.textContent = '첫걸음과 인연 탐험가는 메시지 전송이 성공하면 달성돼요.'; dialog.append(note);
     }
     dialog.showModal();
@@ -83,4 +118,11 @@
     chatWithMentor(id) { if (!id || role !== 'junior') return; const value = String(id); if (!state.mentors.includes(value)) state.mentors.push(value); save(); award('first-step'); if (state.mentors.length >= 3) award('explorer'); syncJuniorProgress(); }
   };
   refresh();
+  window.addEventListener('beforeunload', persistPendingToasts);
+  try {
+    const pending = JSON.parse(sessionStorage.getItem(pendingToastKey) || '[]');
+    sessionStorage.removeItem(pendingToastKey);
+    if (Array.isArray(pending)) toastQueue.push(...pending.filter(message => typeof message === 'string'));
+  } catch (_) {}
+  showNextToast();
 })();
