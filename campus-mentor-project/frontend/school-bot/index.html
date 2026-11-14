@@ -31,7 +31,7 @@
   <main class="bot-shell">
     <section class="bot-card">
       <h1 style="margin:0 0 6px;font-size:22px;letter-spacing:-.03em">학교 생활 챗봇</h1>
-      <p class="meta" id="school-label">학교 대화와 멘토 프로필, 서비스 안내 자료를 찾아 근거와 함께 답해 줍니다.</p>
+      <p class="meta" id="school-label">선택한 학교의 선배·후배 채팅을 익명으로 모아, 매칭과 같은 AI로 학교 얘기를 답해 줍니다.</p>
       <div class="bot-log" id="log" aria-live="polite"></div>
       <form class="composer" id="form">
         <textarea id="question" placeholder="예: 우리 학교 수강신청할 때 사람들이 뭐라고 해요?" maxlength="1000" required></textarea>
@@ -59,7 +59,7 @@
     const school = localStorage.getItem('ppunppun-school') || sessionStorage.getItem('ppunppun-school') || '';
     document.querySelector('#school-label').textContent =
       (school ? `선택한 학교: ${school}. ` : '') +
-      '학교 대화와 멘토 프로필, 서비스 안내 자료를 찾아 근거와 함께 답해 줍니다.';
+      '선배·후배 채팅을 익명으로 모아, 매칭과 같은 AI로 학교 얘기를 답해 줍니다.';
 
     function addBubble(role, text) {
       const el = document.createElement('div');
@@ -69,7 +69,7 @@
       log.scrollTop = log.scrollHeight;
     }
 
-    addBubble('bot', '안녕하세요! 학교 생활·수강·밥집·진로 관련해서 물어보세요. 저장된 학교 대화와 선배 프로필에서 근거를 찾아 답할게요.');
+    addBubble('bot', '안녕하세요! 학교 생활·수강·밥집·진로 관련해서 물어보세요. 저장된 대화가 많을수록 더 구체적으로 답할 수 있어요.');
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();

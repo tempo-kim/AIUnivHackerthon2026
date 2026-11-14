@@ -47,5 +47,6 @@ Render의 `sync: false` 환경변수는 실제 값이 저장소에 기록되지 
 - `POST /api/school-bot` — 선배·후배 채팅을 익명으로 모아 학교 관련 질문에 답함
 - 매칭과 같은 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `LLM_MODEL` 사용
 - 선택한 학교의 관련 대화가 있으면 그 내용을 근거로 답하고, 없으면 학교별 사실을 지어내지 않는 일반 LLM 답변으로 전환함
+- 저장 대화가 없을 때는 공개 웹 검색 결과를 보조 근거로 전달하며, 검색 결과가 없으면 일반 답변임을 표시함
 - 화면: `/frontend/school-bot/`
 

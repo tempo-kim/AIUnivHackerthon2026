@@ -13,6 +13,7 @@ from pathlib import Path
 
 # 매칭과 동일한 OpenAI/OpenRouter 클라이언트·모델 (OPENAI_* / LLM_MODEL)
 from ai.extractor import _client, _llm_executor, _model_name
+from ai.web_search import search_web
 
 SEED_PATH = Path(__file__).resolve().parents[2] / "data" / "school_bot_seed_chats.json"
 
@@ -44,6 +45,12 @@ FOOD_HINTS = (
     "카공",
     "콘센트",
     "와이파이",
+    "예산",
+    "가격",
+    "만원",
+    "돈",
+    "저렴",
+    "가성비",
 )
 
 MAJOR_HINTS = (
@@ -149,6 +156,8 @@ def _score_conversation(question: str, school: str, conv: dict) -> int:
     }
     if "카공" in q or "공부하기 좋은" in q:
         query_terms.update(("카페", "콘센트", "와이파이", "공부"))
+    if any(term in q for term in ("예산", "가격", "만원", "원", "돈", "저렴", "가성비")):
+        query_terms.update(("가격", "예산", "만원", "원", "저렴", "가성비"))
     msgs = conv.get("messages") or []
     topic_title = f"{conv.get('topic','')} {conv.get('title','')}".lower()
     blob = topic_title + " " + " ".join(
@@ -219,17 +228,25 @@ def _fallback_answer_from_seed(question: str, convs: list[dict], school: str) ->
     lines: list[str] = [f"{school_name} 기준으로 참고 가능한 선후배 대화 요약이에요."]
     shown = 0
     seen_points: set[str] = set()
+    query_text = (question or "").lower()
+    query_terms = set(re.findall(r"[가-힣A-Za-z0-9]+", query_text))
+    if any(term in query_text for term in ("예산", "가격", "만원", "원", "돈", "저렴", "가성비")):
+        query_terms.update(("가격", "예산", "만원", "원", "저렴", "가성비"))
+    if "카공" in query_text:
+        query_terms.update(("카페", "콘센트", "와이파이", "공부"))
     for conv in convs:
         title = str(conv.get("title") or "").strip()
         msgs = conv.get("messages") or []
-        senior_msg = next(
-            (
-                str(m.get("text") or "").strip()
-                for m in msgs
-                if str(m.get("senderRole") or "").strip().lower() in ("senior", "mentor")
-                and str(m.get("text") or "").strip()
-            ),
-            "",
+        senior_messages = [
+            str(m.get("text") or "").strip()
+            for m in msgs
+            if str(m.get("senderRole") or "").strip().lower() in ("senior", "mentor")
+            and str(m.get("text") or "").strip()
+        ]
+        senior_msg = max(
+            senior_messages,
+            key=lambda text: sum(1 for term in query_terms if len(term) >= 2 and term in text.lower()),
+            default="",
         )
         if not senior_msg:
             continue
@@ -304,17 +321,30 @@ def answer_school_question(
 
     context = format_conversations(picked) + live_note
     used_msgs = sum(len(c.get("messages") or []) for c in picked)
+    web_context = ""
+    if not picked and not live_note:
+        try:
+            web_query = f"{canon} {question}" if canon else question
+            web_context = search_web(web_query)
+        except Exception as exc:
+            print(f"[school_bot] web search unavailable ({type(exc).__name__})")
 
     school_line = f"대상 학교: {canon}" if canon else "대상 학교: (미지정)"
     has_seed_evidence = bool(picked or live_note)
+    has_web_evidence = bool(web_context)
     evidence_rule = (
         "아래 참고 대화가 있으면 그 내용을 최우선 근거로 사용한다. 참고 대화에 없는 학교별 사실은 만들지 않는다."
         if has_seed_evidence
-        else "관련 참고 대화가 없다. 일반적인 대학 생활 조언은 LLM 지식으로 답할 수 있지만, 선택한 학교의 구체적인 사실인 것처럼 말하지 않는다. 학교별 확인이 필요한 내용은 확인이 필요하다고 밝힌다."
+        else (
+            "저장 대화에 답이 없어 웹 검색 결과를 참고한다. 검색 결과에 없는 학교별 사실은 만들지 않는다."
+            if has_web_evidence
+            else "관련 저장 대화와 웹 검색 결과가 없다. 일반적인 대학 생활 조언은 LLM 지식으로 답할 수 있지만, 선택한 학교의 구체적인 사실인 것처럼 말하지 않는다."
+        )
     )
     system_prompt = f"""
 너는 대학 캠퍼스 멘토링 서비스 '뻔뻔하게'의 학교 생활 안내 챗봇이다.
 {evidence_rule}
+사용자 질문에서 먼저 핵심 의도와 조건(예산, 위치, 시간, 대상)을 파악한 뒤 답한다.
 
 규칙:
 - 한국어로 답한다.
@@ -322,12 +352,16 @@ def answer_school_question(
 - 답변 형식:
   1) 핵심 답변 2~4문장
   2) 참고 대화가 있으면 근거 bullet 2~4개를 포함한다.
-  3) 참고 대화가 없으면 일반 조언임을 짧게 밝히고, 학교별 정보는 추가 확인 질문 1개를 제시한다.
+  3) 저장 대화가 없고 웹 검색 결과를 사용하면 검색 결과에 근거해 답한다.
+  4) 근거가 없으면 일반 조언임을 짧게 밝히고 학교별 정보는 추가 확인 질문 1개를 제시한다.
 - 개인정보 추론 금지.
 """
     user_prompt = f"""
 [참고용 선후배 긴 채팅]
 {context}
+
+[웹 검색 참고 결과]
+{web_context}
 
 [사용자 질문]
 {question}
@@ -349,10 +383,10 @@ def answer_school_question(
         future = _llm_executor.submit(_call)
         res = future.result(timeout=30.0)
         answer = (res.choices[0].message.content or "").strip()
-        source = "seed-llm" if has_seed_evidence else "llm-general"
+        source = "seed-llm" if has_seed_evidence else ("web-llm" if has_web_evidence else "llm-general")
         if not answer:
             answer = _fallback_answer_from_seed(question, picked, canon)
-            source = "seed-fallback" if has_seed_evidence else "llm-general-empty"
+            source = "seed-fallback" if has_seed_evidence else ("web-llm-empty" if has_web_evidence else "llm-general-empty")
         return {
             "answer": answer,
             "used_message_count": used_msgs,
@@ -366,7 +400,9 @@ def answer_school_question(
         # SDK 예외 문자열에는 요청 URL이나 민감한 설정값이 섞일 수 있어 기록하지 않는다.
         print(f"[school_bot] LLM request failed ({type(e).__name__})")
         fallback = _fallback_answer_from_seed(question, picked, canon)
-        if not has_seed_evidence:
+        if not has_seed_evidence and has_web_evidence:
+            fallback = "저장 대화에는 관련 내용이 없어 공개 웹 검색 결과를 표시할게요.\n\n" + web_context
+        elif not has_seed_evidence:
             fallback = (
                 f"{canon or '선택한 학교'}의 저장 대화에는 이 질문과 직접 맞는 내용이 없어요. "
                 "일반적인 안내는 현재 AI 연결이 되지 않아 답하지 못했어요. 학교별 정보가 필요하면 과목명이나 장소를 더 구체적으로 알려주세요."
@@ -378,5 +414,5 @@ def answer_school_question(
             "used_conversation_count": len(picked),
             "seed_conversation_count": stats["conversation_count"],
             "school": canon or "",
-            "source": "seed-fallback" if has_seed_evidence else "llm-general-unavailable",
+            "source": "seed-fallback" if has_seed_evidence else ("web-unformatted" if has_web_evidence else "llm-general-unavailable"),
         }
