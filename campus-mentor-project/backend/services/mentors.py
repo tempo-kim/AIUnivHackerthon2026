@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -11,7 +12,7 @@ from pathlib import Path
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 CLEANED_PATH = DATA_DIR / "mentors.cleaned.csv"
 MENTORS_PATH = DATA_DIR / "Mentors.csv"
-MENTORS_ADD_PATH = DATA_DIR / "Mentors.add.csv"
+NEW_MENTORS_PATH = DATA_DIR / "220.new.mentors.csv"
 _add_lock = threading.Lock()  # 동시에 등록해도 같은 ID가 나오지 않게
 
 
@@ -30,7 +31,45 @@ class Mentor:
 
 
 def _split_pipe(value: str) -> list[str]:
-    return [part.strip() for part in (value or "").split("|") if part.strip()]
+    text = (value or "").strip()
+    if not text:
+        return []
+    items: list[str] = []
+    for chunk in text.split("|"):
+        for part in re.split(r",\s*(?![^()]*\))", chunk):
+            cleaned = part.strip()
+            if cleaned and cleaned not in items:
+                items.append(cleaned)
+    return items
+
+
+def _topics_from_bio(bio: str) -> list[str]:
+    text = (bio or "").strip()
+    if not text:
+        return []
+    candidates = [
+        ("전과", "전과"),
+        ("복수전공", "복수전공"),
+        ("전공", "전공공부"),
+        ("수강", "수강신청"),
+        ("학점", "학점 관리"),
+        ("취업", "취업 준비"),
+        ("면접", "취업 준비"),
+        ("인턴", "인턴"),
+        ("포트폴리오", "포트폴리오"),
+        ("공모전", "공모전"),
+        ("동아리", "동아리"),
+        ("대학원", "대학원 준비"),
+        ("연구", "연구실"),
+        ("랩실", "연구실"),
+        ("학교생활", "학교생활"),
+    ]
+    topics: list[str] = []
+    lower = text.lower()
+    for keyword, label in candidates:
+        if keyword.lower() in lower and label not in topics:
+            topics.append(label)
+    return topics[:6]
 
 
 def _row_to_mentor(row: dict, generated_id: str = "") -> Mentor:
@@ -70,7 +109,7 @@ class MentorStore:
         self.reload()
 
     def reload(self, path: Path | None = None) -> int:
-        targets = [path] if path is not None else [MENTORS_PATH, MENTORS_ADD_PATH]
+        targets = [path] if path is not None else [MENTORS_PATH, NEW_MENTORS_PATH]
         merged: dict[str, Mentor] = {}
         next_id = 1
         source = None
@@ -109,7 +148,7 @@ class MentorStore:
                 display_name=display_name,
                 major=major,
                 experiences=[bio] if bio else [],
-                help_topics=[bio] if bio else [],
+                help_topics=_topics_from_bio(bio),
                 status=status,
                 bio=bio,
             )

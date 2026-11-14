@@ -312,20 +312,23 @@ function render(){
     };
     const notice=app.querySelector('#login-message'),prev=app.querySelector('#prev');
     next.disabled=true;prev.disabled=true;next.textContent='추천 요청 중...';notice.textContent='';
-    // 백엔드 LLM_MATCH_TIMEOUT(15s)보다 여유 있게 — 학교봇과 같은 키를 쓰므로 동시 호출에도 끊기지 않게
-    const controller=new AbortController();
-    const timeout=setTimeout(()=>controller.abort(),25000);
+     const controller=new AbortController();
+      const timeout=setTimeout(()=>controller.abort(),40000);
     try{
-      sessionStorage.setItem('ppunppun-choice',JSON.stringify(choice));
+       sessionStorage.setItem('ppunppun-choice',JSON.stringify(choice));
       sessionStorage.setItem('ppunppun-concern',text);
+       sessionStorage.setItem('ppunppun-match-offset','0');
+      sessionStorage.setItem('ppunppun-seen-mentors','[]');
       const base=location.protocol==='file:'?'http://127.0.0.1:8000':'';
       const response=await fetch(base+'/api/match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({concern_text:text,choice:choice,top_k:3,use_llm:true}),signal:controller.signal});
       if(!response.ok)throw new Error('요청 실패');
       const result=await response.json();sessionStorage.setItem('ppunppun-match',JSON.stringify(result));
       if(answers.concern.trim())PpunAchievements.award('concern');
       location.href='./result/index.html';
-    }catch(e){notice.textContent='추천 요청에 실패했어요. 서버 연결을 확인한 뒤 다시 시도해 주세요.';next.disabled=false;prev.disabled=false;next.textContent='다시 시도'}
-    finally{clearTimeout(timeout)}
+    }catch(e){
+      notice.textContent=e&&e.name==='AbortError'?'추천 요청이 지연되고 있어요. 잠시 후 다시 시도해 주세요.':'추천 요청에 실패했어요. 서버 연결을 확인한 뒤 다시 시도해 주세요.';
+      next.disabled=false;prev.disabled=false;next.textContent='다시 시도'
+    }finally{clearTimeout(timeout)}
   };
 }
 if(new URLSearchParams(location.search).has('senior-login')){renderSeniorLogin()}else if(new URLSearchParams(location.search).has('junior-login')){renderJuniorAuth('login')}else if(selectedSchool){render()}else{renderSchool()}

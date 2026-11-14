@@ -1,0 +1,361 @@
+﻿"""학교 생활 Q&A 챗봇.
+
+매칭과 같은 OPENAI_API_KEY / OPENAI_BASE_URL / LLM_MODEL 사용.
+선택한 학교의 긴 채팅(각 ≥30메시지)을 조회해 근거로 답한다.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import traceback
+from functools import lru_cache
+from pathlib import Path
+
+# 매칭과 동일한 OpenAI/OpenRouter 클라이언트·모델 (OPENAI_* / LLM_MODEL)
+from ai.extractor import _client, _llm_executor, _model_name
+
+SEED_PATH = Path(__file__).resolve().parents[2] / "data" / "school_bot_seed_chats.json"
+
+SCHOOL_ALIASES = {
+    "서울대": "서울대학교",
+    "서울대학교": "서울대학교",
+    "고려대": "고려대학교",
+    "고려대학교": "고려대학교",
+    "연세대": "연세대학교",
+    "연세대학교": "연세대학교",
+    "이화여대": "이화여자대학교",
+    "이화여자대학교": "이화여자대학교",
+    "서울과기대": "서울과학기술대학교",
+    "서울과학기술대학교": "서울과학기술대학교",
+    "서강대": "서강대학교",
+    "서강대학교": "서강대학교",
+}
+
+FOOD_HINTS = (
+    "밥",
+    "밥집",
+    "맛집",
+    "식당",
+    "혼밥",
+    "점심",
+    "저녁",
+    "배달",
+    "카페",
+)
+
+MAJOR_HINTS = (
+    "전공",
+    "과제",
+    "머신러닝",
+    "딥러닝",
+    "학점",
+    "수강",
+    "팀플",
+    "gpu",
+    "논문",
+)
+
+
+def normalize_school(school: str) -> str:
+    value = (school or "").strip()
+    if not value:
+        return ""
+    if value in SCHOOL_ALIASES:
+        return SCHOOL_ALIASES[value]
+    for key, canon in SCHOOL_ALIASES.items():
+        if key in value or value in key:
+            return canon
+    return value
+
+
+def _role_label(role: str) -> str:
+    value = (role or "").strip().lower()
+    if value in ("senior", "mentor"):
+        return "선배"
+    if value in ("junior",):
+        return "후배"
+    return "사용자"
+
+
+@lru_cache(maxsize=1)
+def _raw_seed() -> dict:
+    if not SEED_PATH.exists():
+        return {}
+    try:
+        return json.loads(SEED_PATH.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"[school_bot] seed load failed: {e}")
+        return {}
+
+
+def load_seed_conversations(school: str = "") -> list[dict]:
+    data = _raw_seed()
+    canon = normalize_school(school)
+
+    # schema v3
+    by_school = data.get("conversations_by_school") if isinstance(data, dict) else None
+    if isinstance(by_school, dict):
+        if canon and canon in by_school:
+            return list(by_school.get(canon) or [])
+        # school unknown: flatten all
+        out: list[dict] = []
+        for rows in by_school.values():
+            if isinstance(rows, list):
+                out.extend(rows)
+        return out
+
+    # schema v2
+    if isinstance(data, dict) and isinstance(data.get("conversations"), list):
+        rows = data["conversations"]
+        if canon:
+            return [c for c in rows if normalize_school(str(c.get("school") or "")) == canon]
+        return list(rows)
+
+    return []
+
+
+def seed_stats(school: str = "") -> dict:
+    convs = load_seed_conversations(school)
+    return {
+        "conversation_count": len(convs),
+        "message_count": sum(len(c.get("messages") or []) for c in convs),
+        "school": normalize_school(school) or "(all)",
+    }
+
+
+def _score_conversation(question: str, school: str, conv: dict) -> int:
+    q = f"{school} {question}".lower()
+    msgs = conv.get("messages") or []
+    blob = f"{conv.get('topic','')} {conv.get('title','')} " + " ".join(
+        str(m.get("text") or "") for m in msgs[:24]
+    )
+    blob = blob.lower()
+    score = 0
+    for token in FOOD_HINTS + MAJOR_HINTS + ("김밥", "치킨", "파스타", "인공", "머신", "연구"):
+        if token in q and token in blob:
+            score += 4
+    for word in [w for w in q.replace("?", " ").split() if len(w) >= 2][:20]:
+        if word in blob:
+            score += 1
+    topic = str(conv.get("topic") or "")
+    if "맛집" in topic and any(k in q for k in FOOD_HINTS + ("먹",)):
+        score += 10
+    if "인공" in topic or "전공" in topic:
+        if any(k in q for k in MAJOR_HINTS + ("인공", "모델", "연구")):
+            score += 10
+    return score
+
+
+def retrieve_conversations(question: str, *, school: str = "", top_k: int = 3) -> list[dict]:
+    convs = load_seed_conversations(school)
+    if not convs:
+        convs = load_seed_conversations("")
+    ranked = sorted(convs, key=lambda c: _score_conversation(question, school, c), reverse=True)
+    selected: list[dict] = []
+    seen: set[str] = set()
+    target = max(2, top_k)
+    for conv in ranked:
+        signature = "|".join(
+            [
+                str(conv.get("topic") or ""),
+                str(conv.get("title") or ""),
+                str(conv.get("id") or ""),
+            ]
+        )
+        if signature in seen:
+            continue
+        seen.add(signature)
+        selected.append(conv)
+        if len(selected) >= target:
+            break
+    return selected
+
+
+def _intent(question: str) -> str:
+    q = (question or "").strip().lower()
+    if any(token in q for token in FOOD_HINTS):
+        return "food"
+    if any(token in q for token in MAJOR_HINTS):
+        return "major"
+    return "general"
+
+
+def _fallback_answer_from_seed(question: str, convs: list[dict], school: str) -> str:
+    school_name = school or "해당 학교"
+    if len((question or "").strip()) <= 2:
+        return (
+            f"{school_name} 기준으로 도와줄 수 있어요. "
+            "밥집/카페 추천, 수강/과제, 전공 고민 중 어떤 걸 물어볼지 한 문장으로 알려줘요."
+        )
+
+    intent = _intent(question)
+    lines: list[str] = [f"{school_name} 기준으로 참고 가능한 선후배 대화 요약이에요."]
+    shown = 0
+    seen_points: set[str] = set()
+    for conv in convs:
+        title = str(conv.get("title") or "").strip()
+        msgs = conv.get("messages") or []
+        senior_msg = next(
+            (
+                str(m.get("text") or "").strip()
+                for m in msgs
+                if str(m.get("senderRole") or "").strip().lower() in ("senior", "mentor")
+                and str(m.get("text") or "").strip()
+            ),
+            "",
+        )
+        if not senior_msg:
+            continue
+        point = senior_msg[:80]
+        if point in seen_points:
+            continue
+        seen_points.add(point)
+        if title:
+            lines.append(f"- {title}: {senior_msg[:140]}")
+        else:
+            lines.append(f"- {senior_msg[:140]}")
+        shown += 1
+        if shown >= 3:
+            break
+    if shown == 0:
+        return "관련 시드 대화를 찾지 못했어요. 예산·위치·시간대를 함께 알려주면 더 정확히 찾아볼게요."
+    if intent == "food":
+        lines.append("예산·위치·시간대를 알려주면 더 좁혀서 추천해줄게요.")
+    elif intent == "major":
+        lines.append("학년·현재 수강 과목·막힌 지점을 알려주면 주간 공부 루틴으로 구체화해줄게요.")
+    else:
+        lines.append("상황을 조금만 더 구체적으로 알려주면 근거 대화를 더 정확히 골라 답할게요.")
+    return "\n".join(lines)
+
+
+def format_conversations(convs: list[dict], *, max_chars: int = 14000) -> str:
+    chunks: list[str] = []
+    for conv in convs:
+        lines = [
+            f"### 채팅 {conv.get('id')} | {conv.get('school','')} | {conv.get('topic')} | {conv.get('title')}",
+        ]
+        for m in conv.get("messages") or []:
+            lines.append(f"[{_role_label(str(m.get('senderRole') or ''))}] {m.get('text','')}")
+        chunks.append("\n".join(lines))
+    blob = "\n\n".join(chunks)
+    if len(blob) > max_chars:
+        blob = blob[:max_chars]
+    return blob
+
+
+def answer_school_question(
+    question: str,
+    *,
+    school: str = "",
+    messages: list[dict] | None = None,
+) -> dict:
+    question = (question or "").strip()
+    canon = normalize_school(school)
+    stats = seed_stats(canon)
+    if not question:
+        return {
+            "answer": "질문을 입력해 주세요.",
+            "used_message_count": 0,
+            "seed_message_count": stats["message_count"],
+            "used_conversation_count": 0,
+            "seed_conversation_count": stats["conversation_count"],
+            "school": canon or "",
+            "source": "empty",
+        }
+
+    picked = retrieve_conversations(question, school=canon, top_k=3)
+    live = messages or []
+    live_note = ""
+    if live:
+        lines = []
+        for item in live[-20:]:
+            text = str(item.get("text") or "").strip()
+            if text:
+                lines.append(f"- [{_role_label(str(item.get('senderRole') or ''))}] {text[:300]}")
+        if lines:
+            live_note = "\n\n[최근 실제 서비스 채팅 일부]\n" + "\n".join(lines)
+
+    context = format_conversations(picked) + live_note
+    used_msgs = sum(len(c.get("messages") or []) for c in picked)
+
+    if not os.getenv("OPENAI_API_KEY", "").strip():
+        return {
+            "answer": (
+                "아직 API 키가 없어 임시 안내만 할 수 있어요. "
+                "backend/.env 에 매칭과 같은 OPENAI_API_KEY 를 넣으면, "
+                f"{canon or '선택 학교'} 시연 채팅 {stats['conversation_count']}개"
+                f"(메시지 {stats['message_count']}개)를 조회해 답합니다."
+            ),
+            "used_message_count": used_msgs,
+            "seed_message_count": stats["message_count"],
+            "used_conversation_count": len(picked),
+            "seed_conversation_count": stats["conversation_count"],
+            "school": canon or "",
+            "source": "no_key",
+        }
+
+    school_line = f"대상 학교: {canon}" if canon else "대상 학교: (미지정)"
+    system_prompt = f"""
+너는 대학 캠퍼스 멘토링 서비스 '뻔뻔하게'의 학교 생활 안내 챗봇이다.
+반드시 아래 [참고용 선후배 긴 채팅]에서 근거를 찾아 답한다.
+
+규칙:
+- 한국어로 답한다.
+- {school_line} 맥락을 유지.
+- 답변 형식:
+  1) 핵심 답변 2~4문장
+  2) 근거 bullet 2~4개 (채팅 내용 기반: 장소/가격/웨이팅/팁)
+  3) 근거가 부족하면 모른다고 말하고 추가 질문 1개를 제시
+- 참고 데이터에 없는 사실을 단정하지 않는다.
+- 개인정보 추론 금지.
+"""
+    user_prompt = f"""
+[참고용 선후배 긴 채팅]
+{context}
+
+[사용자 질문]
+{question}
+"""
+    try:
+        def _call():
+            return _client().chat.completions.create(
+                model=_model_name(),
+                messages=[
+                    {"role": "system", "content": system_prompt.strip()},
+                    {"role": "user", "content": user_prompt.strip()},
+                ],
+                temperature=0.1,
+                max_tokens=650,
+                timeout=28.0,
+            )
+
+        # 매칭과 같은 스레드풀 — 워커 4개라 매칭·학교봇 동시에도 한쪽만 굶지 않음
+        future = _llm_executor.submit(_call)
+        res = future.result(timeout=30.0)
+        answer = (res.choices[0].message.content or "").strip()
+        source = "llm"
+        if not answer:
+            answer = _fallback_answer_from_seed(question, picked, canon)
+            source = "seed-fallback"
+        return {
+            "answer": answer,
+            "used_message_count": used_msgs,
+            "seed_message_count": stats["message_count"],
+            "used_conversation_count": len(picked),
+            "seed_conversation_count": stats["conversation_count"],
+            "school": canon or "",
+            "source": source,
+        }
+    except Exception as e:
+        print(f"[school_bot] {e}")
+        traceback.print_exc()
+        return {
+            "answer": _fallback_answer_from_seed(question, picked, canon),
+            "used_message_count": used_msgs,
+            "seed_message_count": stats["message_count"],
+            "used_conversation_count": len(picked),
+            "seed_conversation_count": stats["conversation_count"],
+            "school": canon or "",
+            "source": "seed-fallback",
+        }

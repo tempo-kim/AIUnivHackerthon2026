@@ -311,7 +311,9 @@ def _rank_mentors(payload: MatchRequest, extraction: Extraction, mentors: list[d
     )
 
 
-def _apply_llm_ranking(ranked: list[dict], analysis: dict, top_k: int) -> list[dict]:
+def _apply_llm_ranking(
+    ranked: list[dict], analysis: dict, top_k: int, rank_offset: int = 0
+) -> list[dict]:
     suitability = {
         item["mentor_id"]: item
         for item in analysis.get("suitability", [])
@@ -333,9 +335,14 @@ def _apply_llm_ranking(ranked: list[dict], analysis: dict, top_k: int) -> list[d
         reordered.append(copied)
         selected_ids.add(mentor_id)
 
+    for item in sorted(
+        analysis.get("suitability", []),
+        key=lambda item: item.get("fit", 0) if isinstance(item, dict) else 0,
+        reverse=True,
+    ):
+        take(str(item.get("mentor_id") or ""), str(item.get("reason") or "").strip())
+
     for item in analysis.get("recommendations", []):
-        if len(reordered) >= top_k:
-            break
         take(str(item.get("mentor_id") or ""), str(item.get("reason") or "").strip())
 
     leftovers: list[dict] = []
@@ -352,7 +359,7 @@ def _apply_llm_ranking(ranked: list[dict], analysis: dict, top_k: int) -> list[d
         leftovers.append(copied)
     leftovers.sort(key=lambda item: item["score"], reverse=True)
     reordered.extend(leftovers)
-    return reordered[:top_k]
+    return reordered[rank_offset : rank_offset + top_k]
 
 
 def _match_response(payload: MatchRequest) -> MatchResponse:
@@ -367,7 +374,10 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
                 detail="concern_text 또는 extraction이 필요합니다.",
             )
         seed = payload.extraction or Extraction(**stub_extract(text))
-        shortlist_size = len(mentors)
+        shortlist_size = min(
+            len(mentors),
+            max(20, int(os.getenv("LLM_SHORTLIST_SIZE", "40"))),
+        )
         shortlist = _rank_mentors(payload, seed, mentors, shortlist_size)
         if not shortlist:
             return MatchResponse(
@@ -382,8 +392,10 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
             candidates=shortlist,
             top_k=payload.top_k,
         )
-        if not analysis or not analysis.get("recommendations"):
-            ranked = shortlist[:payload.top_k]
+        if not analysis or not (
+            analysis.get("recommendations") or analysis.get("suitability")
+        ):
+            ranked = shortlist[payload.rank_offset : payload.rank_offset + payload.top_k]
             return MatchResponse(
                 extraction=seed,
                 matches=[MentorMatch(**row) for row in ranked],
@@ -392,7 +404,9 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
                 mentor_source=mentor_source,
             )
         extraction = payload.extraction or _from_llm(analysis)
-        ranked = _apply_llm_ranking(shortlist, analysis, payload.top_k)
+        ranked = _apply_llm_ranking(
+            shortlist, analysis, payload.top_k, payload.rank_offset
+        )
         return MatchResponse(
             extraction=extraction,
             matches=[MentorMatch(**row) for row in ranked],
@@ -402,10 +416,13 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
         )
 
     extraction, source = _extract(payload)
-    ranked = _rank_mentors(payload, extraction, mentors, payload.top_k)
+    # Rank the full live mentor pool before applying the requested page offset.
+    ranked = _rank_mentors(payload, extraction, mentors, len(mentors))
+    excluded = {str(mentor_id) for mentor_id in payload.exclude_mentor_ids}
+    ranked = [row for row in ranked if str(row["mentor_id"]) not in excluded]
     return MatchResponse(
         extraction=extraction,
-        matches=[MentorMatch(**row) for row in ranked],
+        matches=[MentorMatch(**row) for row in ranked[payload.rank_offset : payload.rank_offset + payload.top_k]],
         extraction_source=source,
         recommendation_source="rules",
         mentor_source=mentor_source,
@@ -420,6 +437,11 @@ def health_check():
 @app.get("/", include_in_schema=False)
 def home():
     return RedirectResponse(url="/frontend/main.html")
+
+
+@app.head("/", include_in_schema=False)
+def home_head():
+    return {"status": "ok"}
 
 
 @app.get("/api/mentors", response_model=list[MentorOut])
@@ -739,6 +761,34 @@ def get_rooms(mentorId: str, authorization: str = Header(default="")):
     return rooms
 
 
+@app.get("/api/junior-rooms")
+def get_junior_rooms(authorization: str = Header(default="")):
+    junior_id = storage.token_junior(_bearer(authorization))
+    if not junior_id:
+        raise HTTPException(status_code=401, detail="후배 로그인이 필요합니다.")
+    rooms = [room for room in storage.list_rooms("") if room["room"].endswith(":" + junior_id)]
+    mentors = {mentor.mentor_id: mentor.display_name for mentor in store.list()}
+    for room in rooms:
+        room["mentorId"] = room["room"].split(":", 1)[0]
+        room["mentorName"] = mentors.get(room["mentorId"], room["mentorId"])
+    return sorted(rooms, key=lambda room: room["lastAt"], reverse=True)
+
+
+@app.get("/api/junior-achievements")
+def get_junior_achievements(authorization: str = Header(default="")):
+    junior_id = storage.token_junior(_bearer(authorization))
+    if not junior_id:
+        raise HTTPException(status_code=401, detail="후배 로그인이 필요합니다.")
+    rooms = [room for room in storage.list_rooms("") if room["room"].endswith(":" + junior_id)]
+    mentor_ids = {room["room"].split(":", 1)[0] for room in rooms if room["messageCount"] > 0}
+    unlocked = []
+    if mentor_ids:
+        unlocked.append("first-step")
+    if len(mentor_ids) >= 3:
+        unlocked.append("explorer")
+    return {"unlocked": unlocked}
+
+
 @app.post("/api/messages")
 def send_message(payload: RoomMessageRequest, authorization: str = Header(default="")):
     room = _chat_room(payload.mentorId, payload.juniorId)
@@ -774,9 +824,28 @@ def request_chat_end(payload: RoomEndRequest, authorization: str = Header(defaul
     state = storage.get_end_state(room)
     if state["status"] != "active":
         return state
+    if payload.requesterRole == "junior" and not storage.has_mentor_account(payload.mentorId):
+        state.update(status="ended", requestedBy=None, declinedBy=None)
+        storage.save_end_state(room, state)
+        return state
     state.update(status="pending", requestedBy=payload.requesterRole, declinedBy=None)
     storage.save_end_state(room, state)
     return state
+
+
+@app.post("/api/school-bot", response_model=SchoolBotResponse)
+def school_bot(payload: SchoolBotRequest):
+    question = (payload.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="질문을 입력해 주세요.")
+
+    recent = storage.list_recent_messages(payload.history_limit)
+    result = answer_school_question(
+        question,
+        school=payload.school or "",
+        messages=recent,
+    )
+    return SchoolBotResponse.model_validate(result)
 
 
 @app.post("/api/chat-end/respond")

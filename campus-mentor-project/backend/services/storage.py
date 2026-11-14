@@ -1,4 +1,4 @@
-"""등록 선배·로그인 토큰·채팅 메시지·대화 종료 상태를 SQLite 파일에 저장한다."""
+﻿"""등록 선배·로그인 토큰·채팅 메시지·대화 종료 상태를 SQLite 파일에 저장한다."""
 
 from __future__ import annotations
 
@@ -115,6 +115,11 @@ def name_taken(display_name: str) -> bool:
             "SELECT 1 FROM mentors WHERE display_name = ?", (display_name,)
         ).fetchone()
     return row is not None
+
+
+def has_mentor_account(mentor_id: str) -> bool:
+    with _db() as conn:
+        return conn.execute("SELECT 1 FROM mentors WHERE mentor_id = ?", (mentor_id,)).fetchone() is not None
 
 
 def add_mentor(mentor_id: str, display_name: str, major: str, status: str, bio: str, pin: str) -> None:
