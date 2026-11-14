@@ -200,6 +200,57 @@ button {
   font-size: 12px;
 }
 
+/* 후배의 내 대화 */
+.inbox-item-top strong {
+  flex-shrink: 0;
+}
+
+.inbox-major {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inbox-new,
+.inbox-active {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.inbox-new {
+  background: var(--blue);
+  color: #fff;
+  font-weight: 700;
+}
+
+.inbox-active {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.inbox-item-top .inbox-ended {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+#junior-inbox-empty p {
+  margin: 0 0 14px;
+}
+
+#junior-inbox-empty .primary-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 20px;
+  text-decoration: none;
+}
+
 .inbox-preview {
   margin: 4px 0 0;
   overflow: hidden;

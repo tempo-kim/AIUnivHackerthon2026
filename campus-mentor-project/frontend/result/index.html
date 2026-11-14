@@ -134,17 +134,8 @@ renderMatches();
 document.querySelector('#show-recommended').onclick=()=>{favoritesOnly=false;renderMatches()};
 document.querySelector('#show-favorites').onclick=()=>{favoritesOnly=true;renderMatches()};
 window.addEventListener('storage',()=>renderMatches());
+// 다음 3명 추천 API 연결 후 활성화합니다.
+// 하단 "채팅": 후배 로그인이면 내 대화, 선배 로그인이면 받은 대화, 아니면 처음 화면
 const chatLink=document.querySelector('#open-chat');
-chatLink.onclick=async event=>{event.preventDefault();
-  const session=(()=>{try{return JSON.parse(localStorage.getItem('ppunppun-junior-session')||'null')}catch(e){return null}})();
-  if(!session?.token){notice.textContent='채팅 기록을 보려면 후배 로그인이 필요해요.';return}
-  notice.textContent='내 채팅 기록을 불러오고 있어요.';
-  try{
-    const response=await fetch('/api/junior-rooms',{headers:{Authorization:'Bearer '+session.token}});
-    if(!response.ok)throw new Error();
-    const rooms=await response.json();list.replaceChildren();favoritesOnly=false;retry.hidden=true;
-    notice.textContent=rooms.length?'내 채팅 기록이에요.':'아직 채팅 기록이 없어요.';
-    rooms.forEach(room=>{const link=document.createElement('a');link.className='card';link.style.cssText='text-decoration:none;color:inherit';link.href=chatUrl(room.mentorId);const name=document.createElement('h2');name.textContent=room.mentorName+' 선배';const preview=document.createElement('p');preview.className='reason';preview.textContent=room.lastMessage||'대화 기록';const status=document.createElement('p');status.className='meta';status.textContent=(room.status==='ended'?'종료된 대화':'대화 중')+' · '+new Date(room.lastAt).toLocaleString('ko-KR');link.append(name,preview,status);list.append(link)});
-  }catch(e){notice.textContent='채팅 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'}
-};
+chatLink.href=(()=>{try{const junior=JSON.parse(localStorage.getItem('ppunppun-junior-session')||'null');if(junior?.junior_id&&junior?.token)return '../chat/index.html?role=junior';const senior=JSON.parse(localStorage.getItem('ppunppun-senior-session')||'null');if(senior?.mentor_id&&senior?.token)return '../chat/index.html?role=senior&mentor='+encodeURIComponent(senior.mentor_id)}catch(e){}return '../main.html'})();
 </script></body></html>
