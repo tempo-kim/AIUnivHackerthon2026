@@ -6,6 +6,7 @@
 .match-loading:empty{display:none}.match-loading{display:flex;align-items:center;gap:14px;margin-top:16px;padding:16px;border-radius:14px;background:#f2efff;border:1px solid #e3dcff}.match-spinner{flex:0 0 auto;width:36px;height:36px;border-radius:50%;border:4px solid #dfe3fb;border-top-color:#345fe0;border-right-color:#7656e2;animation:match-spin .9s linear infinite}.match-loading-text{min-width:0;word-break:keep-all}.match-loading-text strong{display:block;font-size:16px;line-height:1.5;color:#283c91}.match-loading-text p{margin:4px 0 0;font-size:13px;line-height:1.5;color:#72809b}.match-loading-time{font-variant-numeric:tabular-nums}@keyframes match-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.match-spinner{animation:none}}
 .outline-btn:hover{background:#f7f5ff}.role-note{font-size:13px;color:#72809b;line-height:1.6}
 .logo{display:inline-flex;align-items:center;line-height:0}.logo img{display:block;width:150px;height:90px;object-fit:contain;mix-blend-mode:multiply}@media(max-width:760px){.logo img{width:120px;height:72px}}
+.school-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0}.school-row .hint{margin:0}.school-change{border:1px solid #dce2f5;border-radius:9px;background:#fff;color:#647092;padding:6px 10px;font-size:12px;cursor:pointer}.school-change:hover{background:#f2efff;color:#6140c4}
 </style></head><body><header><a class="logo" href="./main.html" style="text-decoration:none"><img src="./assets/brand-logo.png" alt="뻔뻔하게 홈"></a></header><main><div class="layout"><section><span class="badge">캠퍼스 생활, 뻔뻔하게 물어봐요</span><h1>궁금한 건<br><span>뻔뻔하게!</span></h1><p class="intro">학교생활의 사소한 질문부터 진로 고민까지.<br>나와 맞는 선배에게 편하게 물어보세요.</p></section><section class="card" id="app" aria-live="polite"></section></div></main><nav class="nav" aria-label="하단 메뉴"><a href="./main.html"><span>☘</span>홈</a><a href="./school-bot/"><span>🤖</span>학교봇</a><a href="./result/index.html" id="junior-chat-nav"><span>💬</span>채팅창</a><a href="./admin.html"><span>🛡</span>관리자</a></nav><script src="./universities.js"></script><script src="./assets/achievements.js"></script><script>
 const app = document.querySelector('#app');
 
@@ -380,7 +381,7 @@ function render(){
   if(activeRole())PpunAchievements.setRole(activeRole());
   configureChatNav();
   if(step<0){
-    app.innerHTML='<h2>무엇이든 물어볼 준비됐나요?</h2><p class="hint" id="school-label"></p><button class="back" id="change-school" type="button">학교 변경</button><p class="hint">나의 상황과 고민을 알려주면 어울리는 선배를 찾아볼 수 있어요.</p><button class="primary start" id="start">후배로 시작하기 →</button><button class="secondary" id="senior">선배로 시작하기</button><button class="outline-btn" id="junior-login" type="button">후배 로그인</button><button class="outline-btn" id="senior-login" type="button">선배 로그인</button><p class="notice" id="login-message" role="status"></p>';
+    app.innerHTML='<h2>무엇이든 물어볼 준비됐나요?</h2><div class="school-row"><p class="hint" id="school-label"></p><button class="school-change" id="change-school" type="button">학교 변경</button></div><p class="hint">나의 상황과 고민을 알려주면 어울리는 선배를 찾아볼 수 있어요.</p><button class="primary start" id="start">후배로 시작하기 →</button><button class="secondary" id="senior">선배로 시작하기</button><button class="outline-btn" id="junior-login" type="button">후배 로그인</button><button class="outline-btn" id="senior-login" type="button">선배 로그인</button><p class="notice" id="login-message" role="status"></p>';
     app.querySelector('#school-label').textContent='선택한 학교: '+selectedSchool;
     const role=activeRole();
     if(role==='senior'){
@@ -390,8 +391,8 @@ function render(){
     if(role){
       const own=role==='senior'?['senior','senior-login']:['junior-login'];own.forEach(id=>app.querySelector('#'+id).remove());
       if(role==='junior')app.querySelector('#start').textContent='선배 추천받기 →';
-      if(role==='senior'){const edit=document.createElement('button');edit.type='button';edit.className='secondary';edit.textContent='내 소개 수정하기';edit.onclick=renderSeniorIntroductionEdit;app.querySelector('#school-label').after(edit)}
-      const info=document.createElement('p');info.className='prefix';info.id='home-user';info.textContent=role==='senior'?'선배로 접속 중':'후배로 접속 중';app.querySelector('#school-label').after(info);
+      if(role==='senior'){const edit=document.createElement('button');edit.type='button';edit.className='secondary';edit.textContent='내 소개 수정하기';edit.onclick=renderSeniorIntroductionEdit;app.querySelector('.school-row').after(edit)}
+      const info=document.createElement('p');info.className='prefix';info.id='home-user';info.textContent=role==='senior'?'선배로 접속 중':'후배로 접속 중';app.querySelector('.school-row').after(info);
       const refreshName=()=>{const session=role==='senior'?savedSeniorSession():savedJuniorSession();if(session)info.textContent=(session.display_name|| (role==='senior'?'선배':'후배'))+(role==='senior'?' 선배로 접속 중':' 후배로 접속 중')};refreshName();
       if(role==='senior'&&!savedSeniorSession().display_name){const session=savedSeniorSession();fetch(apiBase()+'/api/mentors/me',{headers:{Authorization:'Bearer '+session.token}}).then(r=>r.ok?r.json():null).then(data=>{if(data?.display_name&&activeRole()==='senior'){const current=savedSeniorSession();if(current&&current.token===session.token){current.display_name=data.display_name;try{localStorage.setItem(SENIOR_SESSION_KEY,JSON.stringify(current))}catch(e){}refreshName();updateLoginStatus()}}}).catch(()=>{})}
     }
