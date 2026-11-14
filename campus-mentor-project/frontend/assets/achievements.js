@@ -64,7 +64,7 @@
   actions.append(temperature); const header = document.querySelector('header'); const login = header.querySelector('#login'); if (login) actions.append(login); header.append(actions); actions.style.marginLeft = 'auto'; document.querySelector('.nav').append(badges);
   const dialog = document.createElement('dialog'); dialog.className = 'achievement-dialog'; dialog.setAttribute('aria-labelledby', 'achievement-title'); document.body.append(dialog);
   const toast = document.createElement('div'); toast.className = 'achievement-toast'; toast.setAttribute('role', 'status'); toast.hidden = true; document.body.append(toast);
-  let timeout, toastShowing = false;
+  let toastShowing = false;
   const toastQueue = [];
   function refresh() { badges.setAttribute('aria-label', '업적, 달성한 배지 ' + definitions.filter(([id,,,,owner]) => owner === role && state.unlocked[id]).length + '개'); }
   function save() {
@@ -94,20 +94,28 @@
     toastShowing = true;
     toast.textContent = toastQueue.shift();
     toast.hidden = false;
-    timeout = setTimeout(() => {
+    setTimeout(() => {
       toast.hidden = true;
       toastShowing = false;
-      showNextToast();
+      // Give the hidden state a paint frame before showing the next badge.
+      setTimeout(showNextToast, 250);
     }, 3500);
   }
-  function award(id) {
-    const item = definitions.find(d => d[0] === id);
-    if (!item || state.unlocked[id]) return;
-    state.unlocked[id] = new Date().toISOString(); save();
+  function awardMany(ids) {
+    const earned = [];
+    ids.forEach(id => {
+      const item = definitions.find(definition => definition[0] === id);
+      if (!item || state.unlocked[id]) return;
+      state.unlocked[id] = new Date().toISOString();
+      earned.push(item);
+    });
+    if (!earned.length) return;
+    save();
     refreshOpenBadges();
-    toastQueue.push(item[1] + ' ‘' + item[2] + '’ 배지를 받았어요!');
+    earned.forEach(item => toastQueue.push(item[1] + ' ‘' + item[2] + '’ 배지를 받았어요!'));
     showNextToast();
   }
+  function award(id) { awardMany([id]); }
   async function syncJuniorProgress() {
     if (role !== 'junior') return;
     try {
@@ -145,8 +153,9 @@
     selectMentor(id) { if (id) window.ppunSelectedMentor = String(id); },
     saveSeniorProfile(introduction) {
       if (role !== 'senior') return;
-      award('introduction');
-      if (String(introduction || '').trim().length >= 200) award('storyteller');
+      const earned = ['introduction'];
+      if (String(introduction || '').trim().length >= 200) earned.push('storyteller');
+      awardMany(earned);
     },
     chatWithMentor(id) { if (!id || role !== 'junior') return; const value = String(id); if (!state.mentors.includes(value)) state.mentors.push(value); save(); award('first-step'); syncJuniorProgress(); }
   };
