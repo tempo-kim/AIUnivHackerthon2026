@@ -9,22 +9,28 @@
 </style></head><body><header><a class="logo" href="./main.html" style="text-decoration:none"><img src="./assets/brand-logo.png" alt="뻔뻔하게 홈"></a></header><main><div class="layout"><section><span class="badge">캠퍼스 생활, 뻔뻔하게 물어봐요</span><h1>궁금한 건<br><span>뻔뻔하게!</span></h1><p class="intro">학교생활의 사소한 질문부터 진로 고민까지.<br>나와 맞는 선배에게 편하게 물어보세요.</p></section><section class="card" id="app" aria-live="polite"></section></div></main><nav class="nav" aria-label="하단 메뉴"><a href="./main.html"><span>☘</span>홈</a><a href="./school-bot/"><span>🤖</span>학교봇</a><a href="./result/index.html" id="junior-chat-nav"><span>💬</span>채팅창</a><a href="./admin.html"><span>🛡</span>관리자</a></nav><script src="./universities.js"></script><script src="./assets/achievements.js"></script><script>
 const app = document.querySelector('#app');
 
-// 하단 "채팅": 후배 로그인이면 내 대화, 선배 로그인이면 받은 대화, 아니면 처음 화면
-function chatNavHref(){
-  try{
-    const junior=JSON.parse(localStorage.getItem('ppunppun-junior-session')||'null');
-    if(junior?.junior_id&&junior?.token)return './chat/index.html?role=junior';
-    const senior=JSON.parse(localStorage.getItem('ppunppun-senior-session')||'null');
-    if(senior?.mentor_id&&senior?.token)return './chat/index.html?role=senior&mentor='+encodeURIComponent(senior.mentor_id);
-  }catch(e){}
-  return './main.html';
+function activeRole(){
+  const senior=savedSeniorSession(),junior=savedJuniorSession();let role='';try{role=localStorage.getItem('ppunppun-active-role')||''}catch(e){}
+  if(role==='senior'&&senior)return 'senior';if(role==='junior'&&junior)return 'junior';
+  return junior?'junior':senior?'senior':'';
 }
+function setActiveRole(role){try{localStorage.setItem('ppunppun-active-role',role)}catch(e){}PpunAchievements.setRole(role)}
 function configureChatNav(){
-  const link=document.querySelector('#junior-chat-nav');
-  link.hidden=false;
-  link.removeAttribute('aria-haspopup');
-  link.onclick=null;
-  link.href=chatNavHref();
+  const link=document.querySelector('#junior-chat-nav');link.hidden=false;link.href='#chat';link.lastChild.textContent='채팅창';
+  link.onclick=event=>{event.preventDefault();const role=activeRole();
+    if(role==='senior'){const senior=savedSeniorSession();location.href='./chat/index.html?role=senior&mentor='+encodeURIComponent(senior.mentor_id);return}
+    if(role==='junior'){location.href='./chat/index.html?role=junior';return}
+    showChatNotice('채팅을 보려면 먼저 선배 또는 후배로 로그인해 주세요.');
+  };
+}
+
+function showChatNotice(message){
+  const dialog=document.createElement('dialog');dialog.className='achievement-dialog';dialog.setAttribute('aria-label','채팅 안내');
+  const title=document.createElement('h2');title.textContent='채팅 안내';const text=document.createElement('p');text.textContent=message;const close=document.createElement('button');close.type='button';close.className='achievement-button';close.textContent='닫기';close.onclick=()=>dialog.close();dialog.append(title,text,close);dialog.onclose=()=>dialog.remove();document.body.append(dialog);dialog.showModal();
+}
+function updateLoginStatus(){
+  const label=document.querySelector('#login-status');if(label)label.remove();
+  const role=activeRole();if(role)PpunAchievements.setRole(role);
 }
 
 // 추천 요청 중 고민 카드 안에 보여 주는 로딩 영역. 경과 시간은 화면에만 표시(읽어 주지 않음)
@@ -52,7 +58,8 @@ try {
 }
 
 function renderSchool() {
-  PpunAchievements.setRole("junior");
+  updateLoginStatus();
+  if(activeRole())PpunAchievements.setRole(activeRole());
   configureChatNav('junior');
   app.innerHTML = `
     <span class="badge">함께할 학교 찾기</span>
@@ -145,7 +152,7 @@ const SENIOR_SESSION_KEY='ppunppun-senior-session';
 const PIN_RE=/^[0-9]{4,6}$/;
 function apiBase(){return location.protocol==='file:'?'http://127.0.0.1:8000':''}
 function savedSeniorSession(){try{const s=JSON.parse(localStorage.getItem(SENIOR_SESSION_KEY)||'null');return s&&s.mentor_id&&s.token?s:null}catch(e){return null}}
-function goSeniorInbox(session){try{localStorage.setItem(SENIOR_SESSION_KEY,JSON.stringify({mentor_id:session.mentor_id,token:session.token}))}catch(e){}location.href='chat/index.html?role=senior&mentor='+encodeURIComponent(session.mentor_id)}
+function goSeniorInbox(session){setActiveRole('senior');try{localStorage.setItem(SENIOR_SESSION_KEY,JSON.stringify({mentor_id:session.mentor_id,token:session.token,display_name:session.display_name||seniorAnswers.display_name||''}))}catch(e){}step=-1;if(selectedSchool){render()}else{renderSchool()}}
 function pinInput(onChange){const input=document.createElement('input');input.className='choice';input.style.cssText='display:block;width:100%;margin-top:6px;font:inherit';input.type='password';input.inputMode='numeric';input.autocomplete='off';input.maxLength=6;input.placeholder='숫자 4~6자리';input.oninput=()=>{input.value=input.value.replace(/[^0-9]/g,'');onChange(input.value)};return input}
 // PIN + PIN 확인 칸. 두 값이 다르면 안내 문구를 보여 줌. onChange(pin, confirm)
 function pinConfirmFields(onChange,label){
@@ -168,7 +175,7 @@ function afterJuniorLogin(){
   if(!selectedSchool){renderSchool();return}
   step=0;render();
 }
-function startJunior(){if(savedJuniorSession()){afterJuniorLogin()}else{renderJuniorAuth('register')}}
+function startJunior(){setActiveRole('junior');if(savedJuniorSession()){afterJuniorLogin()}else{renderJuniorAuth('register')}}
 async function logoutJunior(){
   const s=savedJuniorSession();
   try{if(s)await fetch(apiBase()+'/api/juniors/logout',{method:'POST',headers:{Authorization:'Bearer '+s.token}})}catch(e){}
@@ -178,7 +185,6 @@ async function logoutJunior(){
 function renderJuniorAuth(mode){
   PpunAchievements.setRole("junior");
   configureChatNav('junior');
-  if(savedJuniorSession()){afterJuniorLogin();return}
   const register=mode==='register';
   app.innerHTML=`<h2>${register?'후배로 가입하기':'후배 로그인'}</h2><p class="hint">${register?'닉네임과 PIN을 정하면 다른 기기에서도 대화를 이어갈 수 있어요.':'가입할 때 정한 닉네임과 PIN을 입력해 주세요.'}</p><div class="choices"></div><div class="actions"><button class="back" id="junior-auth-prev">이전</button><button class="primary" id="junior-auth-submit" disabled>${register?'가입하기':'로그인'}</button></div><button class="outline-btn" id="junior-auth-switch" type="button">${register?'이미 등록했어요(로그인)':'처음이에요(가입하기)'}</button><p class="notice" id="login-message" role="status"></p>`;
   const box=app.querySelector('.choices'),submit=app.querySelector('#junior-auth-submit'),notice=app.querySelector('#login-message');
@@ -197,8 +203,8 @@ function renderJuniorAuth(mode){
       const res=await fetch(apiBase()+(register?'/api/juniors/register':'/api/juniors/login'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       const data=await res.json().catch(()=>({}));
       if(res.ok){
-        try{localStorage.setItem(JUNIOR_SESSION_KEY,JSON.stringify({junior_id:data.junior_id,token:data.token,display_name:data.display_name}))}catch(e){}
-        afterJuniorLogin();return;
+        try{localStorage.setItem(JUNIOR_SESSION_KEY,JSON.stringify({junior_id:data.junior_id,token:data.token,display_name:data.display_name}));setActiveRole('junior')}catch(e){}
+        step=-1;if(selectedSchool){render()}else{renderSchool()}return;
       }
       if(typeof data.detail==='string')message=data.detail;
     }catch(e){}
@@ -206,8 +212,7 @@ function renderJuniorAuth(mode){
   };
 }
 function renderSeniorLogin(){
-  document.querySelector('#junior-chat-nav').hidden=true;
-  const saved=savedSeniorSession();if(saved){goSeniorInbox(saved);return}
+  configureChatNav('senior');
   app.innerHTML='<h2>선배 로그인</h2><p class="hint">등록할 때 정한 닉네임과 PIN을 입력해 주세요.</p><div class="choices"></div><div class="actions"><button class="back" id="senior-login-prev">이전</button><button class="primary" id="senior-login-submit" disabled>로그인</button></div><p class="notice" id="login-message" role="status"></p>';
   const box=app.querySelector('.choices'),submit=app.querySelector('#senior-login-submit'),notice=app.querySelector('#login-message');
   let name='',pin='';const update=()=>{submit.disabled=!name.trim()||!PIN_RE.test(pin)};
@@ -221,13 +226,14 @@ function renderSeniorLogin(){
     try{
       const res=await fetch(apiBase()+'/api/mentors/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({display_name:name.trim(),pin})});
       const data=await res.json().catch(()=>({}));
-      if(res.ok){goSeniorInbox(data);return}
+      if(res.ok){data.display_name=data.display_name||name.trim();goSeniorInbox(data);return}
       if(typeof data.detail==='string')message=data.detail;
     }catch(e){}
     notice.textContent=message;submit.textContent='로그인';update();
   };
 }
 function renderSenior(){
+  updateLoginStatus();
   PpunAchievements.setRole("senior");
   configureChatNav('senior');
   const review=seniorStep===2;
@@ -265,6 +271,7 @@ function renderSenior(){
   };
 }
 function renderSeniorHome(){
+  updateLoginStatus();
   PpunAchievements.setRole("senior");
   configureChatNav('senior');
   app.innerHTML='<span class="badge">선배 공간</span><h2 style="margin-top:20px" id="senior-greeting"></h2><p class="hint" id="senior-school"></p><div class="prefix"><strong>내 소개</strong><p id="senior-intro" style="white-space:pre-wrap;margin-bottom:0"></p></div><div class="choices"><button class="secondary" id="edit-senior">내 소개 수정하기</button><div class="prefix"><strong>후배의 대화 요청</strong><p class="role-note">아직 연결된 대화 요청이 없어요. 선배 등록과 대화 요청 기능은 준비 중입니다.</p></div></div><button class="back" id="switch-role" style="margin-top:20px">처음으로</button><p class="note">작성한 소개는 이 브라우저 탭에 임시 저장되어 있어요.</p><p class="notice" id="login-message" role="status"></p>';
@@ -274,23 +281,33 @@ function renderSeniorHome(){
   app.querySelector('#edit-senior').onclick=()=>{seniorStep=0;renderSenior()};
   app.querySelector('#switch-role').onclick=()=>{step=-1;render()};
 }
-function startSenior(){
+function startSenior(){setActiveRole('senior');
   const session=savedSeniorSession();if(session){goSeniorInbox(session);return}
   try{const saved=JSON.parse(sessionStorage.getItem('ppunppun-senior-draft')||'null');if(saved&&saved.school===selectedSchool&&saved.display_name&&saved.major&&saved.status&&saved.introduction){Object.assign(seniorAnswers,{display_name:saved.display_name,major:saved.major,status:saved.status,introduction:saved.introduction});renderSeniorHome();return}}catch(e){}
   seniorStep=0;renderSenior();
 }
 function seniorPayload(){return {schema_version:1,school:selectedSchool,display_name:seniorAnswers.display_name.trim(),major:seniorAnswers.major.trim(),status:seniorAnswers.status.trim(),introduction:seniorAnswers.introduction.trim()}}
 function render(){
-  PpunAchievements.setRole("junior");
-  configureChatNav('junior');
+  updateLoginStatus();
+  if(activeRole())PpunAchievements.setRole(activeRole());
+  configureChatNav();
   if(step<0){
     app.innerHTML='<h2>무엇이든 물어볼 준비됐나요?</h2><p class="hint" id="school-label"></p><button class="back" id="change-school" type="button">학교 변경</button><p class="hint">나의 상황과 고민을 알려주면 어울리는 선배를 찾아볼 수 있어요.</p><button class="primary start" id="start">후배로 시작하기 →</button><button class="secondary" id="senior">선배로 시작하기</button><button class="outline-btn" id="junior-login" type="button">후배 로그인</button><button class="outline-btn" id="senior-login" type="button">선배 로그인</button><p class="notice" id="login-message" role="status"></p>';
     app.querySelector('#school-label').textContent='선택한 학교: '+selectedSchool;
+    const role=activeRole();
+    if(role){
+      const own=role==='senior'?['senior','senior-login']:['junior-login'];own.forEach(id=>app.querySelector('#'+id).remove());
+      if(role==='junior')app.querySelector('#start').textContent='선배 추천받기 →';
+      const info=document.createElement('p');info.className='prefix';info.id='home-user';info.textContent=role==='senior'?'선배로 접속 중':'후배로 접속 중';app.querySelector('#school-label').after(info);
+      const refreshName=()=>{const session=role==='senior'?savedSeniorSession():savedJuniorSession();if(session)info.textContent=(session.display_name|| (role==='senior'?'선배':'후배'))+(role==='senior'?' 선배로 접속 중':' 후배로 접속 중')};refreshName();
+      if(role==='senior'&&!savedSeniorSession().display_name){const session=savedSeniorSession();fetch(apiBase()+'/api/mentors/me',{headers:{Authorization:'Bearer '+session.token}}).then(r=>r.ok?r.json():null).then(data=>{if(data?.display_name&&activeRole()==='senior'){const current=savedSeniorSession();if(current&&current.token===session.token){current.display_name=data.display_name;try{localStorage.setItem(SENIOR_SESSION_KEY,JSON.stringify(current))}catch(e){}refreshName();updateLoginStatus()}}}).catch(()=>{})}
+    }
+
     app.querySelector('#change-school').onclick=renderSchool;
-    app.querySelector('#start').onclick=startJunior;
-    app.querySelector('#senior').onclick=startSenior;
-    app.querySelector('#junior-login').onclick=()=>renderJuniorAuth('login');
-    app.querySelector('#senior-login').onclick=renderSeniorLogin;
+    if(app.querySelector('#start'))app.querySelector('#start').onclick=startJunior;
+    if(app.querySelector('#senior'))app.querySelector('#senior').onclick=startSenior;
+    if(app.querySelector('#junior-login'))app.querySelector('#junior-login').onclick=()=>{setActiveRole('junior');renderJuniorAuth('login')};
+    if(app.querySelector('#senior-login'))app.querySelector('#senior-login').onclick=()=>{setActiveRole('senior');renderSeniorLogin()};
     return;
   }
   const juniorSession=savedJuniorSession();
@@ -341,5 +358,7 @@ function render(){
     }finally{clearTimeout(timeout);loading.stop()}
   };
 }
+window.addEventListener('storage',updateLoginStatus);
+updateLoginStatus();
 if(new URLSearchParams(location.search).has('senior-login')){renderSeniorLogin()}else if(new URLSearchParams(location.search).has('junior-login')){renderJuniorAuth('login')}else if(selectedSchool){render()}else{renderSchool()}
 </script></body></html>
