@@ -1,6 +1,7 @@
 ﻿/* Browser-only achievements. No chat completion or server reputation is inferred. */
 (() => {
   const key = 'ppunppun-achievements-v1';
+  const achievementVersion = 2;
   const definitions = [
     ['introduction', '🌱', '반가운 선배', '선배 소개를 처음 임시 저장하기', 'senior'],
     ['storyteller', '📖', '경험 나누미', '200자 이상의 경험 소개를 임시 저장하기', 'senior'],
@@ -10,7 +11,7 @@
     ['explorer', '🧭', '인연 탐험가', '서로 다른 선배 3명에게 메시지를 보내고 대화 종료하기', 'junior']
   ];
   const titles = ['새싹 선배', '열정적인 선배', '열혈한 선배', '든든한 선배', '믿음직한 선배', '다정한 길잡이', '캠퍼스 멘토', '빛나는 선배', '최고의 길잡이', '전설의 선배'];
-  let state = { unlocked: {}, mentors: [] }, persistent = true, role = 'junior', storageKey = key;
+  let state = { unlocked: {}, mentors: [], version: achievementVersion }, persistent = true, role = 'junior', storageKey = key, migrationPending = false;
   function browserStorages() {
     const stores = [];
     for (const name of ['localStorage', 'sessionStorage']) {
@@ -36,13 +37,21 @@
     } catch (_) { return key; }
   }
   function load() {
-    storageKey = accountKey(); state = { unlocked: {}, mentors: [] };
+    storageKey = accountKey(); state = { unlocked: {}, mentors: [], version: achievementVersion }; migrationPending = false;
     for (const storage of browserStorages()) {
       try {
         const saved = JSON.parse(storage.getItem(storageKey) || 'null');
         if (saved && typeof saved.unlocked === 'object' && saved.unlocked && Array.isArray(saved.mentors)) {
           definitions.forEach(([id]) => { if (typeof saved.unlocked[id] === 'string') state.unlocked[id] = saved.unlocked[id]; });
           state.mentors = [...new Set(saved.mentors.filter(id => typeof id === 'string'))];
+          if (saved.version !== achievementVersion) {
+            // Previous versions unlocked these based on opening chats or any non-empty result.
+            // Rebuild them using current message and three-result criteria instead.
+            delete state.unlocked.recommendation;
+            delete state.unlocked['first-step'];
+            delete state.unlocked.explorer;
+            migrationPending = true;
+          }
           break;
         }
       } catch (_) { persistent = false; }
@@ -63,6 +72,7 @@
   const toastQueue = [];
   function refresh() { badges.setAttribute('aria-label', '업적, 달성한 배지 ' + definitions.filter(([id,,,,owner]) => owner === role && state.unlocked[id]).length + '개'); }
   function save() {
+    state.version = achievementVersion;
     let saved = false;
     for (const storage of browserStorages()) {
       try { storage.setItem(storageKey, JSON.stringify(state)); saved = true; break; } catch (_) {}
@@ -142,7 +152,7 @@
   temperature.onclick = () => open('temperature'); badges.onclick = () => open('badges');
   window.PpunAchievements = {
     award,
-    setRole(value) { role = value === 'senior' ? 'senior' : 'junior'; load(); temperature.hidden = role !== 'senior'; refresh(); if (role === 'junior') syncJuniorProgress(); },
+    setRole(value) { role = value === 'senior' ? 'senior' : 'junior'; load(); temperature.hidden = role !== 'senior'; refresh(); if (migrationPending) { save(); migrationPending = false; } if (role === 'junior') syncJuniorProgress(); },
     selectMentor(id) { if (id) window.ppunSelectedMentor = String(id); },
     chatWithMentor(id) { if (!id || role !== 'junior') return; const value = String(id); if (!state.mentors.includes(value)) state.mentors.push(value); save(); award('first-step'); syncJuniorProgress(); }
   };
@@ -153,5 +163,6 @@
     sessionStorage.removeItem(pendingToastKey);
     if (Array.isArray(pending)) toastQueue.push(...pending.filter(message => typeof message === 'string'));
   } catch (_) {}
+  if (migrationPending) { save(); migrationPending = false; }
   showNextToast();
 })();

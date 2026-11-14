@@ -152,7 +152,18 @@ function pinConfirmFields(onChange,label){
 function textField(label,onInput){const field=document.createElement('label');field.className='role-note';field.textContent=label;const input=document.createElement('input');input.className='choice';input.style.cssText='display:block;width:100%;margin-top:6px;font:inherit';input.maxLength=30;input.oninput=()=>onInput(input.value);field.appendChild(input);return field}
 // ---- 후배 가입·로그인 ----
 const JUNIOR_SESSION_KEY='ppunppun-junior-session';
+let verifiedJuniorId='';
 function savedJuniorSession(){for(const name of ['localStorage','sessionStorage']){try{const s=JSON.parse(window[name].getItem(JUNIOR_SESSION_KEY)||'null');if(s&&s.junior_id&&s.token)return s}catch(e){}}return null}
+function clearJuniorSession(){for(const name of ['localStorage','sessionStorage']){try{window[name].removeItem(JUNIOR_SESSION_KEY)}catch(e){}}verifiedJuniorId=''}
+async function validateJuniorSession(session){
+  try{
+    const response=await fetch(apiBase()+'/api/juniors/me',{headers:{Authorization:'Bearer '+session.token}});
+    if(response.status===401)return false;
+    if(!response.ok)return null;
+    const data=await response.json();
+    return data.junior_id===session.junior_id;
+  }catch(e){return null}
+}
 function afterJuniorLogin(){
   // 채팅 화면에서 로그인하러 왔으면 그 대화로 돌아감
   const next=new URLSearchParams(location.search).get('next')||'';
@@ -160,17 +171,38 @@ function afterJuniorLogin(){
   if(!selectedSchool){renderSchool();return}
   step=0;render();
 }
-function startJunior(){if(savedJuniorSession()){afterJuniorLogin()}else{renderJuniorAuth('register')}}
+async function startJunior(){
+  const session=savedJuniorSession();
+  if(!session){renderJuniorAuth('register');return}
+  if(verifiedJuniorId===session.junior_id){afterJuniorLogin();return}
+  const notice=document.querySelector('#login-message'),button=document.querySelector('#start');
+  if(button){button.disabled=true;button.textContent='로그인 확인 중...'}
+  if(notice)notice.textContent='저장된 로그인 상태를 확인하고 있어요.';
+  const valid=await validateJuniorSession(session);
+  if(valid===true){verifiedJuniorId=session.junior_id;afterJuniorLogin();return}
+  if(valid===false){clearJuniorSession();renderJuniorAuth('login');return}
+  // 서버 연결이 잠시 불안정해도 저장된 계정의 로그인 화면을 다시 요구하지 않습니다.
+  verifiedJuniorId=session.junior_id;afterJuniorLogin();
+}
 async function logoutJunior(){
   const s=savedJuniorSession();
   try{if(s)await fetch(apiBase()+'/api/juniors/logout',{method:'POST',headers:{Authorization:'Bearer '+s.token}})}catch(e){}
-  for(const name of ['localStorage','sessionStorage']){try{window[name].removeItem(JUNIOR_SESSION_KEY)}catch(e){}}
+  clearJuniorSession();
   step=-1;if(selectedSchool){render()}else{renderSchool()}
 }
 function renderJuniorAuth(mode){
   PpunAchievements.setRole("junior");
   configureChatNav('junior');
-  if(savedJuniorSession()){afterJuniorLogin();return}
+  const existingSession=savedJuniorSession();
+  if(existingSession){
+    if(verifiedJuniorId===existingSession.junior_id){afterJuniorLogin();return}
+    validateJuniorSession(existingSession).then(valid=>{
+      if(valid===true){verifiedJuniorId=existingSession.junior_id;afterJuniorLogin();return}
+      if(valid===false){clearJuniorSession();renderJuniorAuth('login');return}
+      verifiedJuniorId=existingSession.junior_id;afterJuniorLogin();
+    });
+    return;
+  }
   const register=mode==='register';
   app.innerHTML=`<h2>${register?'후배로 가입하기':'후배 로그인'}</h2><p class="hint">${register?'닉네임과 PIN을 정하면 다른 기기에서도 대화를 이어갈 수 있어요.':'가입할 때 정한 닉네임과 PIN을 입력해 주세요.'}</p><div class="choices"></div><div class="actions"><button class="back" id="junior-auth-prev">이전</button><button class="primary" id="junior-auth-submit" disabled>${register?'가입하기':'로그인'}</button></div><button class="outline-btn" id="junior-auth-switch" type="button">${register?'이미 등록했어요(로그인)':'처음이에요(가입하기)'}</button><p class="notice" id="login-message" role="status"></p>`;
   const box=app.querySelector('.choices'),submit=app.querySelector('#junior-auth-submit'),notice=app.querySelector('#login-message');
@@ -191,6 +223,7 @@ function renderJuniorAuth(mode){
       if(res.ok){
         const session=JSON.stringify({junior_id:data.junior_id,token:data.token,display_name:data.display_name});
         for(const name of ['localStorage','sessionStorage']){try{window[name].setItem(JUNIOR_SESSION_KEY,session)}catch(e){}}
+        verifiedJuniorId=data.junior_id;
         afterJuniorLogin();return;
       }
       if(typeof data.detail==='string')message=data.detail;
