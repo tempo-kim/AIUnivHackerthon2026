@@ -554,6 +554,8 @@ def register_junior(payload: JuniorRegisterRequest):
 @app.post("/api/juniors/login")
 def login_junior(payload: MentorLoginRequest):
     display_name = payload.display_name.strip()
+    if not storage.junior_exists(display_name):
+        raise HTTPException(status_code=404, detail="가입된 후배 계정이 없어요. 가입 화면으로 이동해 주세요.")
     junior_id = _login("junior", display_name, payload.pin, storage.check_junior_pin)
     return {"junior_id": junior_id, "display_name": display_name, "token": storage.create_junior_token(junior_id)}
 
@@ -802,11 +804,15 @@ def get_junior_achievements(authorization: str = Header(default="")):
     if not junior_id:
         raise HTTPException(status_code=401, detail="후배 로그인이 필요합니다.")
     rooms = [room for room in storage.list_rooms("") if room["room"].endswith(":" + junior_id)]
-    mentor_ids = {room["room"].split(":", 1)[0] for room in rooms if room["messageCount"] > 0}
+    junior_message_rooms = []
+    for room in rooms:
+        if any(message["senderRole"] == "junior" for message in storage.list_messages(room["room"])):
+            junior_message_rooms.append(room)
+    mentor_ids = {room["room"].split(":", 1)[0] for room in junior_message_rooms}
     unlocked = []
     if mentor_ids:
         unlocked.append("first-step")
-    if len(mentor_ids) >= 3:
+    if len(rooms) >= 3:
         unlocked.append("explorer")
     return {"unlocked": unlocked}
 
@@ -855,21 +861,6 @@ def request_chat_end(payload: RoomEndRequest, authorization: str = Header(defaul
     return state
 
 
-@app.post("/api/school-bot", response_model=SchoolBotResponse)
-def school_bot(payload: SchoolBotRequest):
-    question = (payload.question or "").strip()
-    if not question:
-        raise HTTPException(status_code=400, detail="질문을 입력해 주세요.")
-
-    recent = storage.list_recent_messages(payload.history_limit)
-    result = answer_school_question(
-        question,
-        school=payload.school or "",
-        messages=recent,
-    )
-    return SchoolBotResponse.model_validate(result)
-
-
 @app.post("/api/chat-end/respond")
 def respond_chat_end(payload: RoomEndResponseRequest, authorization: str = Header(default="")):
     room = _chat_room(payload.mentorId, payload.juniorId)
@@ -889,7 +880,7 @@ def respond_chat_end(payload: RoomEndResponseRequest, authorization: str = Heade
 
 @app.post("/api/school-bot", response_model=SchoolBotResponse)
 def school_bot(payload: SchoolBotRequest):
-    """선배·후배 채팅을 익명으로 모아 학교 관련 질문에 답한다.
+    """선배·후배 채팅·사실 DB를 모아 학교 관련 질문에 답한다.
 
     매칭과 같은 OPENAI_API_KEY / OPENAI_BASE_URL / LLM_MODEL 을 사용한다.
     """

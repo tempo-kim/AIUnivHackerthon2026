@@ -18,8 +18,9 @@ load_dotenv(env_path)
 _llm_executor = ThreadPoolExecutor(max_workers=4)
 atexit.register(lambda: _llm_executor.shutdown(wait=False, cancel_futures=True))
 
-# 프론트 요청 제한을 고려하되, LLM 응답 시간을 감안해 타임아웃을 넉넉히 늘립니다. (2.5초 -> 15초)
-LLM_MATCH_TIMEOUT = float(os.getenv("LLM_MATCH_TIMEOUT", "25"))
+# 추천은 첫 호출과 재시도를 합쳐 최대 약 24초까지만 기다린 뒤
+# 규칙 기반 결과로 이어지도록 상한을 둔다. 환경 설정이 더 짧으면 그 값은 유지한다.
+LLM_MATCH_TIMEOUT = min(float(os.getenv("LLM_MATCH_TIMEOUT", "15")), 15.0)
 ALLOWED_HELP_FIELDS = (
     "학교생활",
     "전공공부",
@@ -408,15 +409,15 @@ help_fields:
 - 학교생활, 전공공부, 진로취업, 인턴대외활동, 대학원연구
 
 suitability:
-- 전체 후보를 비교하고 평가하되 출력은 추천 적합도가 높은 상위 후보만 포함한다.
+- 전체 후보를 비교하고 평가하되 출력은 적합도가 높은 상위 5명까지만 포함한다.
 - mentor_id, fit, reason을 작성한다.
-- reason은 실제 프로필 경험과 고민의 연관성을 간결하게 설명한다.
+- reason은 실제 프로필 경험과 고민의 연관성을 한 문장으로 간결하게 설명한다.
 - 적합도 40점 미만은 포함하지 않는다.
 
 recommendations:
 - 적합도가 높은 순서대로 최대 top_k명까지 추천한다.
 - mentor_id와 reason을 작성한다.
-- reason에는 후배의 구체적인 고민과 선배의 실제 경험이 어떻게 연결되는지 설명한다.
+- reason에는 후배의 고민과 선배의 실제 경험이 어떻게 연결되는지 한 문장으로 설명한다.
 - 추천할 만한 후보가 부족하면 인원을 억지로 채우지 않는다.
 - suitability의 순위와 recommendations의 순위는 일치해야 한다.
 
@@ -444,12 +445,12 @@ JSON 외의 어떠한 문장도 출력하지 않는다.
     attempts = [
         {
             "timeout": LLM_MATCH_TIMEOUT,
-            "max_tokens": 2200,
+            "max_tokens": 1400,
             "candidates": request_payload["candidates"],
         },
         {
-            "timeout": LLM_MATCH_TIMEOUT + 10.0,
-            "max_tokens": 1600,
+            "timeout": 22.0 - LLM_MATCH_TIMEOUT,
+            "max_tokens": 900,
             "candidates": request_payload["candidates"][: max(20, min(50, len(request_payload["candidates"])) )],
         },
     ]

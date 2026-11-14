@@ -223,6 +223,13 @@ def check_junior_pin(display_name: str, pin: str) -> str | None:
     return _check_pin("junior", display_name, pin)
 
 
+def junior_exists(display_name: str) -> bool:
+    with _db() as conn:
+        return conn.execute(
+            "SELECT 1 FROM juniors WHERE display_name = ?", (display_name.strip(),)
+        ).fetchone() is not None
+
+
 def junior_names(junior_ids: list[str]) -> dict[str, str]:
     if not junior_ids:
         return {}

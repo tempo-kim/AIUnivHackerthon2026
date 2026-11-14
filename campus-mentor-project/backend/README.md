@@ -35,3 +35,14 @@ LLM 설정은 서버 프로세스의 환경변수로 주입합니다. 민감한 
 ## 배포
 
 저장소 루트의 `render.yaml`이 서비스 구성을 정의합니다. 배포 시 LLM 관련 민감한 환경변수는 호스팅 서비스의 secret/environment 설정에서 관리하고, SQLite 파일을 보존하려면 영속 디스크를 연결해야 합니다. 설정값이나 키를 README에 붙여 넣지 마세요.
+
+## 학교 챗봇
+
+- `POST /api/school-bot` — 학교 관련 질문에 답함 (요청에 `school` 포함 시 해당 학교만 조회)
+- 지식 원천:
+  - `data/school_bot_facts.json` — 교통·캠퍼스·실존 맛집·공식 AI 전공 사실 카드
+  - `data/school_bot_seed_chats.json` — 6교 × 200채팅 × ≥30메시지
+  - 실제 DB 익명 채팅
+- 사실 카드 + 관련 채팅을 함께 검색(하이브리드). 키 없으면 사실 카드 추출 답변
+- 매칭과 **같은** `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `LLM_MODEL` 사용
+- 화면: `/frontend/school-bot/` (대기 중 `데이터베이스 조회중입니다` 표시)

@@ -538,6 +538,8 @@ def register_junior(payload: JuniorRegisterRequest):
 @app.post("/api/juniors/login")
 def login_junior(payload: MentorLoginRequest):
     display_name = payload.display_name.strip()
+    if not storage.junior_exists(display_name):
+        raise HTTPException(status_code=404, detail="가입된 후배 계정이 없어요. 가입 화면으로 이동해 주세요.")
     junior_id = _login("junior", display_name, payload.pin, storage.check_junior_pin)
     return {"junior_id": junior_id, "display_name": display_name, "token": storage.create_junior_token(junior_id)}
 
