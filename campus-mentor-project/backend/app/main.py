@@ -554,6 +554,8 @@ def register_junior(payload: JuniorRegisterRequest):
 @app.post("/api/juniors/login")
 def login_junior(payload: MentorLoginRequest):
     display_name = payload.display_name.strip()
+    if not storage.junior_exists(display_name):
+        raise HTTPException(status_code=404, detail="가입된 후배 계정이 없어요. 가입 화면으로 이동해 주세요.")
     junior_id = _login("junior", display_name, payload.pin, storage.check_junior_pin)
     return {"junior_id": junior_id, "display_name": display_name, "token": storage.create_junior_token(junior_id)}
 
@@ -802,11 +804,15 @@ def get_junior_achievements(authorization: str = Header(default="")):
     if not junior_id:
         raise HTTPException(status_code=401, detail="후배 로그인이 필요합니다.")
     rooms = [room for room in storage.list_rooms("") if room["room"].endswith(":" + junior_id)]
-    mentor_ids = {room["room"].split(":", 1)[0] for room in rooms if room["messageCount"] > 0}
+    junior_message_rooms = []
+    for room in rooms:
+        if any(message["senderRole"] == "junior" for message in storage.list_messages(room["room"])):
+            junior_message_rooms.append(room)
+    mentor_ids = {room["room"].split(":", 1)[0] for room in junior_message_rooms}
     unlocked = []
     if mentor_ids:
         unlocked.append("first-step")
-    if len(mentor_ids) >= 3:
+    if len(rooms) >= 3:
         unlocked.append("explorer")
     return {"unlocked": unlocked}
 

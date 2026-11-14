@@ -1,32 +1,58 @@
 ﻿/* Browser-only achievements. No chat completion or server reputation is inferred. */
 (() => {
   const key = 'ppunppun-achievements-v1';
+  const achievementVersion = 2;
   const definitions = [
     ['introduction', '🌱', '반가운 선배', '선배 소개를 처음 임시 저장하기', 'senior'],
     ['storyteller', '📖', '경험 나누미', '200자 이상의 경험 소개를 임시 저장하기', 'senior'],
-    ['concern', '✍️', '용기 있는 한마디', '직접 쓴 고민으로 추천 요청에 성공하기', 'junior'],
-    ['recommendation', '✨', '새로운 인연', '첫 선배 추천 결과 받기', 'junior'],
+    ['concern', '✍️', '용기 있는 한마디', '직접 쓴 고민으로 추천 요청하기', 'junior'],
+    ['recommendation', '✨', '새로운 인연', '선배 3명 추천 결과 받기', 'junior'],
     ['first-step', '👣', '첫걸음', '선배에게 첫 메시지 보내기', 'junior'],
-    ['explorer', '🧭', '인연 탐험가', '서로 다른 선배 3명에게 메시지 보내기', 'junior']
+    ['explorer', '🧭', '인연 탐험가', '서로 다른 선배와 채팅 기록 3개 만들기', 'junior']
   ];
   const titles = ['새싹 선배', '열정적인 선배', '열혈한 선배', '든든한 선배', '믿음직한 선배', '다정한 길잡이', '캠퍼스 멘토', '빛나는 선배', '최고의 길잡이', '전설의 선배'];
-  let state = { unlocked: {}, mentors: [] }, persistent = true, role = 'junior', storageKey = key;
+  let state = { unlocked: {}, mentors: [], version: achievementVersion }, persistent = true, role = 'junior', storageKey = key, migrationPending = false;
+  function browserStorages() {
+    const stores = [];
+    for (const name of ['localStorage', 'sessionStorage']) {
+      try { stores.push(window[name]); } catch (_) {}
+    }
+    return stores;
+  }
+  function sessionFor(owner) {
+    const sessionKey = owner === 'senior' ? 'ppunppun-senior-session' : 'ppunppun-junior-session';
+    for (const storage of browserStorages()) {
+      try {
+        const session = JSON.parse(storage.getItem(sessionKey) || 'null');
+        if (session) return session;
+      } catch (_) {}
+    }
+    return null;
+  }
   function accountKey() {
     try {
-      const session = JSON.parse(localStorage.getItem(role === 'senior' ? 'ppunppun-senior-session' : 'ppunppun-junior-session') || 'null');
+      const session = sessionFor(role);
       const id = role === 'senior' ? session?.mentor_id : session?.junior_id;
       return id ? `${key}:${role}:${encodeURIComponent(id)}` : key;
     } catch (_) { return key; }
   }
   function load() {
-    storageKey = accountKey(); state = { unlocked: {}, mentors: [] };
-    try {
-    const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
-    if (saved && typeof saved.unlocked === 'object' && saved.unlocked && Array.isArray(saved.mentors)) {
-      definitions.forEach(([id]) => { if (typeof saved.unlocked[id] === 'string') state.unlocked[id] = saved.unlocked[id]; });
-      state.mentors = [...new Set(saved.mentors.filter(id => typeof id === 'string'))];
+    storageKey = accountKey(); state = { unlocked: {}, mentors: [], version: achievementVersion }; migrationPending = false;
+    for (const storage of browserStorages()) {
+      try {
+        const saved = JSON.parse(storage.getItem(storageKey) || 'null');
+        if (saved && typeof saved.unlocked === 'object' && saved.unlocked && Array.isArray(saved.mentors)) {
+          definitions.forEach(([id]) => { if (typeof saved.unlocked[id] === 'string') state.unlocked[id] = saved.unlocked[id]; });
+          state.mentors = [...new Set(saved.mentors.filter(id => typeof id === 'string'))];
+          if (saved.version !== achievementVersion) {
+            // Preserve earned badges across app upgrades. Criteria changes must not
+            // revoke an achievement or make its one-time toast appear again.
+            migrationPending = true;
+          }
+          break;
+        }
+      } catch (_) { persistent = false; }
     }
-    } catch (_) { persistent = false; }
   }
   load();
   const style = document.createElement('style');
@@ -38,11 +64,18 @@
   actions.append(temperature); const header = document.querySelector('header'); const login = header.querySelector('#login'); if (login) actions.append(login); header.append(actions); actions.style.marginLeft = 'auto'; document.querySelector('.nav').append(badges);
   const dialog = document.createElement('dialog'); dialog.className = 'achievement-dialog'; dialog.setAttribute('aria-labelledby', 'achievement-title'); document.body.append(dialog);
   const toast = document.createElement('div'); toast.className = 'achievement-toast'; toast.setAttribute('role', 'status'); toast.hidden = true; document.body.append(toast);
-  const pendingToastKey = 'ppunppun-pending-achievement-toasts';
   let timeout, toastShowing = false;
   const toastQueue = [];
   function refresh() { badges.setAttribute('aria-label', '업적, 달성한 배지 ' + definitions.filter(([id,,,,owner]) => owner === role && state.unlocked[id]).length + '개'); }
-  function save() { try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch (_) { persistent = false; } refresh(); }
+  function save() {
+    state.version = achievementVersion;
+    let saved = false;
+    for (const storage of browserStorages()) {
+      try { storage.setItem(storageKey, JSON.stringify(state)); saved = true; } catch (_) {}
+    }
+    if (!saved) persistent = false;
+    refresh();
+  }
   function refreshOpenBadges() {
     if (!dialog.open || dialog.dataset.mode !== 'badges') return;
     dialog.querySelectorAll('[data-achievement-id]').forEach(row => {
@@ -67,13 +100,6 @@
       showNextToast();
     }, 3500);
   }
-  function persistPendingToasts() {
-    const pending = [...(toastShowing && !toast.hidden ? [toast.textContent] : []), ...toastQueue];
-    try {
-      if (pending.length) sessionStorage.setItem(pendingToastKey, JSON.stringify(pending));
-      else sessionStorage.removeItem(pendingToastKey);
-    } catch (_) {}
-  }
   function award(id) {
     const item = definitions.find(d => d[0] === id);
     if (!item || state.unlocked[id]) return;
@@ -85,7 +111,7 @@
   async function syncJuniorProgress() {
     if (role !== 'junior') return;
     try {
-      const session = JSON.parse(localStorage.getItem('ppunppun-junior-session') || 'null');
+      const session = sessionFor('junior');
       if (!session?.token) return;
       const response = await fetch('/api/junior-achievements', { headers: { Authorization: 'Bearer ' + session.token } });
       if (!response.ok) return;
@@ -106,23 +132,18 @@
       titles.forEach((name, index) => { const row = document.createElement('div'); row.className = 'achievement-item' + (index === 0 ? ' achievement-current' : ''); row.textContent = (index * .5).toFixed(3) + ' 이상 · ' + name + (index === 0 ? ' (현재)' : ''); items.append(row); });
     } else {
       definitions.filter(d => d[4] === role).forEach(([id, icon, name, description]) => { const earned = Boolean(state.unlocked[id]); const row = document.createElement('div'); row.dataset.achievementId = id; row.className = 'achievement-item' + (earned ? ' achievement-earned' : ' achievement-locked'); const label = document.createElement('strong'); label.textContent = (earned ? icon : '🔒') + ' ' + name + ' · ' + (earned ? '달성' : '미달성'); const detail = document.createElement('p'); detail.textContent = description; row.append(label, detail); items.append(row); });
-      const note = document.createElement('p'); note.textContent = '첫걸음과 인연 탐험가는 메시지 전송이 성공하면 달성돼요.'; dialog.append(note);
+      const note = document.createElement('p'); note.textContent = '첫걸음은 첫 메시지 전송 성공 시, 인연 탐험가는 채팅 기록이 3개 이상 쌓이면 달성돼요.'; dialog.append(note);
     }
     dialog.showModal();
   }
   temperature.onclick = () => open('temperature'); badges.onclick = () => open('badges');
   window.PpunAchievements = {
     award,
-    setRole(value) { role = value === 'senior' ? 'senior' : 'junior'; load(); temperature.hidden = role !== 'senior'; refresh(); if (role === 'junior') syncJuniorProgress(); },
+    setRole(value) { role = value === 'senior' ? 'senior' : 'junior'; load(); temperature.hidden = role !== 'senior'; refresh(); if (migrationPending) { save(); migrationPending = false; } if (role === 'junior') syncJuniorProgress(); },
     selectMentor(id) { if (id) window.ppunSelectedMentor = String(id); },
-    chatWithMentor(id) { if (!id || role !== 'junior') return; const value = String(id); if (!state.mentors.includes(value)) state.mentors.push(value); save(); award('first-step'); if (state.mentors.length >= 3) award('explorer'); syncJuniorProgress(); }
+    chatWithMentor(id) { if (!id || role !== 'junior') return; const value = String(id); if (!state.mentors.includes(value)) state.mentors.push(value); save(); award('first-step'); syncJuniorProgress(); }
   };
   refresh();
-  window.addEventListener('beforeunload', persistPendingToasts);
-  try {
-    const pending = JSON.parse(sessionStorage.getItem(pendingToastKey) || '[]');
-    sessionStorage.removeItem(pendingToastKey);
-    if (Array.isArray(pending)) toastQueue.push(...pending.filter(message => typeof message === 'string'));
-  } catch (_) {}
-  showNextToast();
+  try { sessionStorage.removeItem('ppunppun-pending-achievement-toasts'); } catch (_) {}
+  if (migrationPending) { save(); migrationPending = false; }
 })();

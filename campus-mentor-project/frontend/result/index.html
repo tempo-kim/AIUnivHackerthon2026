@@ -37,6 +37,8 @@ const nextMatch=document.querySelector('#reroll');
 const chatUrl=id=>'../chat/index.html?role=junior&mentor='+encodeURIComponent(id);
 let result=null;
 try{result=JSON.parse(sessionStorage.getItem('ppunppun-match')||'null')}catch(e){}
+let llmPending=sessionStorage.getItem('ppunppun-llm-pending')==='1';
+PpunAchievements.setRole('junior');
 let seenMentorIds=[];
 try{seenMentorIds=JSON.parse(sessionStorage.getItem('ppunppun-seen-mentors')||'[]')}catch(e){}
 if(!Array.isArray(seenMentorIds))seenMentorIds=[];
@@ -51,9 +53,13 @@ list.replaceChildren();retry.hidden=true;
 const matches=favoritesOnly?loadFavorites():(Array.isArray(result?.matches)?result.matches:[]);
 document.querySelector('#show-recommended').setAttribute('aria-pressed',String(!favoritesOnly));
 document.querySelector('#show-favorites').setAttribute('aria-pressed',String(favoritesOnly));
-  nextMatch.disabled=favoritesOnly;
+  nextMatch.disabled=favoritesOnly||llmPending;
+  nextMatch.textContent=llmPending?'AI가 추천을 다듬는 중…':'↻ 다른 선배 보기';
 const status=document.querySelector('#analysis-status');
-if(result){
+if(llmPending){
+  status.textContent='빠른 추천을 먼저 보여 드려요. AI가 고민 키워드와 선배 경험을 비교하고 있어요.';
+  document.querySelector('#analysis-source').textContent='AI 분석이 끝나면 추천 결과와 추천 이유가 자동으로 업데이트됩니다.';
+}else if(result){
   const singleLlm=result.extraction_source==='llm'&&result.recommendation_source==='llm';
   const extractionLabel=({llm:'LLM이 고민 내용을 분석',stub:'규칙 기반 분석',client:'입력된 조건 사용'})[result.extraction_source]||'분석 방식 확인 불가';
   const recommendationLabel=result.recommendation_source==='llm'?'LLM이 후보 선배를 최종 비교':'규칙 기반 후보 정렬';
@@ -68,9 +74,9 @@ if(favoritesOnly&&!matches.length){notice.textContent='아직 찜한 선배가 �
   notice.textContent='입력한 조건에 맞는 선배를 찾지 못했어요. 고민을 다시 작성해 주세요.';retry.hidden=false;
 }else{
   notice.textContent=favoritesOnly?'찜한 선배들이에요. 저장 당시의 소개가 표시됩니다.':'입력한 고민을 바탕으로 추천한 선배예요.';
-  PpunAchievements.award('recommendation');
+  if(!favoritesOnly&&matches.length===3)PpunAchievements.award('recommendation');
   const analysisSource = document.querySelector('#analysis-source');
-  if (analysisSource && result && !favoritesOnly) {
+  if (analysisSource && result && !favoritesOnly && !llmPending) {
     analysisSource.textContent = result.extraction_source === 'llm' && result.recommendation_source === 'llm'
       ? '분석 방식: AI LLM 한 번의 응답으로 고민 키워드, 상황, 선배 적합도와 추천 이유를 만들었습니다.'
       : result.extraction_source === 'llm'
@@ -133,6 +139,32 @@ renderMatches();
 document.querySelector('#show-recommended').onclick=()=>{favoritesOnly=false;renderMatches()};
 document.querySelector('#show-favorites').onclick=()=>{favoritesOnly=true;renderMatches()};
 window.addEventListener('storage',()=>renderMatches());
+async function refineRecommendations(){
+  if(!llmPending)return;
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),30000);
+  try{
+    const concernText=sessionStorage.getItem('ppunppun-concern')||'';
+    let choice=null;try{choice=JSON.parse(sessionStorage.getItem('ppunppun-choice')||'null')}catch(e){}
+    const base=location.protocol==='file:'?'http://127.0.0.1:8000':'';
+    const response=await fetch(base+'/api/match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({concern_text:concernText,choice,top_k:3,use_llm:true}),signal:controller.signal});
+    if(!response.ok)throw new Error('AI 추천 요청 실패');
+    const refined=await response.json();
+    if(!Array.isArray(refined.matches))throw new Error('AI 추천 결과가 올바르지 않아요.');
+    result=refined;
+    sessionStorage.setItem('ppunppun-match',JSON.stringify(refined));
+    seenMentorIds=[...new Set([...seenMentorIds,...refined.matches.map(m=>String(m.mentor_id)).filter(Boolean)])];
+    sessionStorage.setItem('ppunppun-seen-mentors',JSON.stringify(seenMentorIds));
+    llmPending=false;sessionStorage.removeItem('ppunppun-llm-pending');
+    renderMatches();
+    if(refined.recommendation_source!=='llm')notice.textContent='빠른 추천을 유지했어요. AI 분석 결과를 가져오지 못했습니다.';
+  }catch(e){
+    llmPending=false;sessionStorage.removeItem('ppunppun-llm-pending');
+    renderMatches();
+    notice.textContent='빠른 추천 결과를 보여드리고 있어요. AI 분석을 완료하지 못했습니다.';
+  }finally{clearTimeout(timeout)}
+}
+refineRecommendations();
 // 다음 3명 추천 API 연결 후 활성화합니다.
 // 하단 "채팅": 후배 로그인이면 내 대화, 선배 로그인이면 받은 대화, 아니면 처음 화면
 const chatLink=document.querySelector('#open-chat');

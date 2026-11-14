@@ -158,23 +158,25 @@ const ChatApi = (() => {
     let failed = false;
     let lastEndState = "";
     const timer = setInterval(async () => {
-      try {
-        const [messages, endState] = await Promise.all([
-          getMessages(mentorId, juniorId),
-          getEndState(mentorId, juniorId),
-        ]);
-        messages.forEach(onMessage);
-        const endStateKey = JSON.stringify(endState);
+      const [messagesResult, endStateResult] = await Promise.allSettled([
+        getMessages(mentorId, juniorId),
+        getEndState(mentorId, juniorId),
+      ]);
+      if (messagesResult.status === "rejected") {
+        failed = true;
+        onError?.(messagesResult.reason);
+        return;
+      }
+      messagesResult.value.forEach(onMessage);
+      if (endStateResult.status === "fulfilled") {
+        const endStateKey = JSON.stringify(endStateResult.value);
         if (endStateKey !== lastEndState) {
           lastEndState = endStateKey;
-          onEndState?.(endState);
+          onEndState?.(endStateResult.value);
         }
-        if (failed) onRecover?.();
-        failed = false;
-      } catch (err) {
-        failed = true;
-        onError?.(err);
       }
+      if (failed) onRecover?.();
+      failed = false;
     }, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
   }
