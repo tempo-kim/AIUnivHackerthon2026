@@ -133,6 +133,8 @@ renderMatches();
 document.querySelector('#show-recommended').onclick=()=>{favoritesOnly=false;renderMatches()};
 document.querySelector('#show-favorites').onclick=()=>{favoritesOnly=true;renderMatches()};
 window.addEventListener('storage',()=>renderMatches());
+// 다음 3명 추천 API 연결 후 활성화합니다.
+// 하단 "채팅": 후배 로그인이면 내 대화, 선배 로그인이면 받은 대화, 아니면 처음 화면
 const chatLink=document.querySelector('#open-chat');
 chatLink.onclick=async event=>{event.preventDefault();
   const session=(()=>{try{return JSON.parse(localStorage.getItem('ppunppun-junior-session')||'null')}catch(e){return null}})();
