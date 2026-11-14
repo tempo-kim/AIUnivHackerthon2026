@@ -155,6 +155,8 @@ def format_conversations(convs: list[dict], *, max_chars: int = 14000) -> str:
         lines = [
             f"### 채팅 {conv.get('id')} | {conv.get('school','')} | {conv.get('topic')} | {conv.get('title')}",
         ]
+        if conv.get("fact_note"):
+            lines.append(f"(사실메모) {conv.get('fact_note')}")
         for m in conv.get("messages") or []:
             lines.append(f"[{_role_label(str(m.get('senderRole') or ''))}] {m.get('text','')}")
         chunks.append("\n".join(lines))
