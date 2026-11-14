@@ -342,6 +342,7 @@ def answer_school_question(
             **base_meta,
             "answer": _extractive_answer(question, canon, cards, picked),
             "source": "facts",
+            "llm_error_type": "missing_api_key",
         }
 
     school_line = f"대상 학교: {canon}" if canon else "대상 학교: (미지정)"
@@ -398,4 +399,6 @@ def answer_school_question(
             "answer": _extractive_answer(question, canon, cards, picked)
             + "\n\n(참고: LLM 연결에 실패해 사실 카드 추출 답변으로 대체했습니다.)",
             "source": "facts-fallback",
+            "llm_error_type": type(e).__name__,
+            "llm_error_status": status,
         }

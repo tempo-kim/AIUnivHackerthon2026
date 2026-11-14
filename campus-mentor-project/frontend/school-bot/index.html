@@ -123,7 +123,10 @@
           `사실 ${data.used_fact_count || 0}/${data.fact_card_count || 0}` +
           ` · 채팅 ${data.used_conversation_count || 0}개 / 메시지 ${data.used_message_count || 0}개` +
           (data.school ? ` · ${data.school}` : '') +
-          ` · source=${data.source || '-'}`;
+          ` · source=${data.source || '-'}` +
+          (data.llm_error_type
+            ? ` · LLM 오류=${data.llm_error_type}${data.llm_error_status ? ` (${data.llm_error_status})` : ''}`
+            : '');
       } catch (err) {
         typing.remove();
         error.hidden = false;
