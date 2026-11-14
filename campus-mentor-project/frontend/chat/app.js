@@ -703,19 +703,18 @@ async function checkSeniorLogin() {
 
 // ---- 후배 로그인 확인 ----
 function readJuniorSession() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(JUNIOR_SESSION_KEY) || "null");
-    return saved && saved.junior_id && saved.token ? saved : null;
-  } catch {
-    return null;
+  for (const name of ["localStorage", "sessionStorage"]) {
+    try {
+      const saved = JSON.parse(window[name].getItem(JUNIOR_SESSION_KEY) || "null");
+      if (saved && saved.junior_id && saved.token) return saved;
+    } catch {}
   }
+  return null;
 }
 
 function goToJuniorLogin() {
-  try {
-    localStorage.removeItem(JUNIOR_SESSION_KEY);
-  } catch {
-    // 저장소를 못 써도 로그인 화면으로는 이동
+  for (const name of ["localStorage", "sessionStorage"]) {
+    try { window[name].removeItem(JUNIOR_SESSION_KEY); } catch {}
   }
   // 로그인 후 이 대화로 돌아오도록 현재 주소를 넘김
   location.replace(`../main.html?junior-login=1&next=${encodeURIComponent(`chat/index.html${location.search}`)}`);

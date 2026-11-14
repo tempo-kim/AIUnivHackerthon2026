@@ -36,6 +36,7 @@ const nextMatch=document.querySelector('#reroll');
 const chatUrl=id=>'../chat/index.html?role=junior&mentor='+encodeURIComponent(id);
 let result=null;
 try{result=JSON.parse(sessionStorage.getItem('ppunppun-match')||'null')}catch(e){}
+PpunAchievements.setRole('junior');
 let seenMentorIds=[];
 try{seenMentorIds=JSON.parse(sessionStorage.getItem('ppunppun-seen-mentors')||'[]')}catch(e){}
 if(!Array.isArray(seenMentorIds))seenMentorIds=[];
@@ -67,7 +68,7 @@ if(favoritesOnly&&!matches.length){notice.textContent='아직 찜한 선배가 �
   notice.textContent='입력한 조건에 맞는 선배를 찾지 못했어요. 고민을 다시 작성해 주세요.';retry.hidden=false;
 }else{
   notice.textContent=favoritesOnly?'찜한 선배들이에요. 저장 당시의 소개가 표시됩니다.':'입력한 고민을 바탕으로 추천한 선배예요.';
-  PpunAchievements.award('recommendation');
+  if(!favoritesOnly&&matches.length===3)PpunAchievements.award('recommendation');
   const analysisSource = document.querySelector('#analysis-source');
   if (analysisSource && result && !favoritesOnly) {
     analysisSource.textContent = result.extraction_source === 'llm' && result.recommendation_source === 'llm'

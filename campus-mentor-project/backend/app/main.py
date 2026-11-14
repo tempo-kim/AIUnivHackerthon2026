@@ -766,11 +766,20 @@ def get_junior_achievements(authorization: str = Header(default="")):
     if not junior_id:
         raise HTTPException(status_code=401, detail="후배 로그인이 필요합니다.")
     rooms = [room for room in storage.list_rooms("") if room["room"].endswith(":" + junior_id)]
-    mentor_ids = {room["room"].split(":", 1)[0] for room in rooms if room["messageCount"] > 0}
+    junior_message_rooms = []
+    for room in rooms:
+        if any(message["senderRole"] == "junior" for message in storage.list_messages(room["room"])):
+            junior_message_rooms.append(room)
+    mentor_ids = {room["room"].split(":", 1)[0] for room in junior_message_rooms}
     unlocked = []
     if mentor_ids:
         unlocked.append("first-step")
-    if len(mentor_ids) >= 3:
+    ended_mentor_ids = {
+        room["room"].split(":", 1)[0]
+        for room in junior_message_rooms
+        if room["status"] == "ended"
+    }
+    if len(ended_mentor_ids) >= 3:
         unlocked.append("explorer")
     return {"unlocked": unlocked}
 
