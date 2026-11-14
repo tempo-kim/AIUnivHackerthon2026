@@ -152,7 +152,20 @@ const SENIOR_SESSION_KEY='ppunppun-senior-session';
 const PIN_RE=/^[0-9]{4,6}$/;
 function apiBase(){return location.protocol==='file:'?'http://127.0.0.1:8000':''}
 function savedSeniorSession(){try{const s=JSON.parse(localStorage.getItem(SENIOR_SESSION_KEY)||'null');return s&&s.mentor_id&&s.token?s:null}catch(e){return null}}
-function goSeniorInbox(session){setActiveRole('senior');try{localStorage.setItem(SENIOR_SESSION_KEY,JSON.stringify({mentor_id:session.mentor_id,token:session.token,display_name:session.display_name||seniorAnswers.display_name||''}))}catch(e){}step=-1;if(selectedSchool){render()}else{renderSchool()}}
+function goSeniorInbox(session,introduction){
+  try{localStorage.setItem(SENIOR_SESSION_KEY,JSON.stringify({mentor_id:session.mentor_id,token:session.token,display_name:session.display_name||seniorAnswers.display_name||''}))}catch(e){}
+  setActiveRole('senior');
+  if(typeof introduction==='string')PpunAchievements.saveSeniorProfile(introduction);
+  step=-1;if(selectedSchool){render()}else{renderSchool()}
+}
+async function savedSeniorIntroduction(mentorId){
+  try{
+    const response=await fetch(apiBase()+'/api/mentors');
+    if(!response.ok)return null;
+    const mentors=await response.json();
+    return mentors.find(item=>String(item.mentor_id)===String(mentorId))?.bio??null;
+  }catch(e){return null}
+}
 function pinInput(onChange){const input=document.createElement('input');input.className='choice';input.style.cssText='display:block;width:100%;margin-top:6px;font:inherit';input.type='password';input.inputMode='numeric';input.autocomplete='off';input.maxLength=6;input.placeholder='숫자 4~6자리';input.oninput=()=>{input.value=input.value.replace(/[^0-9]/g,'');onChange(input.value)};return input}
 // PIN + PIN 확인 칸. 두 값이 다르면 안내 문구를 보여 줌. onChange(pin, confirm)
 function pinConfirmFields(onChange,label){
@@ -270,7 +283,7 @@ function renderSeniorLogin(){
     try{
       const res=await fetch(apiBase()+'/api/mentors/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({display_name:name.trim(),pin})});
       const data=await res.json().catch(()=>({}));
-      if(res.ok){data.display_name=data.display_name||name.trim();goSeniorInbox(data);return}
+      if(res.ok){data.display_name=data.display_name||name.trim();goSeniorInbox(data,await savedSeniorIntroduction(data.mentor_id));return}
       if(typeof data.detail==='string')message=data.detail;
     }catch(e){}
     notice.textContent=message;submit.textContent='로그인';update();
@@ -306,8 +319,7 @@ function renderSenior(){
       const data=await res.json().catch(()=>({}));
       if(res.ok){
         seniorPin='';seniorPinConfirm='';
-        try{PpunAchievements.award('introduction');if(introduction.length>=200)PpunAchievements.award('storyteller')}catch(e){}
-        goSeniorInbox(data);return;
+        goSeniorInbox(data,introduction);return;
       }
       if(typeof data.detail==='string')message=data.detail;
     }catch(e){}
@@ -325,8 +337,8 @@ function renderSeniorHome(){
   app.querySelector('#edit-senior').onclick=()=>{seniorStep=0;renderSenior()};
   app.querySelector('#switch-role').onclick=()=>{step=-1;render()};
 }
-function startSenior(){setActiveRole('senior');
-  const session=savedSeniorSession();if(session){goSeniorInbox(session);return}
+async function startSenior(){setActiveRole('senior');
+  const session=savedSeniorSession();if(session){goSeniorInbox(session,await savedSeniorIntroduction(session.mentor_id));return}
   try{const saved=JSON.parse(sessionStorage.getItem('ppunppun-senior-draft')||'null');if(saved&&saved.school===selectedSchool&&saved.display_name&&saved.major&&saved.status&&saved.introduction){Object.assign(seniorAnswers,{display_name:saved.display_name,major:saved.major,status:saved.status,introduction:saved.introduction});renderSeniorHome();return}}catch(e){}
   seniorStep=0;renderSenior();
 }
