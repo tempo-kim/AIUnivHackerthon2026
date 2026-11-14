@@ -100,3 +100,5 @@ class SchoolBotResponse(BaseModel):
     fact_card_count: int = 0
     school: str = ""
     source: str = "llm"
+    llm_error_type: str | None = None
+    llm_error_status: int | None = None

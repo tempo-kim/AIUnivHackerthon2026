@@ -155,6 +155,19 @@ class MentorStore:
             self._mentors.append(mentor)
         return mentor
 
+    def update_bio(self, mentor_id: str, bio: str) -> Mentor | None:
+        """Update the in-memory profile used by mentor listing and recommendations."""
+        with _add_lock:
+            mentor = next((item for item in self._mentors if item.mentor_id == mentor_id), None)
+            if mentor is None:
+                return None
+            mentor.bio = bio
+            # Registered mentors initially use their introduction as experience text.
+            # Keep those recommendation inputs synchronized with the edited profile.
+            mentor.experiences = [bio] if bio else []
+            mentor.help_topics = _topics_from_bio(bio)
+            return mentor
+
     def replace_from_csv_text(self, text: str, save: bool = True) -> int:
         reader = csv.DictReader(io.StringIO(text))
         mentors = [

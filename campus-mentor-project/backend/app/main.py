@@ -153,6 +153,15 @@ def _chat_room(mentor_id: str, junior_id: str) -> str:
     return f"{mentor_id}:{junior_id}"
 
 
+def _member_chat_room(mentor_id: str, junior_id: str) -> str:
+    """Build a room key for authenticated reads, even if a mentor profile was reloaded away."""
+    if not mentor_id or len(mentor_id) > 100 or ":" in mentor_id:
+        raise HTTPException(status_code=400, detail="mentorId 형식이 올바르지 않습니다.")
+    if not JUNIOR_ID_PATTERN.fullmatch(junior_id):
+        raise HTTPException(status_code=400, detail="juniorId 형식이 올바르지 않습니다.")
+    return f"{mentor_id}:{junior_id}"
+
+
 def _bearer(authorization: str) -> str:
     scheme, _, token = (authorization or "").partition(" ")
     return token.strip() if scheme.lower() == "bearer" else ""
@@ -463,6 +472,10 @@ class MentorLoginRequest(BaseModel):
     pin: str = ""
 
 
+class MentorIntroductionUpdate(BaseModel):
+    introduction: str = ""
+
+
 class JuniorRegisterRequest(BaseModel):
     display_name: str = ""
     pin: str = ""
@@ -582,7 +595,46 @@ def current_mentor(authorization: str = Header(default="")):
     mentor = next((m for m in store.list() if m.mentor_id == mentor_id), None) if mentor_id else None
     if mentor is None:
         raise HTTPException(status_code=401, detail="선배 로그인이 필요합니다.")
-    return {"mentor_id": mentor.mentor_id, "display_name": mentor.display_name}
+    return {
+        "mentor_id": mentor.mentor_id,
+        "display_name": mentor.display_name,
+        "major": mentor.major,
+        "status": mentor.status,
+        "introduction": mentor.bio,
+    }
+
+
+@app.patch("/api/mentors/me/introduction")
+def update_current_mentor_introduction(
+    payload: MentorIntroductionUpdate,
+    authorization: str = Header(default=""),
+):
+    """Update the authenticated mentor's introduction and recommendation profile."""
+    mentor_id = storage.token_mentor(_bearer(authorization))
+    if mentor_id is None:
+        raise HTTPException(status_code=401, detail="선배 로그인이 필요합니다.")
+
+    introduction = payload.introduction.strip()
+    if not introduction:
+        raise HTTPException(status_code=400, detail="자기소개를 입력해 주세요.")
+    if len(introduction) > 300:
+        raise HTTPException(status_code=400, detail="소개는 300자 이내로 입력해 주세요.")
+    _reject_badwords(PROFILE_BADWORD_DETAIL, introduction)
+
+    mentor = next((item for item in store.list() if item.mentor_id == mentor_id), None)
+    if mentor is None:
+        raise HTTPException(status_code=404, detail="선배 프로필을 찾을 수 없습니다.")
+    if not storage.update_mentor_bio(mentor_id, introduction):
+        raise HTTPException(status_code=404, detail="선배 계정을 찾을 수 없습니다.")
+
+    updated = store.update_bio(mentor_id, introduction)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="선배 프로필을 찾을 수 없습니다.")
+    return {
+        "mentor_id": updated.mentor_id,
+        "introduction": updated.bio,
+        "message": "자기소개가 저장되었으며 선배 추천 프로필에도 반영되었습니다.",
+    }
 
 
 @app.post("/api/mentors/logout")
@@ -626,7 +678,7 @@ def match_mentor(payload: MatchRequest):
 
 @app.get("/api/messages")
 def get_messages(mentorId: str, juniorId: str = "", authorization: str = Header(default="")):
-    room = _chat_room(mentorId, juniorId)
+    room = _member_chat_room(mentorId, juniorId)
     _require_room_member(mentorId, juniorId, authorization)
     return storage.list_messages(room)
 
@@ -838,7 +890,7 @@ def send_message(payload: RoomMessageRequest, authorization: str = Header(defaul
 
 @app.get("/api/chat-end")
 def get_chat_end(mentorId: str, juniorId: str = "", authorization: str = Header(default="")):
-    room = _chat_room(mentorId, juniorId)
+    room = _member_chat_room(mentorId, juniorId)
     _require_room_member(mentorId, juniorId, authorization)
     return storage.get_end_state(room)
 

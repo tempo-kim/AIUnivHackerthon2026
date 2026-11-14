@@ -11,15 +11,18 @@ from __future__ import annotations
 import json
 import os
 import re
-import traceback
+import atexit
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
 
-from ai.extractor import _client, _llm_executor, _model_name
+from ai.extractor import _client, _model_name
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 SEED_PATH = DATA_DIR / "school_bot_seed_chats.json"
 FACTS_PATH = DATA_DIR / "school_bot_facts.json"
+_school_bot_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="school-bot-llm")
+atexit.register(lambda: _school_bot_executor.shutdown(wait=False, cancel_futures=True))
 
 SCHOOL_ALIASES = {
     "서울대": "서울대학교",
@@ -339,6 +342,7 @@ def answer_school_question(
             **base_meta,
             "answer": _extractive_answer(question, canon, cards, picked),
             "source": "facts",
+            "llm_error_type": "missing_api_key",
         }
 
     school_line = f"대상 학교: {canon}" if canon else "대상 학교: (미지정)"
@@ -362,8 +366,14 @@ def answer_school_question(
 """
     try:
         def _call():
+            model = _model_name()
+            base_url = os.getenv("OPENAI_BASE_URL", "").strip().lower()
+            # The deployment default includes the OpenRouter provider prefix;
+            # the official OpenAI endpoint expects the bare model name.
+            if "api.openai.com" in base_url and model.startswith("openai/"):
+                model = model.removeprefix("openai/")
             return _client().chat.completions.create(
-                model=_model_name(),
+                model=model,
                 messages=[
                     {"role": "system", "content": system_prompt.strip()},
                     {"role": "user", "content": user_prompt.strip()},
@@ -373,16 +383,22 @@ def answer_school_question(
                 timeout=40.0,
             )
 
-        future = _llm_executor.submit(_call)
+        # Keep recommendation traffic from occupying every worker and forcing
+        # school-bot requests to fall back before they reach the provider.
+        future = _school_bot_executor.submit(_call)
         res = future.result(timeout=42.0)
         answer = (res.choices[0].message.content or "").strip() or "답변을 만들지 못했어요."
         return {**base_meta, "answer": answer, "source": "llm+facts"}
     except Exception as e:
-        print(f"[school_bot] {e}")
-        traceback.print_exc()
+        # Never log exception text: provider exceptions can include request
+        # details. A class and HTTP status are enough to diagnose safely.
+        status = getattr(e, "status_code", None)
+        print(f"[school_bot] LLM request failed: {type(e).__name__}, status={status}")
         return {
             **base_meta,
             "answer": _extractive_answer(question, canon, cards, picked)
             + "\n\n(참고: LLM 연결에 실패해 사실 카드 추출 답변으로 대체했습니다.)",
             "source": "facts-fallback",
+            "llm_error_type": type(e).__name__,
+            "llm_error_status": status,
         }
