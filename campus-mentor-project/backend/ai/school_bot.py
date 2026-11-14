@@ -1,4 +1,4 @@
-"""학교 생활 Q&A 챗봇 — 사실 DB + 긴 채팅 하이브리드 검색.
+﻿"""학교 생활 Q&A 챗봇 — 사실 DB + 긴 채팅 하이브리드 검색.
 
 매칭과 같은 OPENAI_API_KEY / OPENAI_BASE_URL / LLM_MODEL 사용.
 1) school_bot_facts.json 의 실존 교통·전공·맛집 카드

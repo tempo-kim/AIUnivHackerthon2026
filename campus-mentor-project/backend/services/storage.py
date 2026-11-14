@@ -1,4 +1,4 @@
-"""등록 선배·로그인 토큰·채팅 메시지·대화 종료 상태를 SQLite 파일에 저장한다."""
+﻿"""등록 선배·로그인 토큰·채팅 메시지·대화 종료 상태를 SQLite 파일에 저장한다."""
 
 from __future__ import annotations
 
@@ -115,6 +115,11 @@ def name_taken(display_name: str) -> bool:
             "SELECT 1 FROM mentors WHERE display_name = ?", (display_name,)
         ).fetchone()
     return row is not None
+
+
+def has_mentor_account(mentor_id: str) -> bool:
+    with _db() as conn:
+        return conn.execute("SELECT 1 FROM mentors WHERE mentor_id = ?", (mentor_id,)).fetchone() is not None
 
 
 def add_mentor(mentor_id: str, display_name: str, major: str, status: str, bio: str, pin: str) -> None:
@@ -287,26 +292,29 @@ def list_recent_messages(limit: int = 80) -> list[dict]:
     ]
 
 
-def list_rooms(prefix: str) -> list[dict]:
-    """prefix로 시작하는 대화방마다 마지막 메시지·개수·종료 상태."""
+def list_rooms(prefix: str = "", suffix: str = "") -> list[dict]:
+    """prefix로 시작하고 suffix로 끝나는 대화방마다 마지막 메시지·보낸 쪽·개수·종료 상태."""
     with _db() as conn:
         rows = conn.execute(
             """
-            SELECT m.room, m.text, m.created_at, c.cnt, e.status
+            SELECT m.room, m.text, m.sender_role, m.created_at, c.cnt, e.status
             FROM messages m
             JOIN (
                 SELECT room, COUNT(*) AS cnt, MAX(rowid) AS last_id
-                FROM messages WHERE substr(room, 1, ?) = ? GROUP BY room
+                FROM messages
+                WHERE substr(room, 1, ?) = ? AND (? = 0 OR substr(room, -?) = ?)
+                GROUP BY room
             ) c ON m.rowid = c.last_id
             LEFT JOIN end_states e ON e.room = m.room
             """,
-            (len(prefix), prefix),
+            (len(prefix), prefix, len(suffix), len(suffix), suffix),
         ).fetchall()
     return [
         {
             "room": row["room"],
             "lastMessage": row["text"],
             "lastAt": row["created_at"],
+            "lastSenderRole": row["sender_role"],
             "messageCount": row["cnt"],
             "status": row["status"] or "active",
         }

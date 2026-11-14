@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 
 def _normalize(text: str) -> str:
     return (text or "").strip().lower().replace(" ", "")
@@ -18,6 +20,84 @@ def _overlap(a: set[str], b: set[str]) -> set[str]:
             if left == right or left in right or right in left:
                 hits.add(right)
     return hits
+
+
+def _target_majors(text: str) -> set[str]:
+    normalized = _normalize(text)
+    return {
+        match.group(1)
+        for match in re.finditer(r"([가-힣A-Za-z0-9]+(?:학과|전공))", normalized)
+    }
+
+
+TRANSFER_KEYWORDS = ("전과", "복수전공", "전공변경", "학과변경", "전공전환")
+FOOD_QUERY_KEYWORDS = (
+    "밥",
+    "밥집",
+    "맛집",
+    "식당",
+    "혼밥",
+    "점심",
+    "저녁",
+    "배달",
+    "카페",
+)
+FOOD_PROFILE_HINTS = (
+    "밥",
+    "맛집",
+    "식당",
+    "식사",
+    "먹거리",
+    "밥약",
+    "백반",
+    "야식",
+    "학교주변",
+    "식당가",
+    "혼밥",
+    "카페",
+    "배달",
+    "웨이팅",
+    "가성비",
+    "점심",
+    "저녁",
+)
+
+
+def _major_like(value: str) -> str:
+    return _normalize(value).replace("학과", "과")
+
+
+def _major_matches(target: str, major: str) -> bool:
+    target_like = _major_like(target)
+    major_like = _major_like(major)
+    if not target_like or not major_like:
+        return False
+    return (
+        target_like == major_like
+        or target_like in major_like
+        or major_like in target_like
+    )
+
+
+def _extract_transfer_route(text: str) -> tuple[str, str]:
+    normalized = _normalize(text)
+    match = re.search(
+        r"([가-힣a-z0-9]+(?:학과|전공))에서([가-힣a-z0-9]+(?:학과|전공))(?:로|으로)?(?:전과|전공변경|전공전환)",
+        normalized,
+    )
+    if not match:
+        return "", ""
+    return match.group(1), match.group(2)
+
+
+def _has_transfer_intent(text: str) -> bool:
+    normalized = _normalize(text)
+    return any(_normalize(keyword) in normalized for keyword in TRANSFER_KEYWORDS)
+
+
+def _has_food_intent(text: str) -> bool:
+    normalized = _normalize(text)
+    return any(_normalize(keyword) in normalized for keyword in FOOD_QUERY_KEYWORDS)
 
 
 CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
@@ -77,6 +157,11 @@ def match_mentors(
     choice_categories = _categories(choice_reason)
     preferences = experience_preferences or []
     situation_norm = _normalize(situation)
+    context_text = " ".join([situation, choice_reason, *interests, *help_fields])
+    target_majors = _target_majors(context_text)
+    source_major, destination_major = _extract_transfer_route(context_text)
+    has_transfer_intent = _has_transfer_intent(context_text)
+    has_food_intent = _has_food_intent(context_text)
     ranked: list[dict] = []
 
     for mentor in mentors:
@@ -88,7 +173,49 @@ def match_mentors(
         bio = str(mentor.get("bio") or "")
         mentor_status = str(mentor.get("status") or "")
         mentor_text = " ".join([major, mentor_status, *help_topics, *experiences, bio])
+        mentor_text_norm = _normalize(mentor_text)
         mentor_categories = _categories(help_topics + experiences + [major, bio])
+        major_norm = _normalize(major)
+        if has_transfer_intent and destination_major:
+            if _major_matches(destination_major, major_norm):
+                score += 42.0
+                reasons.append("전과 목표 전공 일치")
+            elif source_major and _major_matches(source_major, major_norm):
+                score += 8.0
+                reasons.append("전과 출발 전공 관련")
+        else:
+            target_hits = {
+                target
+                for target in target_majors
+                if _major_matches(target, major_norm)
+            }
+            if target_hits:
+                score += 30.0
+                reasons.append("줄글에서 요청한 전공 일치: " + ", ".join(sorted(target_hits)))
+
+        if has_transfer_intent:
+            transfer_hits = [kw for kw in TRANSFER_KEYWORDS if _normalize(kw) in mentor_text_norm]
+            if transfer_hits:
+                score += 18.0
+                reasons.append("전과/전공변경 경험 관련")
+            if source_major and destination_major:
+                if source_major in mentor_text_norm and destination_major in mentor_text_norm:
+                    score += 12.0
+                    reasons.append("출발·목표 전공 전환 경험 유사")
+
+        if has_food_intent:
+            food_source_text = _normalize(" ".join(help_topics + experiences + [bio]))
+            food_hits = [
+                keyword
+                for keyword in FOOD_PROFILE_HINTS
+                if _normalize(keyword) in food_source_text
+            ]
+            if food_hits:
+                score += 22.0
+                reasons.append("밥집/맛집 생활 경험 일치")
+            else:
+                score -= 12.0
+                reasons.append("밥집/맛집 관련 근거 부족")
 
         preference_hits: list[str] = []
         for preference in preferences:
@@ -118,23 +245,22 @@ def match_mentors(
             score += 2.5 * len(category_hits)
             reasons.append("고민 분야 관련: " + ", ".join(sorted(category_hits)))
 
-        topic_hits = _overlap(query_help, _tokens(help_topics))
+        topic_hits = set() if has_food_intent else _overlap(query_help, _tokens(help_topics))
         if topic_hits:
             score += 2.0 * len(topic_hits)
             reasons.append("도움 분야 일치: " + ", ".join(sorted(topic_hits)))
 
-        exp_hits = _overlap(query_help, _tokens(experiences))
+        exp_hits = set() if has_food_intent else _overlap(query_help, _tokens(experiences))
         if exp_hits:
             score += 1.5 * len(exp_hits)
             reasons.append("경험 관련: " + ", ".join(sorted(exp_hits)))
 
-        major_norm = _normalize(major)
         if major_norm and (
             major_norm in query_help
             or any(major_norm in t or t in major_norm for t in query_help)
             or (situation_norm and major_norm in situation_norm)
         ):
-            score += 1.0
+            score += 0.3 if has_food_intent else 1.0
             reasons.append(f"전공 관련: {major}")
 
         if situation_norm:
@@ -170,4 +296,12 @@ def match_mentors(
         )
 
     ranked.sort(key=lambda item: item["score"], reverse=True)
+    # 음식점 추천은 프로필의 실제 생활 경험이 있는 선배에게만 연결한다.
+    # 적합한 사람이 적으면 결과도 적게 반환해 무관한 전공 선배로 자리를 채우지 않는다.
+    if has_food_intent:
+        relevant = [
+            item for item in ranked
+            if any(reason == "밥집/맛집 생활 경험 일치" for reason in item["reasons"])
+        ]
+        ranked = relevant
     return ranked[:top_k]
