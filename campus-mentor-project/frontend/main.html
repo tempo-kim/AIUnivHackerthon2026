@@ -343,6 +343,38 @@ async function startSenior(){setActiveRole('senior');
   seniorStep=0;renderSenior();
 }
 function seniorPayload(){return {schema_version:1,school:selectedSchool,display_name:seniorAnswers.display_name.trim(),major:seniorAnswers.major.trim(),status:seniorAnswers.status.trim(),introduction:seniorAnswers.introduction.trim()}}
+function renderSeniorIntroductionEdit(){
+  const session=savedSeniorSession();
+  if(!session){showChatNotice('선배 로그인이 필요해요. 다시 로그인해 주세요.');return}
+  app.innerHTML='<h2>내 소개 수정하기</h2><p class="hint">후배에게 보여줄 경험과 소개를 적어 주세요. (최대 300자)</p><textarea id="edit-introduction" class="concern-input" maxlength="300" aria-label="선배 자기소개" disabled></textarea><p class="note" id="intro-count">0 / 300자</p><p class="notice" id="intro-notice" role="status" aria-live="polite">현재 소개를 불러오고 있어요.</p><div class="actions"><button class="back" type="button" id="intro-back">이전</button><button class="primary" type="button" id="intro-save" disabled>저장하기</button></div>';
+  const area=app.querySelector('#edit-introduction'),count=app.querySelector('#intro-count'),notice=app.querySelector('#intro-notice'),save=app.querySelector('#intro-save'),back=app.querySelector('#intro-back');
+  const valid=()=>{count.textContent=area.value.length+' / 300자';save.disabled=!area.value.trim()||area.value.length>300};
+  area.oninput=valid;back.onclick=()=>{step=-1;render()};
+  const sameSession=()=>{const current=savedSeniorSession();return current&&current.token===session.token&&current.mentor_id===session.mentor_id&&activeRole()==='senior'};
+  const readError=async response=>{const data=await response.json().catch(()=>({}));return typeof data.detail==='string'?data.detail:''};
+  (async()=>{try{
+    const response=await fetch(apiBase()+'/api/mentors/me',{headers:{Authorization:'Bearer '+session.token}});
+    if(response.status===401){notice.textContent='로그인이 만료됐어요. 선배로 다시 로그인해 주세요.';return}
+    if(!response.ok)throw Error();const data=await response.json();
+    if(!sameSession()||!app.contains(area))return;
+    if(typeof data.introduction!=='string'){notice.textContent='현재 소개를 불러올 수 없어요. 최신 서버가 실행 중인지 확인해 주세요.';return}
+    area.value=data.introduction;area.disabled=false;notice.textContent='';valid();
+  }catch(e){if(app.contains(area))notice.textContent='소개를 불러오지 못했어요. 서버 연결을 확인해 주세요.'}})();
+  save.onclick=async()=>{
+    if(!sameSession()){notice.textContent='로그인 상태가 변경됐어요. 다시 로그인해 주세요.';return}
+    const introduction=area.value.trim();if(!introduction||introduction.length>300){notice.textContent='소개를 1~300자로 입력해 주세요.';return}
+    save.disabled=true;area.disabled=true;back.disabled=true;notice.textContent='저장하고 있어요.';
+    try{
+      const response=await fetch(apiBase()+'/api/mentors/me/introduction',{method:'PATCH',headers:{Authorization:'Bearer '+session.token,'Content-Type':'application/json'},body:JSON.stringify({introduction})});
+      if(response.status===401){notice.textContent='로그인이 만료됐어요. 선배로 다시 로그인해 주세요.';return}
+      if(!response.ok){const detail=await readError(response);notice.textContent=response.status===400?(detail||'소개를 1~300자로 입력해 주세요.'):(detail||'저장하지 못했어요. 서버 연결을 확인해 주세요.');return}
+      const data=await response.json().catch(()=>({}));if(!sameSession()||!app.contains(area))return;
+      area.value=typeof data.introduction==='string'?data.introduction:introduction;
+      notice.textContent='소개를 저장했어요. 선배 추천에도 반영됩니다.';
+    }catch(e){notice.textContent='저장하지 못했어요. 서버 연결을 확인해 주세요.'}
+    finally{if(app.contains(area)){area.disabled=false;back.disabled=false;valid()}}
+  };
+}
 function render(){
   updateLoginStatus();
   if(activeRole())PpunAchievements.setRole(activeRole());
@@ -351,9 +383,14 @@ function render(){
     app.innerHTML='<h2>무엇이든 물어볼 준비됐나요?</h2><p class="hint" id="school-label"></p><button class="back" id="change-school" type="button">학교 변경</button><p class="hint">나의 상황과 고민을 알려주면 어울리는 선배를 찾아볼 수 있어요.</p><button class="primary start" id="start">후배로 시작하기 →</button><button class="secondary" id="senior">선배로 시작하기</button><button class="outline-btn" id="junior-login" type="button">후배 로그인</button><button class="outline-btn" id="senior-login" type="button">선배 로그인</button><p class="notice" id="login-message" role="status"></p>';
     app.querySelector('#school-label').textContent='선택한 학교: '+selectedSchool;
     const role=activeRole();
+    if(role==='senior'){
+      app.querySelector('h2').textContent='후배와 함께할 준비됐나요?';
+      app.querySelectorAll('.hint')[1].textContent='선배님이 입력한 경험과 정보를 바탕으로 어울리는 후배와 연결해 드려요.';
+    }
     if(role){
       const own=role==='senior'?['senior','senior-login']:['junior-login'];own.forEach(id=>app.querySelector('#'+id).remove());
       if(role==='junior')app.querySelector('#start').textContent='선배 추천받기 →';
+      if(role==='senior'){const edit=document.createElement('button');edit.type='button';edit.className='secondary';edit.textContent='내 소개 수정하기';edit.onclick=renderSeniorIntroductionEdit;app.querySelector('#school-label').after(edit)}
       const info=document.createElement('p');info.className='prefix';info.id='home-user';info.textContent=role==='senior'?'선배로 접속 중':'후배로 접속 중';app.querySelector('#school-label').after(info);
       const refreshName=()=>{const session=role==='senior'?savedSeniorSession():savedJuniorSession();if(session)info.textContent=(session.display_name|| (role==='senior'?'선배':'후배'))+(role==='senior'?' 선배로 접속 중':' 후배로 접속 중')};refreshName();
       if(role==='senior'&&!savedSeniorSession().display_name){const session=savedSeniorSession();fetch(apiBase()+'/api/mentors/me',{headers:{Authorization:'Bearer '+session.token}}).then(r=>r.ok?r.json():null).then(data=>{if(data?.display_name&&activeRole()==='senior'){const current=savedSeniorSession();if(current&&current.token===session.token){current.display_name=data.display_name;try{localStorage.setItem(SENIOR_SESSION_KEY,JSON.stringify(current))}catch(e){}refreshName();updateLoginStatus()}}}).catch(()=>{})}
