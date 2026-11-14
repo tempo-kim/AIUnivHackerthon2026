@@ -100,6 +100,8 @@ def load_seed_conversations(school: str = "") -> list[dict]:
     if isinstance(by_school, dict):
         if canon and canon in by_school:
             return list(by_school.get(canon) or [])
+        if canon:
+            return []
         # school unknown: flatten all
         out: list[dict] = []
         for rows in by_school.values():
@@ -167,7 +169,7 @@ def _score_conversation(question: str, school: str, conv: dict) -> int:
 
 def retrieve_conversations(question: str, *, school: str = "", top_k: int = 3) -> list[dict]:
     convs = load_seed_conversations(school)
-    if not convs:
+    if not convs and not normalize_school(school):
         convs = load_seed_conversations("")
     scored = [(_score_conversation(question, school, conv), conv) for conv in convs]
     ranked = [conv for score, conv in sorted(scored, key=lambda row: row[0], reverse=True) if score > 0]
@@ -303,51 +305,24 @@ def answer_school_question(
     context = format_conversations(picked) + live_note
     used_msgs = sum(len(c.get("messages") or []) for c in picked)
 
-    # RAG는 학교 시드 채팅, 멘토 CSV, README를 검색한다. 검색 DB를 아직
-    # 만들지 않았거나 임베딩 요청에 실패한 경우 기존 seed 문맥 LLM으로 이어간다.
-    fallback_source = "seed-fallback:rag-unavailable"
-    try:
-        from ai.rag_service import VECTOR_DIR, answer_with_rag
-
-        if not VECTOR_DIR.exists():
-            fallback_source = "seed-fallback:index-missing"
-        else:
-            fallback_source = "seed-fallback:rag-error"
-        rag_question = f"{canon}\n{question}" if canon else question
-        rag = answer_with_rag(rag_question, k=5)
-        answer = str(rag.get("answer") or "").strip()
-        if answer:
-            rag_contexts = rag.get("contexts") or []
-            return {
-                "answer": answer,
-                "used_message_count": sum(
-                    sum(1 for line in str(row.get("text") or "").splitlines()
-                        if line.startswith("[후배]") or line.startswith("[선배]"))
-                    for row in rag_contexts
-                    if (row.get("metadata") or {}).get("doc_type") == "seed_chat"
-                ),
-                "seed_message_count": stats["message_count"],
-                "used_conversation_count": len(rag_contexts),
-                "seed_conversation_count": stats["conversation_count"],
-                "school": canon or "",
-                "source": "rag",
-            }
-    except Exception as exc:
-        print(f"[school_bot] RAG unavailable; using seed context fallback ({type(exc).__name__})")
-
     school_line = f"대상 학교: {canon}" if canon else "대상 학교: (미지정)"
+    has_seed_evidence = bool(picked or live_note)
+    evidence_rule = (
+        "아래 참고 대화가 있으면 그 내용을 최우선 근거로 사용한다. 참고 대화에 없는 학교별 사실은 만들지 않는다."
+        if has_seed_evidence
+        else "관련 참고 대화가 없다. 일반적인 대학 생활 조언은 LLM 지식으로 답할 수 있지만, 선택한 학교의 구체적인 사실인 것처럼 말하지 않는다. 학교별 확인이 필요한 내용은 확인이 필요하다고 밝힌다."
+    )
     system_prompt = f"""
 너는 대학 캠퍼스 멘토링 서비스 '뻔뻔하게'의 학교 생활 안내 챗봇이다.
-반드시 아래 [참고용 선후배 긴 채팅]에서 근거를 찾아 답한다.
+{evidence_rule}
 
 규칙:
 - 한국어로 답한다.
 - {school_line} 맥락을 유지.
 - 답변 형식:
   1) 핵심 답변 2~4문장
-  2) 근거 bullet 2~4개 (채팅 내용 기반: 장소/가격/웨이팅/팁)
-  3) 근거가 부족하면 모른다고 말하고 추가 질문 1개를 제시
-- 참고 데이터에 없는 사실을 단정하지 않는다.
+  2) 참고 대화가 있으면 근거 bullet 2~4개를 포함한다.
+  3) 참고 대화가 없으면 일반 조언임을 짧게 밝히고, 학교별 정보는 추가 확인 질문 1개를 제시한다.
 - 개인정보 추론 금지.
 """
     user_prompt = f"""
@@ -374,10 +349,10 @@ def answer_school_question(
         future = _llm_executor.submit(_call)
         res = future.result(timeout=30.0)
         answer = (res.choices[0].message.content or "").strip()
-        source = "llm-seed-context"
+        source = "seed-llm" if has_seed_evidence else "llm-general"
         if not answer:
             answer = _fallback_answer_from_seed(question, picked, canon)
-            source = fallback_source
+            source = "seed-fallback" if has_seed_evidence else "llm-general-empty"
         return {
             "answer": answer,
             "used_message_count": used_msgs,
@@ -390,12 +365,18 @@ def answer_school_question(
     except Exception as e:
         # SDK 예외 문자열에는 요청 URL이나 민감한 설정값이 섞일 수 있어 기록하지 않는다.
         print(f"[school_bot] LLM request failed ({type(e).__name__})")
+        fallback = _fallback_answer_from_seed(question, picked, canon)
+        if not has_seed_evidence:
+            fallback = (
+                f"{canon or '선택한 학교'}의 저장 대화에는 이 질문과 직접 맞는 내용이 없어요. "
+                "일반적인 안내는 현재 AI 연결이 되지 않아 답하지 못했어요. 학교별 정보가 필요하면 과목명이나 장소를 더 구체적으로 알려주세요."
+            )
         return {
-            "answer": _fallback_answer_from_seed(question, picked, canon),
+            "answer": fallback,
             "used_message_count": used_msgs,
             "seed_message_count": stats["message_count"],
             "used_conversation_count": len(picked),
             "seed_conversation_count": stats["conversation_count"],
             "school": canon or "",
-            "source": fallback_source,
+            "source": "seed-fallback" if has_seed_evidence else "llm-general-unavailable",
         }

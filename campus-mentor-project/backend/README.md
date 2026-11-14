@@ -44,23 +44,8 @@ Render의 `sync: false` 환경변수는 실제 값이 저장소에 기록되지 
 
 ## 학교 챗봇
 
-- `POST /api/school-bot` — 로컬 ChromaDB에서 근거를 검색한 뒤 매칭과 같은 NVIDIA/OpenAI 호환 LLM으로 답함
-- CSV 멘토 프로필, 저장소 `README.md`, `data/school_bot_seed_chats.json`을 인덱싱함
-- 임베딩 모델은 `EMBEDDING_MODEL`, `NIM_EMBEDDING_MODEL`, `NVIDIA_EMBEDDING_MODEL` 순서로 선택하며, 미설정 시 `nvidia/nemotron-3.5-embed-1b` 사용
-- `OPENAI_BASE_URL`이 OpenRouter면 NVIDIA 임베딩의 OpenRouter 모델 ID(`nvidia/nemotron-3.5-embed-1b:free`)를 사용하고, NVIDIA 주소면 `https://integrate.api.nvidia.com/v1`을 사용함
-- 임베딩 자격 증명은 OpenRouter일 때 기존 `OPENAI_API_KEY`/`OPENROUTER_API_KEY`, NVIDIA 직접 호출일 때 `EMBEDDING_API_KEY`/`NVIDIA_API_KEY`를 사용함
-- LLM 채팅은 매칭과 같은 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `LLM_MODEL` 설정을 계속 사용함
+- `POST /api/school-bot` — 선배·후배 채팅을 익명으로 모아 학교 관련 질문에 답함
+- 매칭과 같은 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `LLM_MODEL` 사용
+- 선택한 학교의 관련 대화가 있으면 그 내용을 근거로 답하고, 없으면 학교별 사실을 지어내지 않는 일반 LLM 답변으로 전환함
 - 화면: `/frontend/school-bot/`
 
-로컬 인덱스 생성 또는 데이터 갱신:
-
-```bash
-cd backend
-python -m ai.build_vector_db
-```
-
-인덱스는 `backend/vector_db/`에 저장됩니다. 대화형 CLI 확인:
-
-```bash
-python -m ai.rag_service
-```
