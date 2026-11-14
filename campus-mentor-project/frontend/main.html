@@ -149,11 +149,11 @@ function pinConfirmFields(onChange,label){
   pinLabel.appendChild(pinInput(v=>{pin=v;changed()}));confirmLabel.appendChild(pinInput(v=>{confirm=v;changed()}));
   return [pinLabel,confirmLabel,mismatch];
 }
-function textField(label,onInput){const field=document.createElement('label');field.className='role-note';field.textContent=label;const input=document.createElement('input');input.className='choice';input.style.cssText='display:block;width:100%;margin-top:6px;font:inherit';input.maxLength=30;input.oninput=()=>onInput(input.value);field.appendChild(input);return field}
+function textField(label,onInput,initialValue=''){const field=document.createElement('label');field.className='role-note';field.textContent=label;const input=document.createElement('input');input.className='choice';input.style.cssText='display:block;width:100%;margin-top:6px;font:inherit';input.maxLength=30;input.value=initialValue;input.oninput=()=>onInput(input.value);field.appendChild(input);return field}
 // ---- 후배 가입·로그인 ----
 const JUNIOR_SESSION_KEY='ppunppun-junior-session';
 let verifiedJuniorId='';
-function savedJuniorSession(){for(const name of ['localStorage','sessionStorage']){try{const s=JSON.parse(window[name].getItem(JUNIOR_SESSION_KEY)||'null');if(s&&s.junior_id&&s.token)return s}catch(e){}}return null}
+function savedJuniorSession(){for(const name of ['sessionStorage','localStorage']){try{const s=JSON.parse(window[name].getItem(JUNIOR_SESSION_KEY)||'null');if(s&&s.junior_id&&s.token)return s}catch(e){}}return null}
 function clearJuniorSession(){for(const name of ['localStorage','sessionStorage']){try{window[name].removeItem(JUNIOR_SESSION_KEY)}catch(e){}}verifiedJuniorId=''}
 async function validateJuniorSession(session){
   try{
@@ -190,7 +190,7 @@ async function logoutJunior(){
   clearJuniorSession();
   step=-1;if(selectedSchool){render()}else{renderSchool()}
 }
-function renderJuniorAuth(mode){
+function renderJuniorAuth(mode,initialName=''){
   PpunAchievements.setRole("junior");
   configureChatNav('junior');
   const existingSession=savedJuniorSession();
@@ -206,9 +206,9 @@ function renderJuniorAuth(mode){
   const register=mode==='register';
   app.innerHTML=`<h2>${register?'후배로 가입하기':'후배 로그인'}</h2><p class="hint">${register?'닉네임과 PIN을 정하면 다른 기기에서도 대화를 이어갈 수 있어요.':'가입할 때 정한 닉네임과 PIN을 입력해 주세요.'}</p><div class="choices"></div><div class="actions"><button class="back" id="junior-auth-prev">이전</button><button class="primary" id="junior-auth-submit" disabled>${register?'가입하기':'로그인'}</button></div><button class="outline-btn" id="junior-auth-switch" type="button">${register?'이미 등록했어요(로그인)':'처음이에요(가입하기)'}</button><p class="notice" id="login-message" role="status"></p>`;
   const box=app.querySelector('.choices'),submit=app.querySelector('#junior-auth-submit'),notice=app.querySelector('#login-message');
-  let name='',pin='',confirm='';
+  let name=initialName,pin='',confirm='';
   const update=()=>{submit.disabled=!name.trim()||!PIN_RE.test(pin)||(register&&pin!==confirm)};
-  box.appendChild(textField('닉네임',v=>{name=v;update()}));
+  box.appendChild(textField('닉네임',v=>{name=v;update()},initialName));
   if(register){box.append(...pinConfirmFields((p,c)=>{pin=p;confirm=c;update()}))}
   else{const pinLabel=document.createElement('label');pinLabel.className='role-note';pinLabel.textContent='PIN';pinLabel.appendChild(pinInput(v=>{pin=v;update()}));box.appendChild(pinLabel)}
   app.querySelector('#junior-auth-prev').onclick=()=>{step=-1;if(selectedSchool){render()}else{renderSchool()}};
@@ -221,10 +221,21 @@ function renderJuniorAuth(mode){
       const res=await fetch(apiBase()+(register?'/api/juniors/register':'/api/juniors/login'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       const data=await res.json().catch(()=>({}));
       if(res.ok){
-        const session=JSON.stringify({junior_id:data.junior_id,token:data.token,display_name:data.display_name});
+        const candidate={junior_id:data.junior_id,token:data.token,display_name:data.display_name};
+        if(!candidate.junior_id||!candidate.token||await validateJuniorSession(candidate)===false){
+          notice.textContent=register?'가입 응답은 받았지만 서버 로그인 확인에 실패했어요. 서버가 동일한 계정 DB를 사용하는지 확인해 주세요.':'로그인 토큰을 확인하지 못했어요. 다시 로그인해 주세요.';
+          submit.textContent=register?'가입하기':'로그인';update();return;
+        }
+        const session=JSON.stringify(candidate);
         for(const name of ['localStorage','sessionStorage']){try{window[name].setItem(JUNIOR_SESSION_KEY,session)}catch(e){}}
         verifiedJuniorId=data.junior_id;
         afterJuniorLogin();return;
+      }
+      if(!register&&res.status===404){
+        renderJuniorAuth('register',name.trim());
+        const movedNotice=app.querySelector('#login-message');
+        if(movedNotice)movedNotice.textContent='이 닉네임으로 가입된 계정이 없어 가입 화면으로 이동했어요.';
+        return;
       }
       if(typeof data.detail==='string')message=data.detail;
     }catch(e){}

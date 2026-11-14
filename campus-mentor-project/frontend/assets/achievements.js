@@ -14,7 +14,7 @@
   let state = { unlocked: {}, mentors: [], version: achievementVersion }, persistent = true, role = 'junior', storageKey = key, migrationPending = false;
   function browserStorages() {
     const stores = [];
-    for (const name of ['localStorage', 'sessionStorage']) {
+    for (const name of ['sessionStorage', 'localStorage']) {
       try { stores.push(window[name]); } catch (_) {}
     }
     return stores;

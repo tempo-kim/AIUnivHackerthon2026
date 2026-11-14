@@ -718,7 +718,7 @@ async function checkSeniorLogin() {
 
 // ---- 후배 로그인 확인 ----
 function readJuniorSession() {
-  for (const name of ["localStorage", "sessionStorage"]) {
+  for (const name of ["sessionStorage", "localStorage"]) {
     try {
       const saved = JSON.parse(window[name].getItem(JUNIOR_SESSION_KEY) || "null");
       if (saved && saved.junior_id && saved.token) return saved;
