@@ -1,0 +1,14 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\.github",
+    "\\campus-mentor-project",
+    "\\campus-mentor-project\\backend",
+    "\\campus-mentor-project\\backend\\ai",
+    "\\campus-mentor-project\\backend\\matching",
+    "\\campus-mentor-project\\backend\\scripts",
+    "\\campus-mentor-project\\frontend"
+  ],
+  "SelectedNode": "\\campus-mentor-project\\backend\\data",
+  "PreviewInSolutionExplorer": false
+}

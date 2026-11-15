@@ -1,0 +1,326 @@
+﻿Extracted web page content in markdown format:
+[Start contents for https://github.com/tempo-kim/AIUnivHackerthon2026/pull/49]
+Skip to content 
+
+## Navigation Menu
+
+[Sign in](https://github.com/login?return_to=https%3A%2F%2Fgithub.com%2Ftempo-kim%2FAIUnivHackerthon2026%2Fpull%2F49)
+
+- 
+
+Products
+
+    - 
+
+Platform
+        - [![Image](https://github.githubassets.com/assets/platform-4ce65ae0bf273ce2.png)
+![Image](https://github.githubassets.com/assets/platform-dark-ac89fbf373737ed3.png)
+GitHubRepository hosting, code review, and collaboration](https://github.com/platform)
+        - [![Image](https://github.githubassets.com/assets/copilot-e2b89335a66dba00.png)
+![Image](https://github.githubassets.com/assets/copilot-dark-2b28403b6080e898.png)
+CopilotAI coding agent for tasks, projects, and automated work](https://github.com/features/copilot)
+    - 
+
+Build & Ship
+        - [ActionsCI/CD and automation](https://github.com/features/actions)
+        - [Code QualityQuality analysis, fixes, and enforcement](https://github.com/features/code-quality)
+        - [CodespacesCloud development environments](https://github.com/features/codespaces)
+    - 
+
+Secure
+        - [Code SecurityVulnerability detection and remediation](https://github.com/security/advanced-security/code-security)
+        - [Secret ProtectionSecret scanning and leak prevention](https://github.com/security/advanced-security/secret-protection)
+[All Features](https://github.com/features)
+- 
+
+Developers
+
+    - 
+
+Learn
+        - [Documentation](https://docs.github.com/en)
+        - [Training](https://learn.github.com/skills)
+        - [Certifications](https://learn.github.com/credentials)
+    - 
+
+Build
+        - [Build with Copilot](https://github.com/features/ai)
+        - [Customize Copilot](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-copilot-overview)
+        - [Integrations](https://github.com/marketplace)
+    - 
+
+Explore
+        - [Trending repos](https://github.com/trending)
+        - [GitHub Sponsors](https://github.com/open-source/sponsors)
+        - [Developer articles](https://github.com/resources/articles)
+    - 
+
+Changelog
+        - [![Image](https://github.githubassets.com/assets/changelog-fd687bff072883b0.png)
+![Image](https://github.githubassets.com/assets/changelog-dark-b1c25ae971bd641b.png)
+ChangelogYour source for the latest features, improvements, and fixes across
+GitHub products, all in one place.](https://github.blog/changelog/)
+- 
+
+Businesses
+
+    - 
+
+By Stage
+        - [Enterprises](https://github.com/enterprise)
+        - [Team](https://github.com/team)
+        - [Startups](https://github.com/enterprise/startups)
+        - [Nonprofits](https://github.com/solutions/industry/nonprofits)
+    - 
+
+By Industry
+        - [Healthcare](https://github.com/solutions/industry/healthcare)
+        - [Financial services](https://github.com/solutions/industry/financial-services)
+        - [Manufacturing](https://github.com/solutions/industry/manufacturing)
+        - [Government](https://github.com/solutions/industry/government)
+        - [See all industries](https://github.com/solutions/industry)
+    - 
+
+Evaluate GitHub
+        - [Why GitHub](https://github.com/why-github)
+        - [Customer Stories](https://github.com/customer-stories)
+        - [Business insights](https://github.com/solutions/executive-insights)
+        - [Trust Center](https://github.com/trust-center)
+    - 
+
+Add-ons
+        - [GitHub Advanced SecurityEnterprise-grade code security](https://github.com/security/advanced-security)
+        - [Copilot for businessEnterprise-grade AI features](https://github.com/features/copilot/copilot-business)
+        - [Premium SupportEnterprise-grade 24/7 support](https://github.com/enterprise/premium-support)
+- 
+
+Resources
+
+    - 
+
+Learn & Connect
+        - [Documentation](https://docs.github.com/en)
+        - [Resource center](https://github.com/resources)
+        - [Blog](https://github.blog/)
+        - [Events & webinars](https://github.com/resources/events)
+        - [Community Forum](https://github.com/orgs/community/discussions)
+        - [Customer Stories](https://github.com/customer-stories)
+        - [Integrations](https://github.com/marketplace)
+    - 
+
+Support
+        - [Customer support](https://help.github.com/)
+        - [Training](https://learn.github.com/skills)
+        - [GitHub Status](https://www.githubstatus.com/)
+    - 
+
+Company
+        - [About](https://github.com/about)
+        - [Partners](https://github.com/partners)
+        - [Changelog](https://github.blog/changelog/)
+    - 
+
+GitHub Universe
+        - [![Image](https://github.githubassets.com/assets/universe-a98cd54821b27569.png)
+![Image](https://github.githubassets.com/assets/universe-a98cd54821b27569.png)
+GitHub UniverseThe event for developers, by developers — talks, workshops, and
+what’s next for GitHub.](https://githubuniverse.com/)
+- [Pricing](https://github.com/pricing)
+
+Search/
+
+[Sign in](https://github.com/login?return_to=https%3A%2F%2Fgithub.com%2Ftempo-kim%2FAIUnivHackerthon2026%2Fpull%2F49)[
+Sign up](https://github.com/signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E%2Fvoltron%2Fpull_requests_fragments%2Fpull_request_layout&source=header-repo&source_repo=tempo-kim%2FAIUnivHackerthon2026)
+
+Appearance settings
+
+You signed in with another tab or window. Reload to refresh your session. You
+signed out in another tab or window. Reload to refresh your session. You
+switched accounts on another tab or window. Reload to refresh your session. 
+Dismiss alert 
+
+1. [tempo-kim](https://github.com/tempo-kim)
+1. [AIUnivHackerthon2026](https://github.com/tempo-kim/AIUnivHackerthon2026)
+
+## Repository navigation
+
+- 
+- [Code](https://github.com/tempo-kim/AIUnivHackerthon2026)
+- [Issues](https://github.com/tempo-kim/AIUnivHackerthon2026/issues)
+- [Pull requests3 (3)](https://github.com/tempo-kim/AIUnivHackerthon2026/pulls)
+- [Actions](https://github.com/tempo-kim/AIUnivHackerthon2026/actions)
+- [Projects](https://github.com/tempo-kim/AIUnivHackerthon2026/projects)
+- [Security and quality](https://github.com/tempo-kim/AIUnivHackerthon2026/security)
+- [Insights](https://github.com/tempo-kim/AIUnivHackerthon2026/pulse)
+
+More items
+
+# feat: 학교 생활 챗봇 (매칭과 같은 LLM) - #49
+
+#49
+
+Open
+
+[gordonjeon117](https://github.com/gordonjeon117) wants to merge 1 commit into
+
+[main](https://github.com/tempo-kim/AIUnivHackerthon2026/tree/main)
+tempo-kim/AIUnivHackerthon2026:mainfrom 
+
+[feat/school-chatbot](https://github.com/tempo-kim/AIUnivHackerthon2026/tree/feat/school-chatbot)
+tempo-kim/AIUnivHackerthon2026:feat/school-chatbotCopy head branch name to
+clipboard
+
+Conversation[Commits1 (1)](https://github.com/tempo-kim/AIUnivHackerthon2026/pull/49/commits)[
+Checks](https://github.com/tempo-kim/AIUnivHackerthon2026/pull/49/checks)[Files
+changed](https://github.com/tempo-kim/AIUnivHackerthon2026/pull/49/files)
+
+Open
+
+## 
+
+feat: 학교 생활 챗봇 (매칭과 같은 LLM)#49
+
+[gordonjeon117](https://github.com/gordonjeon117) wants to merge 1 commit into
+
+[main](https://github.com/tempo-kim/AIUnivHackerthon2026/tree/main)tempo-kim/AIUnivHackerthon2026:mainfrom 
+
+[feat/school-chatbot](https://github.com/tempo-kim/AIUnivHackerthon2026/tree/feat/school-chatbot)tempo-kim/AIUnivHackerthon2026:feat/school-chatbotCopy head branch name to clipboard
+
+## Conversation
+
+[ ![@gordonjeon117](https://avatars.githubusercontent.com/u/351450796?s=80&v=4)
+](https://github.com/gordonjeon117)
+
+### 
+
+![@gordonjeon117](https://avatars.githubusercontent.com/u/351450796?s=48&v=4)
+[gordonjeon117](https://github.com/gordonjeon117) commented Nov 13, 2026 
+
+Copy link 
+
+Copy Markdown 
+
+Collaborator 
+
+## Summary
+
+- 선배·후배 채팅을 익명으로 모아 학교 관련 Q&A
+- 매칭과 같은 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `LLM_MODEL` 사용
+- `POST /api/school-bot`, 화면 `/frontend/school-bot/`
+- `main.html`에는 하단 학교봇 링크만 추가 (기존 플로우 유지)
+
+## Test plan
+
+- 서버 실행 후 `/frontend/school-bot/` 열기
+- 키 없을 때 안내 메시지 확인
+- 키 넣고 질문 시 답변 확인
+- 기존 매칭/채팅 화면 회귀 확인
+
+
+
+Sorry, something went wrong. 
+
+### Uh oh! 
+
+
+
+There was an error while loading. Please reload this page.
+
+
+
+All reactions 
+[ ![@gordonjeon117](https://avatars.githubusercontent.com/u/351450796?s=40&v=4)
+](https://github.com/gordonjeon117) 
+
+`
+          Add school chatbot that reuses matching LLM and anonymized chat history.
+        ` … 
+
+`
+          d79e9ac
+        ` 
+
+```
+New /api/school-bot and /frontend/school-bot page; main only gets a nav link.```
+
+[Sign up for free](https://github.com/join?source=comment-repo) to join this
+conversation on GitHub. Already have an account? [Sign in to comment](https://github.com/login?return_to=https%3A%2F%2Fgithub.com%2Ftempo-kim%2FAIUnivHackerthon2026%2Fpull%2F49) 
+
+### Reviewers 
+
+No reviews 
+
+### Uh oh! 
+
+
+
+There was an error while loading. Please reload this page.
+
+
+
+### Assignees 
+
+No one assigned 
+
+### Labels 
+
+None yet 
+
+### Projects 
+
+None yet 
+
+### Milestone 
+
+No milestone 
+
+### Development 
+
+Successfully merging this pull request may close these issues.
+
+### Uh oh! 
+
+
+
+There was an error while loading. Please reload this page.
+
+
+
+### 1 participant 
+
+[ ![@gordonjeon117](https://avatars.githubusercontent.com/u/351450796?s=52&v=4)
+](https://github.com/gordonjeon117) 
+
+Add this suggestion to a batch that can be applied as a single commit.This
+suggestion is invalid because no changes were made to the code.Suggestions
+cannot be applied while the pull request is closed.Suggestions cannot be applied
+while viewing a subset of changes.Only one suggestion per line can be applied in
+a batch.Add this suggestion to a batch that can be applied as a single commit.
+Applying suggestions on deleted lines is not supported.You must change the
+existing code in this line in order to create a valid suggestion.Outdated
+suggestions cannot be applied.This suggestion has been applied or marked
+resolved.Suggestions cannot be applied from pending reviews.Suggestions cannot
+be applied on multi-line comments.Suggestions cannot be applied while the pull
+request is queued to merge.Suggestion cannot be applied right now. Please check
+back later.
+
+## Footer
+
+© 2026 GitHub, Inc. 
+
+### Footer navigation
+
+- [Terms](https://docs.github.com/site-policy/github-terms/github-terms-of-service) 
+- [Privacy](https://docs.github.com/site-policy/privacy-policies/github-privacy-statement) 
+- [Security](https://github.com/security) 
+- [Status](https://www.githubstatus.com/) 
+- [Community](https://github.community/) 
+- [Docs](https://docs.github.com/) 
+- [Contact](https://support.github.com/?tags=dotcom-footer) 
+- Manage cookies 
+- Do not share my personal information 
+
+You can’t perform that action at this time. 
+
+
+[End contents for https://github.com/tempo-kim/AIUnivHackerthon2026/pull/49]
