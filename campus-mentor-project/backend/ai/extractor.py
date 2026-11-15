@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from functools import lru_cache
 from pathlib import Path
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 
 # backend/.env 파일 경로 설정 및 로드
 env_path = Path(__file__).resolve().parents[1] / ".env"
@@ -401,6 +401,14 @@ def analyze_and_recommend(
     except TimeoutError as exc:
         print(f"[LLM] analyze_and_recommend timeout={LLM_MATCH_TIMEOUT}s")
         print(f"[LLM Error] 추천 분석 타임아웃: {type(exc).__name__}")
+        return {"llm_error": "timeout", "recommendations": []}
+    except RateLimitError as exc:
+        body = exc.body if isinstance(exc.body, dict) else {}
+        metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        source = str(metadata.get("limit_source") or "")
+        kind = "free_daily" if "daily" in source else "free_minute" if "min" in source else "rate_limit"
+        print(f"[LLM Error] 추천 분석 호출 제한: {kind}")
+        return {"llm_error": kind, "recommendations": []}
     except Exception as exc:
         print(f"[LLM Error] analyze_and_recommend 실패: {type(exc).__name__}")
 

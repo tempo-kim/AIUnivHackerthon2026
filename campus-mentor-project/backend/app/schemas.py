@@ -43,6 +43,7 @@ class MatchResponse(BaseModel):
     extraction_source: str
     recommendation_source: str = "rules"
     mentor_source: str = ""
+    llm_note: str = ""
 
 
 class MentorOut(BaseModel):

@@ -103,43 +103,6 @@
       setTimeout(showNextToast, 250);
     }, 3500);
   }
-  function rememberedIds(owner) {
-    const ids = new Set();
-    const prefix = key + ':' + owner + ':';
-    for (const storage of browserStorages()) {
-      for (let index = 0; index < storage.length; index += 1) {
-        const name = storage.key(index);
-        if (!name || (name !== key && !name.startsWith(prefix))) continue;
-        try {
-          const saved = JSON.parse(storage.getItem(name) || 'null');
-          Object.entries(saved?.unlocked || {}).forEach(([id, at]) => {
-            if (typeof at === 'string' && definitions.some(item => item[0] === id && item[4] === owner)) ids.add(id);
-          });
-        } catch (_) {}
-      }
-    }
-    Object.keys(state.unlocked).forEach(id => {
-      if (definitions.some(item => item[0] === id && item[4] === owner)) ids.add(id);
-    });
-    return [...ids];
-  }
-  async function pushBadges(owner, ids) {
-    const session = sessionFor(owner);
-    if (!session?.token || !ids.length) return true;
-    const path = owner === 'senior' ? '/api/senior-achievements' : '/api/junior-achievements';
-    let ok = true;
-    for (const badgeId of ids) {
-      try {
-        const response = await fetch(path, {
-          method: 'POST',
-          headers: { Authorization: 'Bearer ' + session.token, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ badge_id: badgeId })
-        });
-        if (!response.ok) ok = false;
-      } catch (_) { ok = false; }
-    }
-    return ok;
-  }
   function awardMany(ids) {
     const earned = [];
     ids.forEach(id => {
@@ -150,7 +113,6 @@
     });
     if (!earned.length) return;
     save();
-    pushBadges(role, earned.filter(item => item[4] === role).map(item => item[0]));
     refreshOpenBadges();
     earned.forEach(item => toastQueue.push(item[1] + ' ‘' + item[2] + '’ 배지를 받았어요!'));
     showNextToast();
@@ -180,7 +142,6 @@
       const session = sessionFor('junior');
       if (!session?.token) return;
       const expectedKey = storageKey;
-      const pushed = await pushBadges('junior', rememberedIds('junior'));
       const response = await fetch('/api/junior-achievements', { headers: { Authorization: 'Bearer ' + session.token } });
       if (response.status === 401) {
         if (role === 'junior' && storageKey === expectedKey) clearUnlocked();
@@ -189,9 +150,7 @@
       if (!response.ok) return;
       const data = await response.json();
       if (role !== 'junior' || storageKey !== expectedKey || accountKey() !== expectedKey) return;
-      const juniorIds = definitions.filter(item => item[4] === 'junior').map(item => item[0]);
-      if (pushed) applyServerUnlocks(data.unlocked, juniorIds);
-      else awardMany(Array.isArray(data.unlocked) ? data.unlocked : []);
+      applyServerUnlocks(data.unlocked, ['first-step', 'explorer']);
     } catch (_) {}
   }
   async function syncSeniorProgress() {
@@ -200,7 +159,6 @@
     try {
       const session = sessionFor('senior');
       if (!session?.token || !session?.mentor_id) return;
-      const pushed = await pushBadges('senior', rememberedIds('senior'));
       const response = await fetch('/api/senior-achievements', { headers: { Authorization: 'Bearer ' + session.token } });
       if (response.status === 401) {
         if (role === 'senior' && storageKey === expectedKey) clearUnlocked();
@@ -209,9 +167,7 @@
       if (!response.ok) return;
       const data = await response.json();
       if (role !== 'senior' || storageKey !== expectedKey || accountKey() !== expectedKey) return;
-      const seniorIds = definitions.filter(item => item[4] === 'senior').map(item => item[0]);
-      if (pushed) applyServerUnlocks(data.unlocked, seniorIds);
-      else awardMany(Array.isArray(data.unlocked) ? data.unlocked : []);
+      applyServerUnlocks(data.unlocked, ['introduction', 'storyteller']);
     } catch (_) {}
   }
   function open(mode) {
@@ -220,7 +176,7 @@
     const head = document.createElement('div'); head.className = 'achievement-heading';
     const title = document.createElement('h2'); title.id = 'achievement-title'; title.textContent = mode === 'temperature' ? '나의 학점온도' : '나의 배지';
     const close = document.createElement('button'); close.className = 'achievement-button'; close.type = 'button'; close.textContent = '닫기'; close.onclick = () => dialog.close(); head.append(title, close); dialog.append(head);
-    const info = document.createElement('p'); info.textContent = mode === 'temperature' ? '현재 0.000 · 새싹 선배. 실제 성적이 아닌 활동 지표예요. 4.500이 최대이며, 점수 적립은 추후 연결됩니다.' : '로그인한 계정에 저장되는 ' + (role === 'senior' ? '선배' : '후배') + '용 배지예요. 다시 로그인해도 유지돼요.'; dialog.append(info);
+    const info = document.createElement('p'); info.textContent = mode === 'temperature' ? '현재 0.000 · 새싹 선배. 실제 성적이 아닌 활동 지표예요. 4.500이 최대이며, 점수 적립은 추후 연결됩니다.' : '로그인한 계정별로 이 브라우저에 저장되는 ' + (role === 'senior' ? '선배' : '후배') + '용 배지예요.'; dialog.append(info);
     if (!persistent) { const warning = document.createElement('p'); warning.textContent = '브라우저 저장이 제한되어 새로고침하면 이번 기록이 사라질 수 있어요.'; dialog.append(warning); }
     const items = document.createElement('div'); items.className = 'achievement-items'; dialog.append(items);
     if (mode === 'temperature') {

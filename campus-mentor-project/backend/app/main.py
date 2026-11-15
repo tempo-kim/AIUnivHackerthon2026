@@ -438,16 +438,24 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
             candidates=shortlist,
             top_k=payload.top_k,
         )
-        if not analysis or not (
+        llm_error = analysis.get("llm_error") if isinstance(analysis, dict) else ""
+        if llm_error or not analysis or not (
             analysis.get("recommendations") or analysis.get("suitability")
         ):
             ranked = shortlist[payload.rank_offset : payload.rank_offset + payload.top_k]
+            note = {
+                "free_daily": "무료 모델의 오늘 호출 한도가 찼습니다. 한도가 풀리면 LLM 추천으로 돌아갑니다.",
+                "free_minute": "무료 모델의 분당 호출 한도에 걸렸습니다. 잠시 뒤 다시 추천하면 LLM으로 연결됩니다.",
+                "rate_limit": "LLM 제공자가 호출을 제한했습니다. 잠시 뒤 다시 시도해 주세요.",
+                "timeout": "LLM 응답이 16초 안에 오지 않아 규칙 추천을 보여 줍니다.",
+            }.get(llm_error, "")
             return MatchResponse(
                 extraction=seed,
                 matches=[MentorMatch(**row) for row in ranked],
                 extraction_source="client" if payload.extraction is not None else "stub",
                 recommendation_source="rules-fallback",
                 mentor_source=mentor_source,
+                llm_note=note,
             )
         extraction = payload.extraction or _from_llm(analysis)
         ranked = _apply_llm_ranking(
