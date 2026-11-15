@@ -401,7 +401,7 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
         seed = payload.extraction or Extraction(**stub_extract(text))
         shortlist_size = min(
             len(eligible_mentors),
-            max(20, int(os.getenv("LLM_SHORTLIST_SIZE", "40"))),
+            max(8, min(20, int(os.getenv("LLM_SHORTLIST_SIZE", "20")))),
         )
         shortlist = _rank_mentors(
             payload,

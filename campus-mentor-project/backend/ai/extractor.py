@@ -18,9 +18,8 @@ load_dotenv(env_path)
 _llm_executor = ThreadPoolExecutor(max_workers=4)
 atexit.register(lambda: _llm_executor.shutdown(wait=False, cancel_futures=True))
 
-# 추천 사용자는 정확도를 위해 기다릴 수 있으므로 모델 응답을 충분히 기다린다.
-# 첫 호출과 축약 재시도를 합쳐 최대 약 60초까지 허용한다.
-LLM_MATCH_TIMEOUT = min(max(float(os.getenv("LLM_MATCH_TIMEOUT", "35")), 30.0), 45.0)
+# 추천 요청은 화면에서 15초 안에 끝내도록 단일 LLM 호출에 시간 상한을 둔다.
+LLM_MATCH_TIMEOUT = min(float(os.getenv("LLM_MATCH_TIMEOUT", "13")), 13.0)
 ALLOWED_HELP_FIELDS = (
     "학교생활",
     "전공공부",
@@ -452,63 +451,43 @@ JSON 외의 어떠한 문장도 출력하지 않는다.
         "top_k": min(top_k, len(candidates)),
     }
     model_name = _model_name()
-    attempts = [
-        {
-            "timeout": LLM_MATCH_TIMEOUT,
-            "max_tokens": 1400,
-            "candidates": request_payload["candidates"],
-        },
-        {
-            "timeout": max(15.0, 60.0 - LLM_MATCH_TIMEOUT),
-            "max_tokens": 900,
-            "candidates": request_payload["candidates"][: min(20, len(request_payload["candidates"]))],
-        },
-    ]
-
-    for index, attempt in enumerate(attempts, 1):
-        try:
-            payload = {
-                **request_payload,
-                "candidates": attempt["candidates"],
-                "top_k": min(top_k, len(attempt["candidates"])),
-            }
-            prompt_text = "아래 JSON을 분석해 지정한 형식으로만 답해.\n" + json.dumps(
-                payload, ensure_ascii=False
-            )
-            started = time.perf_counter()
-            future = _llm_executor.submit(
-                _request_llm,
-                prompt_text,
-                model_name,
-                system_prompt,
-                timeout=attempt["timeout"],
-                max_tokens=attempt["max_tokens"],
-            )
-            res = future.result(timeout=attempt["timeout"] + 1.0)
-            elapsed = time.perf_counter() - started
-            print(
-                f"[LLM] analyze_and_recommend success attempt={index} candidates={len(attempt['candidates'])} elapsed={elapsed:.2f}s"
-            )
-
-            content = res.choices[0].message.content if res.choices else ""
-            parsed = _parse_match_analysis(content, candidates, top_k)
-            if parsed is None:
-                raise ValueError("AI 매칭 응답 형식이 올바르지 않습니다.")
-            return parsed
-        except TimeoutError as exc:
-            print(
-                f"[LLM] analyze_and_recommend timeout attempt={index} candidates={len(attempt['candidates'])} timeout={attempt['timeout']}"
-            )
-            if index == len(attempts):
-                print(f"[LLM Error] analyze_and_recommend 최종 타임아웃: {exc}")
-            continue
-        except json.JSONDecodeError as exc:
-            print(f"[LLM Error] 매칭 응답 JSON 파싱 에러: {exc}")
-            break
-        except Exception as exc:
-            print(f"[LLM Error] analyze_and_recommend 에러 발생: {exc}")
-            traceback.print_exc()
-            break
+    # Keep candidate context compact enough for one fast, meaningful comparison.
+    payload = {
+        **request_payload,
+        "candidates": request_payload["candidates"][:20],
+        "top_k": min(top_k, len(request_payload["candidates"][:20])),
+    }
+    prompt_text = "아래 JSON을 분석해 지정한 형식으로만 답해.\n" + json.dumps(
+        payload, ensure_ascii=False
+    )
+    try:
+        started = time.perf_counter()
+        future = _llm_executor.submit(
+            _request_llm,
+            prompt_text,
+            model_name,
+            system_prompt,
+            timeout=LLM_MATCH_TIMEOUT,
+            max_tokens=900,
+        )
+        res = future.result(timeout=LLM_MATCH_TIMEOUT + 0.5)
+        elapsed = time.perf_counter() - started
+        print(
+            f"[LLM] analyze_and_recommend success candidates={len(payload['candidates'])} elapsed={elapsed:.2f}s"
+        )
+        content = res.choices[0].message.content if res.choices else ""
+        parsed = _parse_match_analysis(content, candidates, top_k)
+        if parsed is None:
+            raise ValueError("AI 매칭 응답 형식이 올바르지 않습니다.")
+        return parsed
+    except TimeoutError as exc:
+        print(f"[LLM] analyze_and_recommend timeout={LLM_MATCH_TIMEOUT}s")
+        print(f"[LLM Error] 추천 분석 타임아웃: {type(exc).__name__}")
+    except json.JSONDecodeError as exc:
+        print(f"[LLM Error] 매칭 응답 JSON 파싱 에러: {exc}")
+    except Exception as exc:
+        print(f"[LLM Error] analyze_and_recommend 에러 발생: {exc}")
+        traceback.print_exc()
 
     return None
 

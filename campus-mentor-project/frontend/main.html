@@ -38,7 +38,7 @@ function updateLoginStatus(){
 function showMatchLoading(){
   const area=document.querySelector('#match-loading');
   if(!area)return{stop(){},hide(){}};
-  area.innerHTML='<span class="match-spinner" aria-hidden="true"></span><div class="match-loading-text"><strong>AI가 고민글을 우선 분석해 맞는 선배를 찾고 있어요</strong><p>모델 응답에 따라 1분 정도 걸릴 수 있어요</p><p class="match-loading-time" aria-hidden="true">경과 0초</p></div>';
+  area.innerHTML='<span class="match-spinner" aria-hidden="true"></span><div class="match-loading-text"><strong>AI가 고민글을 우선 분석해 맞는 선배를 찾고 있어요</strong><p>추천 결과는 최대 15초 안에 보여드려요</p><p class="match-loading-time" aria-hidden="true">경과 0초</p></div>';
   const time=area.querySelector('.match-loading-time'),started=Date.now();
   const timer=setInterval(()=>{time.textContent='경과 '+Math.floor((Date.now()-started)/1000)+'초'},1000);
   return{stop(){clearInterval(timer)},hide(){clearInterval(timer);area.replaceChildren()}};
@@ -434,7 +434,7 @@ function render(){
     next.disabled=true;prev.disabled=true;next.textContent='추천 요청 중...';notice.textContent='';
     const loading=showMatchLoading();
      const controller=new AbortController();
-      const timeout=setTimeout(()=>controller.abort(),70000);
+      const timeout=setTimeout(()=>controller.abort(),15000);
     try{
        sessionStorage.setItem('ppunppun-choice',JSON.stringify(choice));
       sessionStorage.setItem('ppunppun-concern',text);
