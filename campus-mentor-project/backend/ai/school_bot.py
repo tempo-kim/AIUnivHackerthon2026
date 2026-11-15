@@ -393,7 +393,20 @@ def answer_school_question(
         # Never log exception text: provider exceptions can include request
         # details. A class and HTTP status are enough to diagnose safely.
         status = getattr(e, "status_code", None)
-        print(f"[school_bot] LLM request failed: {type(e).__name__}, status={status}")
+        body = getattr(e, "body", None)
+        error_body = body.get("error", {}) if isinstance(body, dict) else {}
+        metadata = error_body.get("metadata", {}) if isinstance(error_body, dict) else {}
+        limit_source = metadata.get("limit_source") if isinstance(metadata, dict) else None
+        error_code = error_body.get("code") if isinstance(error_body, dict) else None
+        response = getattr(e, "response", None)
+        headers = getattr(response, "headers", {}) or {}
+        retry_after = headers.get("retry-after") if hasattr(headers, "get") else None
+        reset_at = headers.get("x-ratelimit-reset") if hasattr(headers, "get") else None
+        print(
+            "[school_bot] LLM request failed: "
+            f"{type(e).__name__}, status={status}, code={error_code}, "
+            f"limit_source={limit_source}, retry_after={retry_after}, reset={reset_at}"
+        )
         return {
             **base_meta,
             "answer": _extractive_answer(question, canon, cards, picked)
@@ -401,4 +414,8 @@ def answer_school_question(
             "source": "facts-fallback",
             "llm_error_type": type(e).__name__,
             "llm_error_status": status,
+            "llm_error_code": str(error_code) if error_code is not None else None,
+            "llm_limit_source": str(limit_source) if limit_source is not None else None,
+            "llm_retry_after": str(retry_after) if retry_after is not None else None,
+            "llm_rate_limit_reset": str(reset_at) if reset_at is not None else None,
         }

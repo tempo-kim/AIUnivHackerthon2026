@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from ai.extractor import analyze_and_recommend, extract_concern_info
+from ai.school_bot import answer_school_question
 from ai.stub_extract import stub_extract
 from app.schemas import (
     ChoiceContext,
@@ -27,6 +28,8 @@ from app.schemas import (
     EndResponseRequest,
     MessageRequest,
     ReportRequest,
+    SchoolBotRequest,
+    SchoolBotResponse,
 )
 from matching.matcher import match_mentors
 from services.mentors import store
@@ -291,6 +294,14 @@ def extract_concern(payload: MatchRequest):
 @app.post("/api/match", response_model=MatchResponse)
 def match_mentor(payload: MatchRequest):
     return _match_response(payload)
+
+
+@app.post("/api/school-bot", response_model=SchoolBotResponse)
+def school_bot(payload: SchoolBotRequest):
+    return answer_school_question(
+        question=payload.question,
+        school=payload.school,
+    )
 
 
 @app.get("/api/messages")

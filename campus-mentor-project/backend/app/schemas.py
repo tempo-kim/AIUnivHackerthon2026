@@ -102,3 +102,7 @@ class SchoolBotResponse(BaseModel):
     source: str = "llm"
     llm_error_type: str | None = None
     llm_error_status: int | None = None
+    llm_error_code: str | None = None
+    llm_limit_source: str | None = None
+    llm_retry_after: str | None = None
+    llm_rate_limit_reset: str | None = None
