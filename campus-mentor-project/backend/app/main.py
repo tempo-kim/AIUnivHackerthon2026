@@ -307,7 +307,14 @@ def _extract(payload: MatchRequest) -> tuple[Extraction, str]:
     return Extraction(**stub_extract(text)), "stub"
 
 
-def _rank_mentors(payload: MatchRequest, extraction: Extraction, mentors: list[dict], top_k: int) -> list[dict]:
+def _rank_mentors(
+    payload: MatchRequest,
+    extraction: Extraction,
+    mentors: list[dict],
+    top_k: int,
+    *,
+    filter_food_relevance: bool = True,
+) -> list[dict]:
     return match_mentors(
         interests=extraction.interests,
         help_fields=extraction.help_fields,
@@ -317,6 +324,7 @@ def _rank_mentors(payload: MatchRequest, extraction: Extraction, mentors: list[d
         choice_status=payload.choice.status if payload.choice else "",
         mentors=mentors,
         top_k=top_k,
+        filter_food_relevance=filter_food_relevance,
     )
 
 
@@ -346,6 +354,9 @@ def _apply_llm_ranking(
 
     for item in analysis.get("recommendations", []):
         mentor_id = str(item.get("mentor_id") or "")
+        fit = suitability.get(mentor_id, {}).get("fit")
+        if isinstance(fit, (int, float)) and fit < 40:
+            continue
         take(mentor_id, str(item.get("reason") or "").strip())
 
     # The recommendation screen is a fixed three-card template. If the LLM
@@ -360,7 +371,9 @@ def _apply_llm_ranking(
         extra = suitability.get(mentor_id)
         if extra:
             copied["score"] = extra.get("fit", copied["score"])
-            if extra.get("reason"):
+            if isinstance(extra.get("fit"), (int, float)) and extra["fit"] < 40:
+                copied["reasons"] = ["AI가 직접 추천한 적합도가 낮아 고민과의 관련성이 제한적일 수 있어요."]
+            elif extra.get("reason"):
                 copied["reasons"] = [str(extra["reason"])]
         else:
             copied["reasons"] = ["AI 추천 후보가 부족해 고민 내용과 프로필의 규칙 기반 유사도로 보완했어요."]
@@ -390,7 +403,15 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
             len(eligible_mentors),
             max(20, int(os.getenv("LLM_SHORTLIST_SIZE", "40"))),
         )
-        shortlist = _rank_mentors(payload, seed, eligible_mentors, shortlist_size)
+        shortlist = _rank_mentors(
+            payload,
+            seed,
+            eligible_mentors,
+            shortlist_size,
+            # The LLM must compare the complete rule-ranked shortlist, including
+            # indirect matches, so it can fill the fixed three-card result itself.
+            filter_food_relevance=False,
+        )
         if not shortlist:
             return MatchResponse(
                 extraction=seed,

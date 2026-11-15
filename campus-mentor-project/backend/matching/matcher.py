@@ -148,6 +148,7 @@ def match_mentors(
     choice_status: str = "",
     mentors: list[dict] | None = None,
     top_k: int = 3,
+    filter_food_relevance: bool = True,
 ) -> list[dict]:
     if not mentors:
         return []
@@ -298,7 +299,7 @@ def match_mentors(
     ranked.sort(key=lambda item: item["score"], reverse=True)
     # 음식점 추천은 프로필의 실제 생활 경험이 있는 선배에게만 연결한다.
     # 적합한 사람이 적으면 결과도 적게 반환해 무관한 전공 선배로 자리를 채우지 않는다.
-    if has_food_intent:
+    if has_food_intent and filter_food_relevance:
         relevant = [
             item for item in ranked
             if any(reason == "밥집/맛집 생활 경험 일치" for reason in item["reasons"])

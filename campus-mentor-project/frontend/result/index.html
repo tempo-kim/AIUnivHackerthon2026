@@ -64,7 +64,9 @@ if(llmPending){
   const singleLlm=result.extraction_source==='llm'&&result.recommendation_source==='llm';
   const extractionLabel=({llm:'LLM이 고민 내용을 분석',stub:'규칙 기반 분석',client:'입력된 조건 사용'})[result.extraction_source]||'분석 방식 확인 불가';
   const recommendationLabel=result.recommendation_source==='llm'?'LLM이 후보 선배를 최종 비교':'규칙 기반 후보 정렬';
-  status.textContent=singleLlm
+  status.textContent=result.recommendation_source==='rules-fallback'
+    ?'AI 추천 요청이 실패해 규칙 기반 후보를 표시하고 있습니다.'
+    :singleLlm
     ?'분석 방식: LLM 한 번이 핵심 키워드, 상황 요약, 선배 적합도, 상위 3명과 추천 이유를 함께 판단'
     :`분석 방식: ${extractionLabel} · 추천 방식: ${recommendationLabel}`;
 }
@@ -137,6 +139,9 @@ nextMatch.onclick=async()=>{
 };
 document.querySelector('#analysis-status').hidden=favoritesOnly;
 document.querySelector('#analysis-source').hidden=favoritesOnly;
+if(!favoritesOnly&&result?.recommendation_source==='rules-fallback'){
+  notice.textContent='AI 추천 요청에 실패해 빠른 규칙 기반 결과를 보여드려요. 다른 선배 보기를 눌러 다시 시도할 수 있어요.';
+}
 }
 renderMatches();
 document.querySelector('#show-recommended').onclick=()=>{favoritesOnly=false;renderMatches()};

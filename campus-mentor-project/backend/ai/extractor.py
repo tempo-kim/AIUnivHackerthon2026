@@ -18,9 +18,9 @@ load_dotenv(env_path)
 _llm_executor = ThreadPoolExecutor(max_workers=4)
 atexit.register(lambda: _llm_executor.shutdown(wait=False, cancel_futures=True))
 
-# 추천은 첫 호출과 재시도를 합쳐 최대 약 24초까지만 기다린 뒤
-# 규칙 기반 결과로 이어지도록 상한을 둔다. 환경 설정이 더 짧으면 그 값은 유지한다.
-LLM_MATCH_TIMEOUT = min(float(os.getenv("LLM_MATCH_TIMEOUT", "15")), 15.0)
+# 추천 사용자는 정확도를 위해 기다릴 수 있으므로 모델 응답을 충분히 기다린다.
+# 첫 호출과 축약 재시도를 합쳐 최대 약 60초까지 허용한다.
+LLM_MATCH_TIMEOUT = min(max(float(os.getenv("LLM_MATCH_TIMEOUT", "35")), 30.0), 45.0)
 ALLOWED_HELP_FIELDS = (
     "학교생활",
     "전공공부",
@@ -76,7 +76,7 @@ def _request_llm(
     # 지원하지 않으므로 처음부터 일반 호출로 요청한다. 재시도 문구 판별에
     # 의존하면 제공자 오류 표현이 달라졌을 때 LLM 호출이 그대로 실패할 수 있다.
     normalized_model = model_name.lower().removeprefix("openai/")
-    if normalized_model == "nvidia/nemotron-3.5-lightning:free":
+    if normalized_model.startswith("nvidia/"):
         return _client().chat.completions.create(**request)
 
     try:
@@ -459,9 +459,9 @@ JSON 외의 어떠한 문장도 출력하지 않는다.
             "candidates": request_payload["candidates"],
         },
         {
-            "timeout": 22.0 - LLM_MATCH_TIMEOUT,
+            "timeout": max(15.0, 60.0 - LLM_MATCH_TIMEOUT),
             "max_tokens": 900,
-            "candidates": request_payload["candidates"][: max(20, min(50, len(request_payload["candidates"])) )],
+            "candidates": request_payload["candidates"][: min(20, len(request_payload["candidates"]))],
         },
     ]
 
