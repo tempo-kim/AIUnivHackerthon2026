@@ -62,27 +62,23 @@ class MentorImportRequest(BaseModel):
 
 class MessageRequest(BaseModel):
     mentorId: str
-    juniorId: str
     senderRole: str
     text: str = Field(min_length=1, max_length=2000)
 
 
 class EndRequest(BaseModel):
     mentorId: str
-    juniorId: str
     requesterRole: str
 
 
 class EndResponseRequest(BaseModel):
     mentorId: str
-    juniorId: str
     responderRole: str
     agree: bool
 
 
 class ReportRequest(BaseModel):
     mentorId: str
-    juniorId: str
     reporterRole: str
     reason: str
     details: str = Field(min_length=1, max_length=4000)
@@ -106,32 +102,3 @@ class SchoolBotResponse(BaseModel):
     source: str = "llm"
     llm_error_type: str | None = None
     llm_error_status: int | None = None
-    llm_error_code: str | None = None
-    llm_limit_source: str | None = None
-    llm_retry_after: str | None = None
-    llm_rate_limit_reset: str | None = None
-
-
-class JuniorAuthRequest(BaseModel):
-    display_name: str = Field(min_length=1, max_length=30)
-    pin: str = Field(min_length=4, max_length=6, pattern=r"^\d{4,6}$")
-
-
-class JuniorRegisterRequest(JuniorAuthRequest):
-    pin_confirm: str = Field(min_length=4, max_length=6, pattern=r"^\d{4,6}$")
-
-
-class MentorAuthRequest(BaseModel):
-    display_name: str = Field(min_length=1, max_length=30)
-    pin: str = Field(min_length=4, max_length=6, pattern=r"^\d{4,6}$")
-
-
-class MentorRegisterRequest(MentorAuthRequest):
-    major: str = Field(min_length=1, max_length=100)
-    status: str = Field(min_length=1, max_length=100)
-    introduction: str = Field(min_length=1, max_length=2000)
-    pin_confirm: str = Field(min_length=4, max_length=6, pattern=r"^\d{4,6}$")
-
-
-class MentorIntroductionRequest(BaseModel):
-    introduction: str = Field(min_length=1, max_length=300)

@@ -155,30 +155,6 @@ class MentorStore:
             self._mentors.append(mentor)
         return mentor
 
-    def add_registered(self, mentor_id: str, display_name: str, major: str, status: str, bio: str) -> Mentor:
-        """Restore one persisted account into the in-memory matching catalog."""
-        with _add_lock:
-            existing = next((item for item in self._mentors if item.mentor_id == mentor_id), None)
-            if existing:
-                existing.display_name = display_name
-                existing.major = major
-                existing.status = status
-                existing.bio = bio
-                existing.experiences = [bio] if bio else []
-                existing.help_topics = _topics_from_bio(bio)
-                return existing
-            mentor = Mentor(
-                mentor_id=mentor_id,
-                display_name=display_name,
-                major=major,
-                experiences=[bio] if bio else [],
-                help_topics=_topics_from_bio(bio),
-                status=status,
-                bio=bio,
-            )
-            self._mentors.append(mentor)
-            return mentor
-
     def update_bio(self, mentor_id: str, bio: str) -> Mentor | None:
         """Update the in-memory profile used by mentor listing and recommendations."""
         with _add_lock:

@@ -109,15 +109,6 @@ def list_mentors() -> list[dict]:
     return [dict(row) for row in rows]
 
 
-def mentor_profile(mentor_id: str) -> dict | None:
-    with _db() as conn:
-        row = conn.execute(
-            "SELECT mentor_id, display_name, major, status, bio FROM mentors WHERE mentor_id = ?",
-            (mentor_id,),
-        ).fetchone()
-    return dict(row) if row else None
-
-
 def name_taken(display_name: str) -> bool:
     with _db() as conn:
         row = conn.execute(
@@ -247,15 +238,6 @@ def junior_exists(display_name: str) -> bool:
         return conn.execute(
             "SELECT 1 FROM juniors WHERE display_name = ?", (display_name.strip(),)
         ).fetchone() is not None
-
-
-def junior_profile(junior_id: str) -> dict | None:
-    with _db() as conn:
-        row = conn.execute(
-            "SELECT junior_id, display_name FROM juniors WHERE junior_id = ?",
-            (junior_id,),
-        ).fetchone()
-    return dict(row) if row else None
 
 
 def junior_names(junior_ids: list[str]) -> dict[str, str]:
