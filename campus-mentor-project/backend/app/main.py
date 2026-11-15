@@ -903,6 +903,18 @@ def get_junior_achievements(authorization: str = Header(default="")):
     return {"unlocked": unlocked}
 
 
+@app.get("/api/senior-achievements")
+def get_senior_achievements(authorization: str = Header(default="")):
+    mentor_id = storage.token_mentor(_bearer(authorization))
+    mentor = next((item for item in store.list() if item.mentor_id == mentor_id), None) if mentor_id else None
+    if mentor is None:
+        raise HTTPException(status_code=401, detail="선배 로그인이 필요합니다.")
+    unlocked = ["introduction"]
+    if len((mentor.bio or "").strip()) >= 200:
+        unlocked.append("storyteller")
+    return {"unlocked": unlocked}
+
+
 @app.post("/api/messages")
 def send_message(payload: RoomMessageRequest, authorization: str = Header(default="")):
     room = _chat_room(payload.mentorId, payload.juniorId)
