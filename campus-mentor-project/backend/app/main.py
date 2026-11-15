@@ -33,6 +33,9 @@ from app.schemas import (
     SchoolBotResponse,
     JuniorAuthRequest,
     JuniorRegisterRequest,
+    MentorAuthRequest,
+    MentorRegisterRequest,
+    MentorIntroductionRequest,
 )
 from matching.matcher import match_mentors
 from services.mentors import store
@@ -58,10 +61,14 @@ app = FastAPI(title="뻔뻔하게 매칭")
 @app.on_event("startup")
 def initialize_storage():
     storage.init()
-
-_messages: dict[str, list[dict]] = {}
-_end_states: dict[str, dict] = {}
-_reports: list[dict] = []
+    for profile in storage.list_mentors():
+        store.add_registered(
+            profile["mentor_id"],
+            profile["display_name"],
+            profile["major"],
+            profile["status"],
+            profile["bio"],
+        )
 
 app.add_middleware(
     CORSMiddleware,
@@ -71,17 +78,36 @@ app.add_middleware(
 )
 
 
-def _chat_room(mentor_id: str) -> str:
-    if not any(mentor.mentor_id == mentor_id for mentor in store.list()):
+def _chat_room(mentor_id: str, junior_id: str) -> str:
+    if not mentor_id or not junior_id:
+        raise HTTPException(status_code=400, detail="mentorId와 juniorId가 필요합니다.")
+    known_in_store = any(mentor.mentor_id == mentor_id for mentor in store.list())
+    known_in_db = any(row.get("mentor_id") == mentor_id for row in storage.list_mentors())
+    if not known_in_store and not known_in_db:
         raise HTTPException(status_code=404, detail="선배를 찾을 수 없습니다.")
-    return mentor_id
+    return f"mentor-{mentor_id}:{junior_id}"
 
 
 def _end_state(room: str) -> dict:
-    return _end_states.setdefault(
-        room,
-        {"status": "active", "requestedBy": None, "declinedBy": None},
-    )
+    return storage.get_end_state(room)
+
+
+def _authorize_room(authorization: str | None, mentor_id: str, junior_id: str, role: str) -> str:
+    token = _bearer_token(authorization)
+    owner = storage.token_junior(token) if role == "junior" else storage.token_mentor(token)
+    expected = junior_id if role == "junior" else mentor_id
+    if owner != expected:
+        raise HTTPException(status_code=401, detail="대화방 로그인 정보가 올바르지 않습니다.")
+    return token
+
+
+def _room_role(authorization: str | None, mentor_id: str, junior_id: str) -> str:
+    token = _bearer_token(authorization)
+    if storage.token_mentor(token) == mentor_id:
+        return "senior"
+    if storage.token_junior(token) == junior_id:
+        return "junior"
+    raise HTTPException(status_code=401, detail="대화방 로그인이 필요합니다.")
 
 
 def _str_list(value: object) -> list[str]:
@@ -276,6 +302,125 @@ def get_mentors():
     return [MentorOut(**mentor.to_dict()) for mentor in store.list()]
 
 
+@app.post("/api/mentors/register")
+def register_mentor(payload: MentorRegisterRequest):
+    display_name = payload.display_name.strip()
+    major = payload.major.strip()
+    status = payload.status.strip()
+    introduction = payload.introduction.strip()
+    if payload.pin != payload.pin_confirm:
+        raise HTTPException(status_code=400, detail="PIN 확인이 일치하지 않습니다.")
+    if any(mentor.display_name == display_name for mentor in store.list()) or storage.name_taken(display_name):
+        raise HTTPException(status_code=409, detail="이미 사용 중인 닉네임입니다.")
+    mentor = store.add(display_name, major, status, introduction)
+    try:
+        storage.add_mentor(mentor.mentor_id, display_name, major, status, introduction, payload.pin)
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(status_code=409, detail="이미 사용 중인 닉네임입니다. 로그인해 주세요.") from exc
+    token = storage.create_token(mentor.mentor_id)
+    return {"mentor_id": mentor.mentor_id, "display_name": display_name, "token": token}
+
+
+@app.post("/api/mentors/login")
+def login_mentor(payload: MentorAuthRequest):
+    mentor_id = storage.check_pin(payload.display_name.strip(), payload.pin)
+    if not mentor_id:
+        raise HTTPException(status_code=401, detail="닉네임 또는 PIN이 맞지 않아요.")
+    profile = storage.mentor_profile(mentor_id)
+    if not profile:
+        raise HTTPException(status_code=401, detail="선배 계정을 찾을 수 없습니다.")
+    store.add_registered(mentor_id, profile["display_name"], profile["major"], profile["status"], profile["bio"])
+    return {"mentor_id": mentor_id, "display_name": profile["display_name"], "token": storage.create_token(mentor_id)}
+
+
+@app.get("/api/mentors/me")
+def get_mentor_me(authorization: str | None = Header(default=None)):
+    token = _bearer_token(authorization)
+    mentor_id = storage.token_mentor(token)
+    profile = storage.mentor_profile(mentor_id) if mentor_id else None
+    if not profile:
+        raise HTTPException(status_code=401, detail="로그인이 만료되었습니다.")
+    return {"mentor_id": mentor_id, "display_name": profile["display_name"], "major": profile["major"], "status": profile["status"], "introduction": profile["bio"]}
+
+
+@app.post("/api/mentors/logout")
+def logout_mentor(authorization: str | None = Header(default=None)):
+    storage.delete_token(_bearer_token(authorization))
+    return {"status": "ok"}
+
+
+@app.patch("/api/mentors/me/introduction")
+def update_mentor_introduction(payload: MentorIntroductionRequest, authorization: str | None = Header(default=None)):
+    token = _bearer_token(authorization)
+    mentor_id = storage.token_mentor(token)
+    if not mentor_id:
+        raise HTTPException(status_code=401, detail="로그인이 만료되었습니다.")
+    introduction = payload.introduction.strip()
+    if not introduction:
+        raise HTTPException(status_code=400, detail="소개를 입력해 주세요.")
+    if not storage.update_mentor_bio(mentor_id, introduction):
+        raise HTTPException(status_code=404, detail="선배 계정을 찾을 수 없습니다.")
+    store.update_bio(mentor_id, introduction)
+    return {"mentor_id": mentor_id, "introduction": introduction}
+
+
+@app.get("/api/rooms")
+def get_mentor_rooms(mentorId: str, authorization: str | None = Header(default=None)):
+    token = _bearer_token(authorization)
+    if storage.token_mentor(token) != mentorId:
+        raise HTTPException(status_code=401, detail="선배 로그인이 필요합니다.")
+    prefix = f"mentor-{mentorId}:"
+    rows = storage.list_rooms(prefix=prefix)
+    junior_ids = [row["room"][len(prefix):] for row in rows]
+    names = storage.junior_names(junior_ids)
+    result = []
+    for row, junior_id in zip(rows, junior_ids):
+        result.append({
+            "juniorId": junior_id,
+            "juniorName": names.get(junior_id, "후배"),
+            "lastMessage": row["lastMessage"],
+            "lastAt": row["lastAt"],
+            "lastSenderRole": row["lastSenderRole"],
+            "status": row["status"],
+            "messageCount": row["messageCount"],
+        })
+    return result
+
+
+@app.get("/api/juniors/rooms")
+def get_junior_rooms(authorization: str | None = Header(default=None)):
+    token = _bearer_token(authorization)
+    junior_id = storage.token_junior(token)
+    profile = storage.junior_profile(junior_id) if junior_id else None
+    if not profile:
+        raise HTTPException(status_code=401, detail="후배 로그인이 필요합니다.")
+    rows = storage.list_rooms(suffix=junior_id)
+    mentors = {
+        mentor.mentor_id: {"display_name": mentor.display_name, "major": mentor.major}
+        for mentor in store.list()
+    }
+    for row in storage.list_mentors():
+        mentors.setdefault(row["mentor_id"], row)
+    result = []
+    for row in rows:
+        prefix, separator, room_junior_id = row["room"].partition(":")
+        mentor_id = prefix.removeprefix("mentor-")
+        mentor = mentors.get(mentor_id)
+        if not separator or room_junior_id != junior_id or not mentor:
+            continue
+        result.append({
+            "mentorId": mentor_id,
+            "mentorName": mentor.get("display_name", "선배"),
+            "mentorMajor": mentor.get("major", ""),
+            "lastMessage": row["lastMessage"],
+            "lastAt": row["lastAt"],
+            "lastSenderRole": row["lastSenderRole"],
+            "status": row["status"],
+            "messageCount": row["messageCount"],
+        })
+    return result
+
+
 @app.post("/api/mentors/import")
 def import_mentors(payload: MentorImportRequest):
     try:
@@ -365,16 +510,22 @@ def logout_junior(authorization: str | None = Header(default=None)):
 
 
 @app.get("/api/messages")
-def get_messages(mentorId: str):
-    room = _chat_room(mentorId)
-    return _messages.get(room, [])
+def get_messages(
+    mentorId: str,
+    juniorId: str,
+    authorization: str | None = Header(default=None),
+):
+    room = _chat_room(mentorId, juniorId)
+    _room_role(authorization, mentorId, juniorId)
+    return storage.list_messages(room)
 
 
 @app.post("/api/messages")
-def send_message(payload: MessageRequest):
-    room = _chat_room(payload.mentorId)
+def send_message(payload: MessageRequest, authorization: str | None = Header(default=None)):
+    room = _chat_room(payload.mentorId, payload.juniorId)
     if payload.senderRole not in {"junior", "senior"}:
         raise HTTPException(status_code=400, detail="senderRole이 올바르지 않습니다.")
+    _authorize_room(authorization, payload.mentorId, payload.juniorId, payload.senderRole)
     if _end_state(room)["status"] == "ended":
         raise HTTPException(status_code=409, detail="종료된 대화입니다.")
     message = {
@@ -383,30 +534,34 @@ def send_message(payload: MessageRequest):
         "text": payload.text.strip(),
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
-    _messages.setdefault(room, []).append(message)
+    storage.add_message(room, message)
     return message
 
 
 @app.get("/api/chat-end")
-def get_chat_end(mentorId: str):
-    return _end_state(_chat_room(mentorId))
+def get_chat_end(mentorId: str, juniorId: str, authorization: str | None = Header(default=None)):
+    _room_role(authorization, mentorId, juniorId)
+    return _end_state(_chat_room(mentorId, juniorId))
 
 
 @app.post("/api/chat-end/request")
-def request_chat_end(payload: EndRequest):
-    room = _chat_room(payload.mentorId)
+def request_chat_end(payload: EndRequest, authorization: str | None = Header(default=None)):
+    room = _chat_room(payload.mentorId, payload.juniorId)
     if payload.requesterRole not in {"junior", "senior"}:
         raise HTTPException(status_code=400, detail="requesterRole이 올바르지 않습니다.")
+    _authorize_room(authorization, payload.mentorId, payload.juniorId, payload.requesterRole)
     state = _end_state(room)
     if state["status"] != "active":
         return state
     state.update(status="pending", requestedBy=payload.requesterRole, declinedBy=None)
+    storage.save_end_state(room, state)
     return state
 
 
 @app.post("/api/chat-end/respond")
-def respond_chat_end(payload: EndResponseRequest):
-    room = _chat_room(payload.mentorId)
+def respond_chat_end(payload: EndResponseRequest, authorization: str | None = Header(default=None)):
+    room = _chat_room(payload.mentorId, payload.juniorId)
+    _authorize_room(authorization, payload.mentorId, payload.juniorId, payload.responderRole)
     state = _end_state(room)
     if state["status"] != "pending":
         return state
@@ -416,13 +571,15 @@ def respond_chat_end(payload: EndResponseRequest):
         state.update(status="ended", requestedBy=None, declinedBy=None)
     else:
         state.update(status="active", requestedBy=None, declinedBy=payload.responderRole)
+    storage.save_end_state(room, state)
     return state
 
 
 @app.post("/api/reports")
-def create_report(payload: ReportRequest):
-    _chat_room(payload.mentorId)
-    _reports.append({**payload.model_dump(), "createdAt": datetime.now(timezone.utc).isoformat()})
+def create_report(payload: ReportRequest, authorization: str | None = Header(default=None)):
+    _chat_room(payload.mentorId, payload.juniorId)
+    _authorize_room(authorization, payload.mentorId, payload.juniorId, payload.reporterRole)
+    storage.add_report({"reportId": str(uuid.uuid4()), **payload.model_dump(), "createdAt": datetime.now(timezone.utc).isoformat()})
     return {"status": "received"}
 
 

@@ -62,23 +62,27 @@ class MentorImportRequest(BaseModel):
 
 class MessageRequest(BaseModel):
     mentorId: str
+    juniorId: str
     senderRole: str
     text: str = Field(min_length=1, max_length=2000)
 
 
 class EndRequest(BaseModel):
     mentorId: str
+    juniorId: str
     requesterRole: str
 
 
 class EndResponseRequest(BaseModel):
     mentorId: str
+    juniorId: str
     responderRole: str
     agree: bool
 
 
 class ReportRequest(BaseModel):
     mentorId: str
+    juniorId: str
     reporterRole: str
     reason: str
     details: str = Field(min_length=1, max_length=4000)
@@ -115,3 +119,19 @@ class JuniorAuthRequest(BaseModel):
 
 class JuniorRegisterRequest(JuniorAuthRequest):
     pin_confirm: str = Field(min_length=4, max_length=6, pattern=r"^\d{4,6}$")
+
+
+class MentorAuthRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=30)
+    pin: str = Field(min_length=4, max_length=6, pattern=r"^\d{4,6}$")
+
+
+class MentorRegisterRequest(MentorAuthRequest):
+    major: str = Field(min_length=1, max_length=100)
+    status: str = Field(min_length=1, max_length=100)
+    introduction: str = Field(min_length=1, max_length=2000)
+    pin_confirm: str = Field(min_length=4, max_length=6, pattern=r"^\d{4,6}$")
+
+
+class MentorIntroductionRequest(BaseModel):
+    introduction: str = Field(min_length=1, max_length=300)

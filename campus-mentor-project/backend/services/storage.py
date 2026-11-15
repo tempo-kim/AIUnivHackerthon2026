@@ -109,6 +109,15 @@ def list_mentors() -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def mentor_profile(mentor_id: str) -> dict | None:
+    with _db() as conn:
+        row = conn.execute(
+            "SELECT mentor_id, display_name, major, status, bio FROM mentors WHERE mentor_id = ?",
+            (mentor_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def name_taken(display_name: str) -> bool:
     with _db() as conn:
         row = conn.execute(
