@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -30,9 +31,12 @@ from app.schemas import (
     ReportRequest,
     SchoolBotRequest,
     SchoolBotResponse,
+    JuniorAuthRequest,
+    JuniorRegisterRequest,
 )
 from matching.matcher import match_mentors
 from services.mentors import store
+from services import storage
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
@@ -49,6 +53,11 @@ if not allowed_origins:
     allowed_origins = ["http://127.0.0.1:8000", "http://localhost:8000"]
 
 app = FastAPI(title="뻔뻔하게 매칭")
+
+
+@app.on_event("startup")
+def initialize_storage():
+    storage.init()
 
 _messages: dict[str, list[dict]] = {}
 _end_states: dict[str, dict] = {}
@@ -302,6 +311,57 @@ def school_bot(payload: SchoolBotRequest):
         question=payload.question,
         school=payload.school,
     )
+
+
+def _bearer_token(authorization: str | None) -> str:
+    scheme, _, token = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+    return token.strip()
+
+
+@app.post("/api/juniors/register")
+def register_junior(payload: JuniorRegisterRequest):
+    display_name = payload.display_name.strip()
+    if not display_name:
+        raise HTTPException(status_code=422, detail="닉네임을 입력해 주세요.")
+    if payload.pin != payload.pin_confirm:
+        raise HTTPException(status_code=400, detail="PIN 확인이 일치하지 않습니다.")
+    if storage.junior_exists(display_name):
+        raise HTTPException(status_code=409, detail="이미 등록된 닉네임입니다. 로그인해 주세요.")
+    try:
+        junior_id = storage.add_junior(display_name, payload.pin)
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(status_code=409, detail="이미 등록된 닉네임입니다. 로그인해 주세요.") from exc
+    token = storage.create_junior_token(junior_id)
+    return {"junior_id": junior_id, "display_name": display_name, "token": token}
+
+
+@app.post("/api/juniors/login")
+def login_junior(payload: JuniorAuthRequest):
+    junior_id = storage.check_junior_pin(payload.display_name.strip(), payload.pin)
+    if not junior_id:
+        raise HTTPException(status_code=401, detail="닉네임 또는 PIN이 맞지 않아요.")
+    token = storage.create_junior_token(junior_id)
+    profile = storage.junior_profile(junior_id) or {}
+    return {"junior_id": junior_id, "display_name": profile.get("display_name", ""), "token": token}
+
+
+@app.get("/api/juniors/me")
+def get_junior_me(authorization: str | None = Header(default=None)):
+    token = _bearer_token(authorization)
+    junior_id = storage.token_junior(token)
+    profile = storage.junior_profile(junior_id) if junior_id else None
+    if not profile:
+        raise HTTPException(status_code=401, detail="로그인이 만료되었습니다.")
+    return profile
+
+
+@app.post("/api/juniors/logout")
+def logout_junior(authorization: str | None = Header(default=None)):
+    token = _bearer_token(authorization)
+    storage.delete_junior_token(token)
+    return {"status": "ok"}
 
 
 @app.get("/api/messages")

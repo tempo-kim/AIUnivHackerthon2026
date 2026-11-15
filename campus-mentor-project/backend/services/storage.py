@@ -240,6 +240,15 @@ def junior_exists(display_name: str) -> bool:
         ).fetchone() is not None
 
 
+def junior_profile(junior_id: str) -> dict | None:
+    with _db() as conn:
+        row = conn.execute(
+            "SELECT junior_id, display_name FROM juniors WHERE junior_id = ?",
+            (junior_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def junior_names(junior_ids: list[str]) -> dict[str, str]:
     if not junior_ids:
         return {}

@@ -106,3 +106,12 @@ class SchoolBotResponse(BaseModel):
     llm_limit_source: str | None = None
     llm_retry_after: str | None = None
     llm_rate_limit_reset: str | None = None
+
+
+class JuniorAuthRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=30)
+    pin: str = Field(min_length=4, max_length=6, pattern=r"^\d{4,6}$")
+
+
+class JuniorRegisterRequest(JuniorAuthRequest):
+    pin_confirm: str = Field(min_length=4, max_length=6, pattern=r"^\d{4,6}$")
