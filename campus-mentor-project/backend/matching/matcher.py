@@ -67,6 +67,11 @@ def _major_like(value: str) -> str:
     return _normalize(value).replace("학과", "과")
 
 
+def text_names_major(text: str, major: str) -> bool:
+    major_like = _major_like(major)
+    return len(major_like) >= 2 and major_like in _normalize(text)
+
+
 def _major_matches(target: str, major: str) -> bool:
     target_like = _major_like(target)
     major_like = _major_like(major)
@@ -263,6 +268,11 @@ def match_mentors(
         ):
             score += 0.3 if has_food_intent else 1.0
             reasons.append(f"전공 관련: {major}")
+
+        query_blob = " ".join([situation, *interests, choice_reason])
+        if text_names_major(query_blob, major):
+            score += 25.0
+            reasons.append(f"줄글에 적힌 전공: {major}")
 
         if situation_norm:
             for exp in experiences:

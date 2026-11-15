@@ -38,7 +38,7 @@ from app.schemas import (
     SchoolBotRequest,
     SchoolBotResponse,
 )
-from matching.matcher import match_mentors
+from matching.matcher import match_mentors, text_names_major
 from services import storage
 from services.badwords import contains_badword
 from services.mentors import Mentor, store
@@ -329,7 +329,7 @@ def _rank_mentors(
 
 
 def _apply_llm_ranking(
-    ranked: list[dict], analysis: dict, top_k: int, rank_offset: int = 0
+    ranked: list[dict], analysis: dict, top_k: int, rank_offset: int = 0, concern_text: str = ""
 ) -> list[dict]:
     suitability = {
         item["mentor_id"]: item
@@ -377,6 +377,21 @@ def _apply_llm_ranking(
         leftovers.append(copied)
     leftovers.sort(key=lambda item: item["score"], reverse=True)
     reordered.extend(leftovers)
+    if concern_text and any(text_names_major(concern_text, str(row.get("major") or "")) for row in ranked):
+        same_major = [row for row in reordered if text_names_major(concern_text, str(row.get("major") or ""))]
+        chosen = {str(row.get("mentor_id")) for row in same_major}
+        for row in ranked:
+            if len(same_major) >= top_k:
+                break
+            mentor_id = str(row.get("mentor_id"))
+            if mentor_id in chosen or not text_names_major(concern_text, str(row.get("major") or "")):
+                continue
+            copied = row.copy()
+            copied["reasons"] = [f"{copied.get('major') or '같은 전공'} 선배라서 줄글에 적힌 전공과 맞습니다."]
+            same_major.append(copied)
+            chosen.add(mentor_id)
+        others = [row for row in reordered if str(row.get("mentor_id")) not in chosen]
+        reordered = same_major + others
     return reordered[rank_offset : rank_offset + top_k]
 
 
@@ -435,7 +450,7 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
             )
         extraction = payload.extraction or _from_llm(analysis)
         ranked = _apply_llm_ranking(
-            shortlist, analysis, payload.top_k, payload.rank_offset
+            shortlist, analysis, payload.top_k, payload.rank_offset, text or seed.situation
         )
         return MatchResponse(
             extraction=extraction,

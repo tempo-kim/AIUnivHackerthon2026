@@ -101,7 +101,7 @@ if(favoritesOnly&&!matches.length){notice.textContent='아직 찜한 선배가 �
     }
     card.append(avatar,name,meta,bio);
     if(Array.isArray(mentor.reasons)&&mentor.reasons.length){const title=document.createElement('strong');title.textContent='추천 이유';const reasons=document.createElement('ul');reasons.className='reason';reasons.style.cssText='padding-left:20px;flex:none;margin-top:8px';mentor.reasons.forEach(reason=>{const item=document.createElement('li');item.textContent=String(reason);reasons.appendChild(item)});card.append(title,reasons)}
-    if(mentor.mentor_id){const link=document.createElement('a');link.className='button';link.href=chatUrl(mentor.mentor_id);link.onclick=()=>{PpunAchievements.selectMentor(mentor.mentor_id);try{sessionStorage.setItem('ppunppun-selected-mentor',String(mentor.mentor_id))}catch(e){}};link.textContent='대화 시작하기 →';card.appendChild(link)}
+    if(mentor.mentor_id){const link=document.createElement('a');link.className='button';link.href=chatUrl(mentor.mentor_id);link.onclick=async(event)=>{event.preventDefault();PpunAchievements.selectMentor(mentor.mentor_id);try{sessionStorage.setItem('ppunppun-selected-mentor',String(mentor.mentor_id))}catch(e){}const session=(()=>{try{return JSON.parse(localStorage.getItem('ppunppun-junior-session')||'null')}catch(err){return null}})();if(!session?.token){location.href='../main.html?junior-login=1&reauth=1&next='+encodeURIComponent('chat/index.html?role=junior&mentor='+encodeURIComponent(mentor.mentor_id));return}try{const response=await fetch('/api/juniors/me',{headers:{Authorization:'Bearer '+session.token}});if(response.status===401){try{localStorage.removeItem('ppunppun-junior-session');sessionStorage.removeItem('ppunppun-junior-session')}catch(err){}location.href='../main.html?junior-login=1&reauth=1&next='+encodeURIComponent('chat/index.html?role=junior&mentor='+encodeURIComponent(mentor.mentor_id));return}}catch(err){}location.href=chatUrl(mentor.mentor_id)};link.textContent='대화 시작하기 →';card.appendChild(link)}
     list.appendChild(card);
   });
   nextMatch.hidden=false;
@@ -111,7 +111,7 @@ nextMatch.onclick=async()=>{
   nextMatch.textContent='다음 선배를 찾는 중...';
   notice.textContent='이미 추천된 선배를 제외하고 AI가 다른 선배를 찾고 있어요.';
   const controller=new AbortController();
-  const requestTimeout=setTimeout(()=>controller.abort(),15000);
+  const requestTimeout=setTimeout(()=>controller.abort(),16000);
   try{
     // 첫 AI 정제가 진행 중일 때는 그 결과까지 제외 목록에 반영한 뒤 다음 추천을 요청합니다.
     if(llmPending&&llmRefinementPromise)await llmRefinementPromise;
@@ -134,7 +134,7 @@ nextMatch.onclick=async()=>{
     sessionStorage.setItem('ppunppun-match',JSON.stringify(nextResult));
     location.reload();
   }catch(e){
-    notice.textContent=e&&e.name==='AbortError'?'15초 안에 추천 응답을 받지 못했어요. 잠시 후 다시 시도해 주세요.':e&&e.message==='Failed to fetch'?'추천 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.':`다음 추천 요청 실패: ${e&&e.message?e.message:'알 수 없는 오류'}`;
+    notice.textContent=e&&e.name==='AbortError'?'16초 안에 추천 응답을 받지 못했어요. 잠시 후 다시 시도해 주세요.':e&&e.message==='Failed to fetch'?'추천 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.':`다음 추천 요청 실패: ${e&&e.message?e.message:'알 수 없는 오류'}`;
     nextMatch.disabled=false;
     nextMatch.textContent='다시 매칭';
   }finally{clearTimeout(requestTimeout)}
@@ -152,7 +152,7 @@ window.addEventListener('storage',()=>renderMatches());
 async function refineRecommendations(){
   if(!llmPending)return;
   const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),15000);
+  const timeout=setTimeout(()=>controller.abort(),16000);
   try{
     const concernText=sessionStorage.getItem('ppunppun-concern')||'';
     let choice=null;try{choice=JSON.parse(sessionStorage.getItem('ppunppun-choice')||'null')}catch(e){}
