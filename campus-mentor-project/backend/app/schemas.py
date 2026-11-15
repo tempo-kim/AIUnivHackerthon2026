@@ -77,6 +77,10 @@ class EndResponseRequest(BaseModel):
     agree: bool
 
 
+class BadgeRequest(BaseModel):
+    badge_id: str = Field(min_length=1, max_length=40)
+
+
 class ReportRequest(BaseModel):
     mentorId: str
     reporterRole: str

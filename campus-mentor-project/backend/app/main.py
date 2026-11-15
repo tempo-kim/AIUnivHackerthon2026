@@ -35,6 +35,7 @@ from app.schemas import (
     EndResponseRequest,
     MessageRequest,
     ReportRequest,
+    BadgeRequest,
     SchoolBotRequest,
     SchoolBotResponse,
 )
@@ -895,12 +896,22 @@ def get_junior_achievements(authorization: str = Header(default="")):
         if any(message["senderRole"] == "junior" for message in storage.list_messages(room["room"])):
             junior_message_rooms.append(room)
     mentor_ids = {room["room"].split(":", 1)[0] for room in junior_message_rooms}
-    unlocked = []
-    if mentor_ids:
+    unlocked = list(storage.list_badges("junior", junior_id))
+    if mentor_ids and "first-step" not in unlocked:
         unlocked.append("first-step")
-    if len(rooms) >= 3:
+    if len(rooms) >= 3 and "explorer" not in unlocked:
         unlocked.append("explorer")
     return {"unlocked": unlocked}
+
+
+@app.post("/api/junior-achievements")
+def save_junior_achievement(payload: BadgeRequest, authorization: str = Header(default="")):
+    junior_id = storage.token_junior(_bearer(authorization))
+    if not junior_id:
+        raise HTTPException(status_code=401, detail="후배 로그인이 필요합니다.")
+    if not storage.add_badge("junior", junior_id, payload.badge_id):
+        raise HTTPException(status_code=400, detail="저장할 수 없는 배지입니다.")
+    return {"status": "ok"}
 
 
 @app.get("/api/senior-achievements")
@@ -909,10 +920,22 @@ def get_senior_achievements(authorization: str = Header(default="")):
     mentor = next((item for item in store.list() if item.mentor_id == mentor_id), None) if mentor_id else None
     if mentor is None:
         raise HTTPException(status_code=401, detail="선배 로그인이 필요합니다.")
-    unlocked = ["introduction"]
-    if len((mentor.bio or "").strip()) >= 200:
+    unlocked = list(storage.list_badges("senior", mentor.mentor_id))
+    if "introduction" not in unlocked:
+        unlocked.append("introduction")
+    if len((mentor.bio or "").strip()) >= 200 and "storyteller" not in unlocked:
         unlocked.append("storyteller")
     return {"unlocked": unlocked}
+
+
+@app.post("/api/senior-achievements")
+def save_senior_achievement(payload: BadgeRequest, authorization: str = Header(default="")):
+    mentor_id = storage.token_mentor(_bearer(authorization))
+    if not mentor_id:
+        raise HTTPException(status_code=401, detail="선배 로그인이 필요합니다.")
+    if not storage.add_badge("senior", mentor_id, payload.badge_id):
+        raise HTTPException(status_code=400, detail="저장할 수 없는 배지입니다.")
+    return {"status": "ok"}
 
 
 @app.post("/api/messages")

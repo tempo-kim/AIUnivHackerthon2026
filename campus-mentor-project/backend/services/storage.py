@@ -84,6 +84,13 @@ def init() -> None:
                 requested_by TEXT,
                 declined_by TEXT
             );
+            CREATE TABLE IF NOT EXISTS earned_badges (
+                owner_kind TEXT NOT NULL,
+                owner_id TEXT NOT NULL,
+                badge_id TEXT NOT NULL,
+                earned_at TEXT NOT NULL,
+                PRIMARY KEY (owner_kind, owner_id, badge_id)
+            );
             """
         )
 
@@ -261,6 +268,32 @@ def token_junior(token: str) -> str | None:
 
 def delete_junior_token(token: str) -> None:
     _delete_token("junior", token)
+
+
+_BADGE_IDS = {
+    "junior": {"concern", "recommendation", "first-step", "explorer"},
+    "senior": {"introduction", "storyteller"},
+}
+
+
+def add_badge(kind: str, owner_id: str, badge_id: str) -> bool:
+    if badge_id not in _BADGE_IDS.get(kind, set()):
+        return False
+    with _db() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO earned_badges VALUES (?, ?, ?, ?)",
+            (kind, owner_id, badge_id, _now()),
+        )
+    return True
+
+
+def list_badges(kind: str, owner_id: str) -> list[str]:
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT badge_id FROM earned_badges WHERE owner_kind = ? AND owner_id = ?",
+            (kind, owner_id),
+        ).fetchall()
+    return [row["badge_id"] for row in rows]
 
 
 # ---- 채팅 메시지 ----
