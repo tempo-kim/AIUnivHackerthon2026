@@ -344,16 +344,13 @@ def _apply_llm_ranking(
         reordered.append(copied)
         selected_ids.add(mentor_id)
 
-    for item in sorted(
-        analysis.get("suitability", []),
-        key=lambda item: item.get("fit", 0) if isinstance(item, dict) else 0,
-        reverse=True,
-    ):
-        take(str(item.get("mentor_id") or ""), str(item.get("reason") or "").strip())
-
     for item in analysis.get("recommendations", []):
-        take(str(item.get("mentor_id") or ""), str(item.get("reason") or "").strip())
+        mentor_id = str(item.get("mentor_id") or "")
+        take(mentor_id, str(item.get("reason") or "").strip())
 
+    # The recommendation screen is a fixed three-card template. If the LLM
+    # returns fewer IDs, complete the list with the closest remaining candidates
+    # from the rule ranking instead of returning fewer cards.
     leftovers: list[dict] = []
     for row in ranked:
         mentor_id = str(row["mentor_id"])
@@ -365,6 +362,8 @@ def _apply_llm_ranking(
             copied["score"] = extra.get("fit", copied["score"])
             if extra.get("reason"):
                 copied["reasons"] = [str(extra["reason"])]
+        else:
+            copied["reasons"] = ["AI 추천 후보가 부족해 고민 내용과 프로필의 규칙 기반 유사도로 보완했어요."]
         leftovers.append(copied)
     leftovers.sort(key=lambda item: item["score"], reverse=True)
     reordered.extend(leftovers)
