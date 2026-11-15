@@ -354,9 +354,6 @@ def _apply_llm_ranking(
 
     for item in analysis.get("recommendations", []):
         mentor_id = str(item.get("mentor_id") or "")
-        fit = suitability.get(mentor_id, {}).get("fit")
-        if isinstance(fit, (int, float)) and fit < 40:
-            continue
         take(mentor_id, str(item.get("reason") or "").strip())
 
     # The recommendation screen is a fixed three-card template. If the LLM

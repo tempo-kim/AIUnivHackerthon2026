@@ -76,6 +76,7 @@ def _request_llm(
     # 의존하면 제공자 오류 표현이 달라졌을 때 LLM 호출이 그대로 실패할 수 있다.
     normalized_model = model_name.lower().removeprefix("openai/")
     if normalized_model.startswith("nvidia/"):
+        request["extra_body"] = {"reasoning": {"enabled": False, "effort": "none"}}
         return _client().chat.completions.create(**request)
 
     try:
@@ -151,9 +152,53 @@ def extract_concern_info(user_text: str) -> dict:
         traceback.print_exc()
         return {"interests": [], "situation": "정보 추출 실패", "help_fields": []}
 
+def _message_text(message) -> str:
+    raw = getattr(message, "content", None)
+    if isinstance(raw, list):
+        pieces: list[str] = []
+        for block in raw:
+            if isinstance(block, dict):
+                pieces.append(str(block.get("text") or block.get("content") or ""))
+            else:
+                pieces.append(str(getattr(block, "text", "") or ""))
+        raw = "\n".join(pieces)
+    text = str(raw or "").strip()
+    if text:
+        return text
+    extra = getattr(message, "model_extra", None) or {}
+    if not isinstance(extra, dict):
+        extra = {}
+    for attr in ("reasoning", "reasoning_content"):
+        value = getattr(message, attr, None) or extra.get(attr)
+        if value and str(value).strip():
+            return str(value).strip()
+    return ""
+
+
+def _load_json_object(content: str) -> dict | None:
+    text = (content or "").strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1]
+        if text.endswith("```"):
+            text = text[: text.rfind("```")]
+        text = text.strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start < 0 or end <= start:
+            return None
+        try:
+            data = json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            return None
+    return data if isinstance(data, dict) else None
+
+
 def _parse_match_analysis(content: str, candidates: list[dict], top_k: int) -> dict | None:
-    data = json.loads(content or "")
-    if not isinstance(data, dict):
+    data = _load_json_object(content)
+    if data is None:
         return None
 
     valid_ids = {str(row.get("mentor_id")) for row in candidates if row.get("mentor_id")}
@@ -338,26 +383,25 @@ def analyze_and_recommend(
             model_name,
             system_prompt,
             timeout=LLM_MATCH_TIMEOUT,
-            max_tokens=900,
+            max_tokens=1400,
         )
         res = future.result(timeout=LLM_MATCH_TIMEOUT + 0.5)
         elapsed = time.perf_counter() - started
         print(
             f"[LLM] analyze_and_recommend success candidates={len(payload['candidates'])} elapsed={elapsed:.2f}s"
         )
-        content = res.choices[0].message.content if res.choices else ""
+        message = res.choices[0].message if res.choices else None
+        content = _message_text(message) if message is not None else ""
         parsed = _parse_match_analysis(content, candidates, top_k)
         if parsed is None:
-            raise ValueError("AI 매칭 응답 형식이 올바르지 않습니다.")
+            print("[LLM Error] 매칭 응답에서 추천 JSON을 읽지 못했습니다.")
+            return None
         return parsed
     except TimeoutError as exc:
         print(f"[LLM] analyze_and_recommend timeout={LLM_MATCH_TIMEOUT}s")
         print(f"[LLM Error] 추천 분석 타임아웃: {type(exc).__name__}")
-    except json.JSONDecodeError as exc:
-        print(f"[LLM Error] 매칭 응답 JSON 파싱 에러: {exc}")
     except Exception as exc:
-        print(f"[LLM Error] analyze_and_recommend 에러 발생: {exc}")
-        traceback.print_exc()
+        print(f"[LLM Error] analyze_and_recommend 실패: {type(exc).__name__}")
 
     return None
 

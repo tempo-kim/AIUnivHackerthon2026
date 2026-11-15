@@ -272,7 +272,7 @@ def format_fact_cards(cards: list[dict], *, max_chars: int = 6000) -> str:
     chunks: list[str] = []
     for card in cards:
         lines = [
-            f"### 사실카드 {card.get('id')} | {card.get('school','')} | {card.get('section')} | {card.get('title')}",
+            f"- {card.get('title')}",
         ]
         for fact in card.get("facts") or []:
             lines.append(f"- {fact}")
@@ -361,7 +361,7 @@ def answer_school_question(
 
     fact_block = format_fact_cards(cards)
     chat_block = format_conversations(picked)
-    context = f"[검증된 사실 카드]\n{fact_block}\n\n[선후배 긴 채팅]\n{chat_block}{live_note}"
+    context = f"[참고 자료]\n{fact_block}\n\n[선후배 대화]\n{chat_block}{live_note}"
 
     base_meta = {
         "used_message_count": used_msgs,
@@ -384,17 +384,14 @@ def answer_school_question(
     school_line = f"대상 학교: {canon}" if canon else "대상 학교: (미지정)"
     system_prompt = f"""
 너는 대학 멘토링 서비스 '뻔뻔하게'의 학교 생활 안내 챗봇이다.
-아래 **사실 카드**와 **선후배 채팅**만 근거로 답한다. 일반 상식으로 지어내지 마라.
-근거에 없으면 "저장된 근거에는 없다"고 말하고, 확인할 공식 페이지/네이버를 안내하라.
+참고 자료와 선후배 대화에서 질문과 관계된 내용만 골라, 이용자가 바로 이해할 수 있는 한국어 답으로 정리한다.
+자료에 없는 상호·메뉴·위치·전화는 만들지 마라. 없으면 자료에 없다고 말하고 공식 페이지나 네이버 확인을 한 줄로 안내하라.
 
 규칙:
-- 한국어, 구체적(상호·역·출구·메뉴·과목명·배차 힌트).
-- {school_line} 맥락 유지. 다른 학교 정보를 섞지 마라.
-- 가격·웨이팅·배차는 변동 가능함을 한 줄 고지.
-- 맛집·카페·밥 질문이면 사실 카드에 있는 식당을 빠짐없이 적는다. 형식은 "- 상호: 대표 메뉴, 위치 힌트, 팁"이다.
-- 카드에 카페 상호가 없어도 식당 목록이 답이다. 없는 가게를 만들거나 "검색해 보세요"로 끝내지 마라.
-- 출처·인용·근거 목록은 쓰지 말고, 사용자가 바로 읽을 추천 답만 한국어로 작성한다.
-- 채팅 원문, 생각 과정, 영어 독백, <think> 태그는 출력하지 마라.
+- {school_line}만 다룬다. 다른 학교 정보는 섞지 마라.
+- 질문과 관련 없는 항목은 빼라. 자료를 처음부터 끝까지 옮기지 마라.
+- 가격·웨이팅·배차는 변동될 수 있다는 한 줄을 필요할 때만 붙인다.
+- 내부 자료 이름, 번호, 원문 대화, 생각 과정은 답에 쓰지 마라.
 - 개인정보 추론 금지.
 """
     user_prompt = f"""
@@ -431,8 +428,13 @@ def answer_school_question(
         answer = _assistant_text(message) if message is not None else ""
         if not answer:
             print("[school_bot] LLM returned an empty answer")
-            answer = "답변을 만들지 못했어요."
-        return {**base_meta, "answer": answer, "source": "llm+facts"}
+            return {
+                **base_meta,
+                "answer": _extractive_answer(question, canon, cards, picked),
+                "source": "facts-fallback",
+                "llm_error_type": "empty_answer",
+            }
+        return {**base_meta, "answer": answer, "source": "llm"}
     except Exception as e:
         # Never log exception text: provider exceptions can include request
         # details. A class and HTTP status are enough to diagnose safely.
