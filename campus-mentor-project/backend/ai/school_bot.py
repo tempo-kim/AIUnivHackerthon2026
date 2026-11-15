@@ -40,6 +40,37 @@ SCHOOL_ALIASES = {
 }
 
 
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+
+
+def _assistant_text(message) -> str:
+    """Nemotron은 답을 reasoning에만 넣고 content를 비우는 경우가 있다."""
+    raw = getattr(message, "content", None)
+    if isinstance(raw, list):
+        pieces: list[str] = []
+        for block in raw:
+            if isinstance(block, dict):
+                pieces.append(str(block.get("text") or block.get("content") or ""))
+            else:
+                pieces.append(str(getattr(block, "text", "") or ""))
+        raw = "\n".join(pieces)
+    text = _THINK_RE.sub("", str(raw or "")).strip()
+    if text:
+        return text
+
+    extra = getattr(message, "model_extra", None) or {}
+    if not isinstance(extra, dict):
+        extra = {}
+    for attr in ("reasoning", "reasoning_content"):
+        value = getattr(message, attr, None)
+        if not value:
+            value = extra.get(attr)
+        cleaned = _THINK_RE.sub("", str(value or "")).strip()
+        if cleaned:
+            return cleaned
+    return ""
+
+
 def normalize_school(school: str) -> str:
     value = (school or "").strip()
     if not value:
@@ -214,7 +245,11 @@ def _score_fact_card(question: str, card: dict) -> int:
             str(card.get("section") or ""),
         ]
     )
-    return _score_blob(question, blob, boost_tokens=list(card.get("tags") or []) + [str(card.get("title") or "")])
+    score = _score_blob(question, blob, boost_tokens=list(card.get("tags") or []) + [str(card.get("title") or "")])
+    q = question.lower()
+    if card.get("section") == "food" and any(k in q for k in ("밥", "맛집", "카페", "먹", "식당", "메뉴", "커피")):
+        score += 12
+    return score
 
 
 def retrieve_conversations(question: str, *, school: str = "", top_k: int = 3) -> list[dict]:
@@ -308,7 +343,8 @@ def answer_school_question(
     if not question:
         return empty
 
-    cards = retrieve_fact_cards(question, school=canon, top_k=4)
+    food_question = any(k in question for k in ("밥", "맛집", "카페", "먹", "식당", "메뉴", "커피"))
+    cards = retrieve_fact_cards(question, school=canon, top_k=8 if food_question else 4)
     picked = retrieve_conversations(question, school=canon, top_k=3)
     used_msgs = sum(len(c.get("messages") or []) for c in picked)
 
@@ -355,7 +391,10 @@ def answer_school_question(
 - 한국어, 구체적(상호·역·출구·메뉴·과목명·배차 힌트).
 - {school_line} 맥락 유지. 다른 학교 정보를 섞지 마라.
 - 가격·웨이팅·배차는 변동 가능함을 한 줄 고지.
-- 출처·인용·근거 목록은 쓰지 말고 자연스러운 답만 한다.
+- 맛집·카페·밥 질문이면 사실 카드에 있는 식당을 빠짐없이 적는다. 형식은 "- 상호: 대표 메뉴, 위치 힌트, 팁"이다.
+- 카드에 카페 상호가 없어도 식당 목록이 답이다. 없는 가게를 만들거나 "검색해 보세요"로 끝내지 마라.
+- 출처·인용·근거 목록은 쓰지 말고, 사용자가 바로 읽을 추천 답만 한국어로 작성한다.
+- 채팅 원문, 생각 과정, 영어 독백, <think> 태그는 출력하지 마라.
 - 개인정보 추론 금지.
 """
     user_prompt = f"""
@@ -379,15 +418,20 @@ def answer_school_question(
                     {"role": "user", "content": user_prompt.strip()},
                 ],
                 temperature=0.15,
-                max_tokens=1000,
+                max_tokens=1800,
                 timeout=65.0,
+                extra_body={"reasoning": {"enabled": False, "effort": "none"}},
             )
 
         # Keep recommendation traffic from occupying every worker and forcing
         # school-bot requests to fall back before they reach the provider.
         future = _school_bot_executor.submit(_call)
         res = future.result(timeout=67.0)
-        answer = (res.choices[0].message.content or "").strip() or "답변을 만들지 못했어요."
+        message = res.choices[0].message if res.choices else None
+        answer = _assistant_text(message) if message is not None else ""
+        if not answer:
+            print("[school_bot] LLM returned an empty answer")
+            answer = "답변을 만들지 못했어요."
         return {**base_meta, "answer": answer, "source": "llm+facts"}
     except Exception as e:
         # Never log exception text: provider exceptions can include request
