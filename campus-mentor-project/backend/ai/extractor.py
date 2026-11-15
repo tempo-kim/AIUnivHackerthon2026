@@ -49,7 +49,12 @@ def _model_name() -> str:
         if not base_url and configured.startswith("openai/"):
             return configured.removeprefix("openai/")
         return configured
-    return "openai/gpt-4o-mini" if base_url else "gpt-4o-mini"
+    # Never silently route a missing configuration to a paid GPT model.
+    # The app is configured for OpenRouter, so keep the default on the
+    # intended free NVIDIA model when Render has not injected LLM_MODEL.
+    if "openrouter.ai" in base_url.lower():
+        return "nvidia/nemotron-3.5-super-vl:free"
+    raise RuntimeError("LLM_MODEL이 설정되지 않았습니다.")
 
 
 def _request_llm(
