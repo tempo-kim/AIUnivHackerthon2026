@@ -40,6 +40,37 @@ SCHOOL_ALIASES = {
 }
 
 
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+
+
+def _assistant_text(message) -> str:
+    """Nemotron은 답을 reasoning에만 넣고 content를 비우는 경우가 있다."""
+    raw = getattr(message, "content", None)
+    if isinstance(raw, list):
+        pieces: list[str] = []
+        for block in raw:
+            if isinstance(block, dict):
+                pieces.append(str(block.get("text") or block.get("content") or ""))
+            else:
+                pieces.append(str(getattr(block, "text", "") or ""))
+        raw = "\n".join(pieces)
+    text = _THINK_RE.sub("", str(raw or "")).strip()
+    if text:
+        return text
+
+    extra = getattr(message, "model_extra", None) or {}
+    if not isinstance(extra, dict):
+        extra = {}
+    for attr in ("reasoning", "reasoning_content"):
+        value = getattr(message, attr, None)
+        if not value:
+            value = extra.get(attr)
+        cleaned = _THINK_RE.sub("", str(value or "")).strip()
+        if cleaned:
+            return cleaned
+    return ""
+
+
 def normalize_school(school: str) -> str:
     value = (school or "").strip()
     if not value:
@@ -214,7 +245,11 @@ def _score_fact_card(question: str, card: dict) -> int:
             str(card.get("section") or ""),
         ]
     )
-    return _score_blob(question, blob, boost_tokens=list(card.get("tags") or []) + [str(card.get("title") or "")])
+    score = _score_blob(question, blob, boost_tokens=list(card.get("tags") or []) + [str(card.get("title") or "")])
+    q = question.lower()
+    if card.get("section") == "food" and any(k in q for k in ("밥", "맛집", "카페", "먹", "식당", "메뉴", "커피")):
+        score += 12
+    return score
 
 
 def retrieve_conversations(question: str, *, school: str = "", top_k: int = 3) -> list[dict]:
@@ -237,7 +272,7 @@ def format_fact_cards(cards: list[dict], *, max_chars: int = 6000) -> str:
     chunks: list[str] = []
     for card in cards:
         lines = [
-            f"### 사실카드 {card.get('id')} | {card.get('school','')} | {card.get('section')} | {card.get('title')}",
+            f"- {card.get('title')}",
         ]
         for fact in card.get("facts") or []:
             lines.append(f"- {fact}")
@@ -308,7 +343,8 @@ def answer_school_question(
     if not question:
         return empty
 
-    cards = retrieve_fact_cards(question, school=canon, top_k=4)
+    food_question = any(k in question for k in ("밥", "맛집", "카페", "먹", "식당", "메뉴", "커피"))
+    cards = retrieve_fact_cards(question, school=canon, top_k=8 if food_question else 4)
     picked = retrieve_conversations(question, school=canon, top_k=3)
     used_msgs = sum(len(c.get("messages") or []) for c in picked)
 
@@ -325,7 +361,7 @@ def answer_school_question(
 
     fact_block = format_fact_cards(cards)
     chat_block = format_conversations(picked)
-    context = f"[검증된 사실 카드]\n{fact_block}\n\n[선후배 긴 채팅]\n{chat_block}{live_note}"
+    context = f"[참고 자료]\n{fact_block}\n\n[선후배 대화]\n{chat_block}{live_note}"
 
     base_meta = {
         "used_message_count": used_msgs,
@@ -348,14 +384,14 @@ def answer_school_question(
     school_line = f"대상 학교: {canon}" if canon else "대상 학교: (미지정)"
     system_prompt = f"""
 너는 대학 멘토링 서비스 '뻔뻔하게'의 학교 생활 안내 챗봇이다.
-아래 **사실 카드**와 **선후배 채팅**만 근거로 답한다. 일반 상식으로 지어내지 마라.
-근거에 없으면 "저장된 근거에는 없다"고 말하고, 확인할 공식 페이지/네이버를 안내하라.
+참고 자료와 선후배 대화에서 질문과 관계된 내용만 골라, 이용자가 바로 이해할 수 있는 한국어 답으로 정리한다.
+자료에 없는 상호·메뉴·위치·전화는 만들지 마라. 없으면 자료에 없다고 말하고 공식 페이지나 네이버 확인을 한 줄로 안내하라.
 
 규칙:
-- 한국어, 구체적(상호·역·출구·메뉴·과목명·배차 힌트).
-- {school_line} 맥락 유지. 다른 학교 정보를 섞지 마라.
-- 가격·웨이팅·배차는 변동 가능함을 한 줄 고지.
-- 출처·인용·근거 목록은 쓰지 말고 자연스러운 답만 한다.
+- {school_line}만 다룬다. 다른 학교 정보는 섞지 마라.
+- 질문과 관련 없는 항목은 빼라. 자료를 처음부터 끝까지 옮기지 마라.
+- 가격·웨이팅·배차는 변동될 수 있다는 한 줄을 필요할 때만 붙인다.
+- 내부 자료 이름, 번호, 원문 대화, 생각 과정은 답에 쓰지 마라.
 - 개인정보 추론 금지.
 """
     user_prompt = f"""
@@ -379,21 +415,44 @@ def answer_school_question(
                     {"role": "user", "content": user_prompt.strip()},
                 ],
                 temperature=0.15,
-                max_tokens=1000,
-                timeout=40.0,
+                max_tokens=1800,
+                timeout=65.0,
+                extra_body={"reasoning": {"enabled": False, "effort": "none"}},
             )
 
         # Keep recommendation traffic from occupying every worker and forcing
         # school-bot requests to fall back before they reach the provider.
         future = _school_bot_executor.submit(_call)
-        res = future.result(timeout=42.0)
-        answer = (res.choices[0].message.content or "").strip() or "답변을 만들지 못했어요."
-        return {**base_meta, "answer": answer, "source": "llm+facts"}
+        res = future.result(timeout=67.0)
+        message = res.choices[0].message if res.choices else None
+        answer = _assistant_text(message) if message is not None else ""
+        if not answer:
+            print("[school_bot] LLM returned an empty answer")
+            return {
+                **base_meta,
+                "answer": _extractive_answer(question, canon, cards, picked),
+                "source": "facts-fallback",
+                "llm_error_type": "empty_answer",
+            }
+        return {**base_meta, "answer": answer, "source": "llm"}
     except Exception as e:
         # Never log exception text: provider exceptions can include request
         # details. A class and HTTP status are enough to diagnose safely.
         status = getattr(e, "status_code", None)
-        print(f"[school_bot] LLM request failed: {type(e).__name__}, status={status}")
+        body = getattr(e, "body", None)
+        error_body = body.get("error", {}) if isinstance(body, dict) else {}
+        metadata = error_body.get("metadata", {}) if isinstance(error_body, dict) else {}
+        limit_source = metadata.get("limit_source") if isinstance(metadata, dict) else None
+        error_code = error_body.get("code") if isinstance(error_body, dict) else None
+        response = getattr(e, "response", None)
+        headers = getattr(response, "headers", {}) or {}
+        retry_after = headers.get("retry-after") if hasattr(headers, "get") else None
+        reset_at = headers.get("x-ratelimit-reset") if hasattr(headers, "get") else None
+        print(
+            "[school_bot] LLM request failed: "
+            f"{type(e).__name__}, status={status}, code={error_code}, "
+            f"limit_source={limit_source}, retry_after={retry_after}, reset={reset_at}"
+        )
         return {
             **base_meta,
             "answer": _extractive_answer(question, canon, cards, picked)
@@ -401,4 +460,8 @@ def answer_school_question(
             "source": "facts-fallback",
             "llm_error_type": type(e).__name__,
             "llm_error_status": status,
+            "llm_error_code": str(error_code) if error_code is not None else None,
+            "llm_limit_source": str(limit_source) if limit_source is not None else None,
+            "llm_retry_after": str(retry_after) if retry_after is not None else None,
+            "llm_rate_limit_reset": str(reset_at) if reset_at is not None else None,
         }

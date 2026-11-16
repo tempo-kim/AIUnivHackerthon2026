@@ -43,6 +43,7 @@ class MatchResponse(BaseModel):
     extraction_source: str
     recommendation_source: str = "rules"
     mentor_source: str = ""
+    llm_note: str = ""
 
 
 class MentorOut(BaseModel):
@@ -75,6 +76,10 @@ class EndResponseRequest(BaseModel):
     mentorId: str
     responderRole: str
     agree: bool
+
+
+class BadgeRequest(BaseModel):
+    badge_id: str = Field(min_length=1, max_length=40)
 
 
 class ReportRequest(BaseModel):

@@ -35,10 +35,11 @@ from app.schemas import (
     EndResponseRequest,
     MessageRequest,
     ReportRequest,
+    BadgeRequest,
     SchoolBotRequest,
     SchoolBotResponse,
 )
-from matching.matcher import match_mentors
+from matching.matcher import match_mentors, text_names_major
 from services import storage
 from services.badwords import contains_badword
 from services.mentors import Mentor, store
@@ -307,7 +308,14 @@ def _extract(payload: MatchRequest) -> tuple[Extraction, str]:
     return Extraction(**stub_extract(text)), "stub"
 
 
-def _rank_mentors(payload: MatchRequest, extraction: Extraction, mentors: list[dict], top_k: int) -> list[dict]:
+def _rank_mentors(
+    payload: MatchRequest,
+    extraction: Extraction,
+    mentors: list[dict],
+    top_k: int,
+    *,
+    filter_food_relevance: bool = True,
+) -> list[dict]:
     return match_mentors(
         interests=extraction.interests,
         help_fields=extraction.help_fields,
@@ -317,11 +325,12 @@ def _rank_mentors(payload: MatchRequest, extraction: Extraction, mentors: list[d
         choice_status=payload.choice.status if payload.choice else "",
         mentors=mentors,
         top_k=top_k,
+        filter_food_relevance=filter_food_relevance,
     )
 
 
 def _apply_llm_ranking(
-    ranked: list[dict], analysis: dict, top_k: int, rank_offset: int = 0
+    ranked: list[dict], analysis: dict, top_k: int, rank_offset: int = 0, concern_text: str = ""
 ) -> list[dict]:
     suitability = {
         item["mentor_id"]: item
@@ -344,16 +353,13 @@ def _apply_llm_ranking(
         reordered.append(copied)
         selected_ids.add(mentor_id)
 
-    for item in sorted(
-        analysis.get("suitability", []),
-        key=lambda item: item.get("fit", 0) if isinstance(item, dict) else 0,
-        reverse=True,
-    ):
-        take(str(item.get("mentor_id") or ""), str(item.get("reason") or "").strip())
-
     for item in analysis.get("recommendations", []):
-        take(str(item.get("mentor_id") or ""), str(item.get("reason") or "").strip())
+        mentor_id = str(item.get("mentor_id") or "")
+        take(mentor_id, str(item.get("reason") or "").strip())
 
+    # The recommendation screen is a fixed three-card template. If the LLM
+    # returns fewer IDs, complete the list with the closest remaining candidates
+    # from the rule ranking instead of returning fewer cards.
     leftovers: list[dict] = []
     for row in ranked:
         mentor_id = str(row["mentor_id"])
@@ -363,11 +369,30 @@ def _apply_llm_ranking(
         extra = suitability.get(mentor_id)
         if extra:
             copied["score"] = extra.get("fit", copied["score"])
-            if extra.get("reason"):
+            if isinstance(extra.get("fit"), (int, float)) and extra["fit"] < 40:
+                copied["reasons"] = ["AI가 직접 추천한 적합도가 낮아 고민과의 관련성이 제한적일 수 있어요."]
+            elif extra.get("reason"):
                 copied["reasons"] = [str(extra["reason"])]
+        else:
+            copied["reasons"] = ["AI 추천 후보가 부족해 고민 내용과 프로필의 규칙 기반 유사도로 보완했어요."]
         leftovers.append(copied)
     leftovers.sort(key=lambda item: item["score"], reverse=True)
     reordered.extend(leftovers)
+    if concern_text and any(text_names_major(concern_text, str(row.get("major") or "")) for row in ranked):
+        same_major = [row for row in reordered if text_names_major(concern_text, str(row.get("major") or ""))]
+        chosen = {str(row.get("mentor_id")) for row in same_major}
+        for row in ranked:
+            if len(same_major) >= top_k:
+                break
+            mentor_id = str(row.get("mentor_id"))
+            if mentor_id in chosen or not text_names_major(concern_text, str(row.get("major") or "")):
+                continue
+            copied = row.copy()
+            copied["reasons"] = [f"{copied.get('major') or '같은 전공'} 선배라서 줄글에 적힌 전공과 맞습니다."]
+            same_major.append(copied)
+            chosen.add(mentor_id)
+        others = [row for row in reordered if str(row.get("mentor_id")) not in chosen]
+        reordered = same_major + others
     return reordered[rank_offset : rank_offset + top_k]
 
 
@@ -375,6 +400,10 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
     mentors = store.as_matching_rows()
     mentor_source = store.source_path.name if store.source_path else ""
     text = _concern_text(payload.concern_text, payload.choice)
+    excluded = {str(mentor_id) for mentor_id in payload.exclude_mentor_ids}
+    eligible_mentors = [
+        mentor for mentor in mentors if str(mentor.get("mentor_id")) not in excluded
+    ]
 
     if payload.use_llm:
         if payload.extraction is None and not text:
@@ -384,10 +413,18 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
             )
         seed = payload.extraction or Extraction(**stub_extract(text))
         shortlist_size = min(
-            len(mentors),
-            max(20, int(os.getenv("LLM_SHORTLIST_SIZE", "40"))),
+            len(eligible_mentors),
+            max(8, min(20, int(os.getenv("LLM_SHORTLIST_SIZE", "20")))),
         )
-        shortlist = _rank_mentors(payload, seed, mentors, shortlist_size)
+        shortlist = _rank_mentors(
+            payload,
+            seed,
+            eligible_mentors,
+            shortlist_size,
+            # The LLM must compare the complete rule-ranked shortlist, including
+            # indirect matches, so it can fill the fixed three-card result itself.
+            filter_food_relevance=False,
+        )
         if not shortlist:
             return MatchResponse(
                 extraction=seed,
@@ -401,20 +438,28 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
             candidates=shortlist,
             top_k=payload.top_k,
         )
-        if not analysis or not (
+        llm_error = analysis.get("llm_error") if isinstance(analysis, dict) else ""
+        if llm_error or not analysis or not (
             analysis.get("recommendations") or analysis.get("suitability")
         ):
             ranked = shortlist[payload.rank_offset : payload.rank_offset + payload.top_k]
+            note = {
+                "free_daily": "무료 모델의 오늘 호출 한도가 찼습니다. 한도가 풀리면 LLM 추천으로 돌아갑니다.",
+                "free_minute": "무료 모델의 분당 호출 한도에 걸렸습니다. 잠시 뒤 다시 추천하면 LLM으로 연결됩니다.",
+                "rate_limit": "LLM 제공자가 호출을 제한했습니다. 잠시 뒤 다시 시도해 주세요.",
+                "timeout": "LLM 응답이 16초 안에 오지 않아 규칙 추천을 보여 줍니다.",
+            }.get(llm_error, "")
             return MatchResponse(
                 extraction=seed,
                 matches=[MentorMatch(**row) for row in ranked],
                 extraction_source="client" if payload.extraction is not None else "stub",
                 recommendation_source="rules-fallback",
                 mentor_source=mentor_source,
+                llm_note=note,
             )
         extraction = payload.extraction or _from_llm(analysis)
         ranked = _apply_llm_ranking(
-            shortlist, analysis, payload.top_k, payload.rank_offset
+            shortlist, analysis, payload.top_k, payload.rank_offset, text or seed.situation
         )
         return MatchResponse(
             extraction=extraction,
@@ -426,9 +471,7 @@ def _match_response(payload: MatchRequest) -> MatchResponse:
 
     extraction, source = _extract(payload)
     # Rank the full live mentor pool before applying the requested page offset.
-    ranked = _rank_mentors(payload, extraction, mentors, len(mentors))
-    excluded = {str(mentor_id) for mentor_id in payload.exclude_mentor_ids}
-    ranked = [row for row in ranked if str(row["mentor_id"]) not in excluded]
+    ranked = _rank_mentors(payload, extraction, eligible_mentors, len(eligible_mentors))
     return MatchResponse(
         extraction=extraction,
         matches=[MentorMatch(**row) for row in ranked[payload.rank_offset : payload.rank_offset + payload.top_k]],
@@ -861,12 +904,46 @@ def get_junior_achievements(authorization: str = Header(default="")):
         if any(message["senderRole"] == "junior" for message in storage.list_messages(room["room"])):
             junior_message_rooms.append(room)
     mentor_ids = {room["room"].split(":", 1)[0] for room in junior_message_rooms}
-    unlocked = []
-    if mentor_ids:
+    unlocked = list(storage.list_badges("junior", junior_id))
+    if mentor_ids and "first-step" not in unlocked:
         unlocked.append("first-step")
-    if len(rooms) >= 3:
+    if len(rooms) >= 3 and "explorer" not in unlocked:
         unlocked.append("explorer")
     return {"unlocked": unlocked}
+
+
+@app.post("/api/junior-achievements")
+def save_junior_achievement(payload: BadgeRequest, authorization: str = Header(default="")):
+    junior_id = storage.token_junior(_bearer(authorization))
+    if not junior_id:
+        raise HTTPException(status_code=401, detail="후배 로그인이 필요합니다.")
+    if not storage.add_badge("junior", junior_id, payload.badge_id):
+        raise HTTPException(status_code=400, detail="저장할 수 없는 배지입니다.")
+    return {"status": "ok"}
+
+
+@app.get("/api/senior-achievements")
+def get_senior_achievements(authorization: str = Header(default="")):
+    mentor_id = storage.token_mentor(_bearer(authorization))
+    mentor = next((item for item in store.list() if item.mentor_id == mentor_id), None) if mentor_id else None
+    if mentor is None:
+        raise HTTPException(status_code=401, detail="선배 로그인이 필요합니다.")
+    unlocked = list(storage.list_badges("senior", mentor.mentor_id))
+    if "introduction" not in unlocked:
+        unlocked.append("introduction")
+    if len((mentor.bio or "").strip()) >= 200 and "storyteller" not in unlocked:
+        unlocked.append("storyteller")
+    return {"unlocked": unlocked}
+
+
+@app.post("/api/senior-achievements")
+def save_senior_achievement(payload: BadgeRequest, authorization: str = Header(default="")):
+    mentor_id = storage.token_mentor(_bearer(authorization))
+    if not mentor_id:
+        raise HTTPException(status_code=401, detail="선배 로그인이 필요합니다.")
+    if not storage.add_badge("senior", mentor_id, payload.badge_id):
+        raise HTTPException(status_code=400, detail="저장할 수 없는 배지입니다.")
+    return {"status": "ok"}
 
 
 @app.post("/api/messages")

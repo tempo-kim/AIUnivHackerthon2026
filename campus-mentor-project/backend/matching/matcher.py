@@ -67,6 +67,11 @@ def _major_like(value: str) -> str:
     return _normalize(value).replace("학과", "과")
 
 
+def text_names_major(text: str, major: str) -> bool:
+    major_like = _major_like(major)
+    return len(major_like) >= 2 and major_like in _normalize(text)
+
+
 def _major_matches(target: str, major: str) -> bool:
     target_like = _major_like(target)
     major_like = _major_like(major)
@@ -148,6 +153,7 @@ def match_mentors(
     choice_status: str = "",
     mentors: list[dict] | None = None,
     top_k: int = 3,
+    filter_food_relevance: bool = True,
 ) -> list[dict]:
     if not mentors:
         return []
@@ -263,6 +269,11 @@ def match_mentors(
             score += 0.3 if has_food_intent else 1.0
             reasons.append(f"전공 관련: {major}")
 
+        query_blob = " ".join([situation, *interests, choice_reason])
+        if text_names_major(query_blob, major):
+            score += 25.0
+            reasons.append(f"줄글에 적힌 전공: {major}")
+
         if situation_norm:
             for exp in experiences:
                 exp_norm = _normalize(exp)
@@ -298,7 +309,7 @@ def match_mentors(
     ranked.sort(key=lambda item: item["score"], reverse=True)
     # 음식점 추천은 프로필의 실제 생활 경험이 있는 선배에게만 연결한다.
     # 적합한 사람이 적으면 결과도 적게 반환해 무관한 전공 선배로 자리를 채우지 않는다.
-    if has_food_intent:
+    if has_food_intent and filter_food_relevance:
         relevant = [
             item for item in ranked
             if any(reason == "밥집/맛집 생활 경험 일치" for reason in item["reasons"])
