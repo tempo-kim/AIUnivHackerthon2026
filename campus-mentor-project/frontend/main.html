@@ -372,6 +372,8 @@ function renderSeniorIntroductionEdit(){
       if(!response.ok){const detail=await readError(response);notice.textContent=response.status===400?(detail||'소개를 1~300자로 입력해 주세요.'):(detail||'저장하지 못했어요. 서버 연결을 확인해 주세요.');return}
       const data=await response.json().catch(()=>({}));if(!sameSession()||!app.contains(area))return;
       area.value=typeof data.introduction==='string'?data.introduction:introduction;
+      PpunAchievements.setRole('senior');
+      PpunAchievements.saveSeniorProfile(area.value);
       notice.textContent='소개를 저장했어요. 선배 추천에도 반영됩니다.';
     }catch(e){notice.textContent='저장하지 못했어요. 서버 연결을 확인해 주세요.'}
     finally{if(app.contains(area)){area.disabled=false;back.disabled=false;valid()}}
