@@ -119,11 +119,7 @@
         const data = await MentorApi.schoolBot({ question, school, history_limit: 80 });
         typing.classList.remove('typing');
         typing.textContent = data.answer || '(빈 응답)';
-        status.textContent =
-          `사실 ${data.used_fact_count || 0}/${data.fact_card_count || 0}` +
-          ` · 채팅 ${data.used_conversation_count || 0}개 / 메시지 ${data.used_message_count || 0}개` +
-          (data.school ? ` · ${data.school}` : '') +
-          ` · source=${data.source || '-'}`;
+        status.textContent = '';
       } catch (err) {
         typing.remove();
         error.hidden = false;

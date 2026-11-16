@@ -264,22 +264,20 @@ def _extractive_answer(question: str, school: str, cards: list[dict], convs: lis
     if not cards and not convs:
         return f"{canon}에 대한 시드/사실 데이터가 아직 없어요."
 
-    lines = [f"{canon} 기준으로 찾아본 내용이에요."]
+    lines: list[str] = []
     if cards:
-        lines.append("")
         for card in cards[:3]:
             lines.append(f"• {card.get('title')}")
             for fact in (card.get("facts") or [])[:3]:
                 lines.append(f"  - {fact}")
     if convs:
-        lines.append("")
+        if lines:
+            lines.append("")
         for conv in convs[:2]:
             lines.append(f"• {conv.get('title')}")
             for m in (conv.get("messages") or [])[:4]:
                 lines.append(f"  [{_role_label(str(m.get('senderRole') or ''))}] {m.get('text','')[:120]}")
-    lines.append("")
-    lines.append("가격·배차·영업은 바뀔 수 있으니 방문 전 한 번 더 확인하세요.")
-    return "\n".join(lines)
+    return "\n".join(lines) if lines else "관련 정보를 찾지 못했어요. 질문을 조금만 더 구체적으로 해 주세요."
 
 
 def answer_school_question(
@@ -344,14 +342,14 @@ def answer_school_question(
     school_line = f"대상 학교: {canon}" if canon else "대상 학교: (미지정)"
     system_prompt = f"""
 너는 대학 멘토링 서비스 '뻔뻔하게'의 학교 생활 안내 챗봇이다.
-아래 **사실 카드**와 **선후배 채팅**만 근거로 답한다. 일반 상식으로 지어내지 마라.
-근거에 없으면 "저장된 근거에는 없다"고 말하고, 확인할 공식 페이지/네이버를 안내하라.
+아래 참고 자료(사실·선후배 채팅)를 바탕으로 자연스럽게 답한다. 없는 내용은 지어내지 마라.
+참고 자료에 없으면 짧게 다른 질문을 유도하되, '카드가 없다', '근거가 없다', 'LLM', '사실 DB' 같은 시스템/메타 안내는 절대 쓰지 마라.
+답변 끝에 고지·면책·출처·확인 안내 문장을 덧붙이지 마라.
 
 규칙:
 - 한국어, 구체적(상호·역·출구·메뉴·과목명·배차 힌트).
 - {school_line} 맥락 유지. 다른 학교 정보를 섞지 마라.
-- 가격·웨이팅·배차는 변동 가능함을 한 줄 고지.
-- 출처·인용·근거 목록은 쓰지 말고 자연스러운 답만 한다.
+- 출처·인용·근거 목록·시스템 상태 문구 금지.
 - 개인정보 추론 금지.
 """
     user_prompt = f"""
@@ -382,7 +380,6 @@ def answer_school_question(
         traceback.print_exc()
         return {
             **base_meta,
-            "answer": _extractive_answer(question, canon, cards, picked)
-            + "\n\n(참고: LLM 연결에 실패해 사실 카드 추출 답변으로 대체했습니다.)",
+            "answer": _extractive_answer(question, canon, cards, picked),
             "source": "facts-fallback",
         }
