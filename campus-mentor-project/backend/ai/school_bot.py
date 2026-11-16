@@ -302,22 +302,20 @@ def _extractive_answer(question: str, school: str, cards: list[dict], convs: lis
     if not cards and not convs:
         return f"{canon}에 대한 시드/사실 데이터가 아직 없어요."
 
-    lines = [f"{canon} 기준으로 찾아본 내용이에요."]
+    lines: list[str] = []
     if cards:
-        lines.append("")
         for card in cards[:3]:
             lines.append(f"• {card.get('title')}")
             for fact in (card.get("facts") or [])[:3]:
                 lines.append(f"  - {fact}")
     if convs:
-        lines.append("")
+        if lines:
+            lines.append("")
         for conv in convs[:2]:
             lines.append(f"• {conv.get('title')}")
             for m in (conv.get("messages") or [])[:4]:
                 lines.append(f"  [{_role_label(str(m.get('senderRole') or ''))}] {m.get('text','')[:120]}")
-    lines.append("")
-    lines.append("가격·배차·영업은 바뀔 수 있으니 방문 전 한 번 더 확인하세요.")
-    return "\n".join(lines)
+    return "\n".join(lines) if lines else "관련 정보를 찾지 못했어요. 질문을 조금만 더 구체적으로 해 주세요."
 
 
 def answer_school_question(
@@ -385,12 +383,13 @@ def answer_school_question(
     system_prompt = f"""
 너는 대학 멘토링 서비스 '뻔뻔하게'의 학교 생활 안내 챗봇이다.
 참고 자료와 선후배 대화에서 질문과 관계된 내용만 골라, 이용자가 바로 이해할 수 있는 한국어 답으로 정리한다.
-자료에 없는 상호·메뉴·위치·전화는 만들지 마라. 없으면 자료에 없다고 말하고 공식 페이지나 네이버 확인을 한 줄로 안내하라.
+자료에 없는 상호·메뉴·위치·전화는 만들지 마라.
+자료가 부족하면 다른 질문을 짧게 유도하되, '카드가 없다', '근거가 없다', '사실 DB', 'LLM', '자료에 없다' 같은 시스템/메타 문장이나 면책·확인 고지는 절대 쓰지 마라.
+답변 끝에 고지·면책·출처·확인 안내 문장을 덧붙이지 마라.
 
 규칙:
 - {school_line}만 다룬다. 다른 학교 정보는 섞지 마라.
 - 질문과 관련 없는 항목은 빼라. 자료를 처음부터 끝까지 옮기지 마라.
-- 가격·웨이팅·배차는 변동될 수 있다는 한 줄을 필요할 때만 붙인다.
 - 내부 자료 이름, 번호, 원문 대화, 생각 과정은 답에 쓰지 마라.
 - 개인정보 추론 금지.
 """
@@ -455,8 +454,7 @@ def answer_school_question(
         )
         return {
             **base_meta,
-            "answer": _extractive_answer(question, canon, cards, picked)
-            + "\n\n(참고: LLM 연결에 실패해 사실 카드 추출 답변으로 대체했습니다.)",
+            "answer": _extractive_answer(question, canon, cards, picked),
             "source": "facts-fallback",
             "llm_error_type": type(e).__name__,
             "llm_error_status": status,
