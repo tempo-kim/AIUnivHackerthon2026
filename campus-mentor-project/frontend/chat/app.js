@@ -865,7 +865,7 @@ function goToJuniorLogin() {
     try { window[name].removeItem(JUNIOR_SESSION_KEY); } catch {}
   }
   // 로그인 후 이 대화로 돌아오도록 현재 주소를 넘김
-  location.replace(`../main.html?junior-login=1&next=${encodeURIComponent(`chat/index.html${location.search}`)}`);
+  location.replace(`../main.html?junior-login=1&reauth=1&next=${encodeURIComponent(`chat/index.html${location.search}`)}`);
 }
 
 // 후배 토큰이 유효한지 서버에서 확인. 만료·무효면 지우고 로그인 화면으로

@@ -24,7 +24,7 @@
     for (const storage of browserStorages()) {
       try {
         const session = JSON.parse(storage.getItem(sessionKey) || 'null');
-        if (session) return session;
+        if (session?.token && (owner === 'senior' ? session.mentor_id : session.junior_id)) return session;
       } catch (_) {}
     }
     return null;
@@ -33,11 +33,12 @@
     try {
       const session = sessionFor(role);
       const id = role === 'senior' ? session?.mentor_id : session?.junior_id;
-      return id ? `${key}:${role}:${encodeURIComponent(id)}` : key;
+      return session?.token && id ? `${key}:${role}:${encodeURIComponent(id)}` : '';
     } catch (_) { return key; }
   }
   function load() {
     storageKey = accountKey(); state = { unlocked: {}, mentors: [], version: achievementVersion }; migrationPending = false;
+    if (!storageKey) return;
     for (const storage of browserStorages()) {
       try {
         const saved = JSON.parse(storage.getItem(storageKey) || 'null');
@@ -68,6 +69,7 @@
   const toastQueue = [];
   function refresh() { badges.setAttribute('aria-label', '업적, 달성한 배지 ' + definitions.filter(([id,,,,owner]) => owner === role && state.unlocked[id]).length + '개'); }
   function save() {
+    if (!storageKey) { refresh(); return; }
     state.version = achievementVersion;
     let saved = false;
     for (const storage of browserStorages()) {
@@ -116,35 +118,56 @@
     showNextToast();
   }
   function award(id) { awardMany([id]); }
+  function applyServerUnlocks(ids, managed) {
+    const wanted = new Set(Array.isArray(ids) ? ids : []);
+    let changed = false;
+    managed.forEach(id => {
+      if (!wanted.has(id) && state.unlocked[id]) {
+        delete state.unlocked[id];
+        changed = true;
+      }
+    });
+    if (changed) save();
+    awardMany([...wanted]);
+    refreshOpenBadges();
+  }
+  function clearUnlocked() {
+    state = { unlocked: {}, mentors: [], version: achievementVersion };
+    refresh();
+    refreshOpenBadges();
+  }
   async function syncJuniorProgress() {
-    if (role !== 'junior') return;
+    if (role !== 'junior' || !storageKey) return;
     try {
       const session = sessionFor('junior');
       if (!session?.token) return;
       const expectedKey = storageKey;
       const response = await fetch('/api/junior-achievements', { headers: { Authorization: 'Bearer ' + session.token } });
+      if (response.status === 401) {
+        if (role === 'junior' && storageKey === expectedKey) clearUnlocked();
+        return;
+      }
       if (!response.ok) return;
       const data = await response.json();
       if (role !== 'junior' || storageKey !== expectedKey || accountKey() !== expectedKey) return;
-      (Array.isArray(data.unlocked) ? data.unlocked : []).forEach(award);
+      applyServerUnlocks(data.unlocked, ['first-step', 'explorer']);
     } catch (_) {}
   }
   async function syncSeniorProgress() {
-    const expectedKey=storageKey;
+    if (role !== 'senior' || !storageKey) return;
+    const expectedKey = storageKey;
     try {
-      const session=JSON.parse(localStorage.getItem('ppunppun-senior-session')||'null');
+      const session = sessionFor('senior');
       if (!session?.token || !session?.mentor_id) return;
-      const meResponse=await fetch('/api/mentors/me',{headers:{Authorization:'Bearer '+session.token}});
-      if (!meResponse.ok) return;
-      const me=await meResponse.json();
-      if (role!=='senior'||storageKey!==expectedKey||accountKey()!==expectedKey||String(me.mentor_id)!==String(session.mentor_id)) return;
-      award('introduction');
-      if (state.unlocked.storyteller) return;
-      const mentorsResponse=await fetch('/api/mentors');if(!mentorsResponse.ok)return;
-      const mentors=await mentorsResponse.json();
-      if(role!=='senior'||storageKey!==expectedKey||accountKey()!==expectedKey||!Array.isArray(mentors))return;
-      const mentor=mentors.find(item=>String(item.mentor_id)===String(session.mentor_id));
-      if(typeof mentor?.bio==='string' && mentor.bio.trim().length>=200)award('storyteller');
+      const response = await fetch('/api/senior-achievements', { headers: { Authorization: 'Bearer ' + session.token } });
+      if (response.status === 401) {
+        if (role === 'senior' && storageKey === expectedKey) clearUnlocked();
+        return;
+      }
+      if (!response.ok) return;
+      const data = await response.json();
+      if (role !== 'senior' || storageKey !== expectedKey || accountKey() !== expectedKey) return;
+      applyServerUnlocks(data.unlocked, ['introduction', 'storyteller']);
     } catch (_) {}
   }
   function open(mode) {
@@ -166,7 +189,8 @@
     }
     dialog.showModal();
   }
-  temperature.onclick = () => open('temperature'); badges.onclick = () => open('badges');
+  temperature.onclick = () => open('temperature');
+  badges.onclick = () => { open('badges'); if (role === 'senior') syncSeniorProgress(); else syncJuniorProgress(); };
   window.PpunAchievements = {
     award,
     setRole(value) {
